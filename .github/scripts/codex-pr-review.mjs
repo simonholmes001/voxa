@@ -63,7 +63,7 @@ const model = process.env.CODEX_REVIEW_MODEL || 'gpt-5.2';
 const maxDiffChars = Number.parseInt(process.env.CODEX_REVIEW_DIFF_MAX || '120000', 10);
 const maxOutputTokens = Number.parseInt(process.env.CODEX_REVIEW_MAX_OUTPUT_TOKENS || '6000', 10);
 const reasoningEffort = process.env.CODEX_REVIEW_REASONING_EFFORT || 'low';
-const codexReviewMarker = '<!-- codex-review -->';
+const codexReviewMarker = `<!-- codex-review:${pr.head?.sha || process.env.GITHUB_SHA || 'unknown'} -->`;
 
 async function githubRequest(path, options = {}) {
   const response = await fetch(`${githubApi}${path}`, {
