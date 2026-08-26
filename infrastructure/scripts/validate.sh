@@ -8,7 +8,7 @@ BICEP_FILE="$ROOT_DIR/infrastructure/bicep/main.bicep"
 BOOTSTRAP_BICEP_FILE="$ROOT_DIR/infrastructure/bootstrap/main.bicep"
 PARAM_FILE="$ROOT_DIR/infrastructure/bicep/main.parameters.json"
 RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-rg-voxa-${ENVIRONMENT}}"
-LOCATION="${AZURE_LOCATION:-westeurope}"
+LOCATION="${AZURE_LOCATION:-swedencentral}"
 
 cd "$ROOT_DIR"
 
