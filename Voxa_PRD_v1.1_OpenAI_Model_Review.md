@@ -1380,6 +1380,8 @@ Why Functions first:
 
 The MVP backend should be a modular monolith in code even if deployed as a Function App. It should not be split into many independent functions with separate business logic ownership.
 
+The Function App must use a user-assigned managed identity for Azure resource access. It should use outbound virtual network integration to reach private Azure data-plane resources. For the mobile MVP, public HTTPS ingress may remain enabled so iPhone and iPad clients can reach the backend without adding a paid public edge. If Function ingress is made private, the architecture must add an explicit client-access pattern such as Front Door, API Management, App Gateway, or VPN and revalidate cost.
+
 ### Azure Container Apps
 
 Azure Container Apps is not the default MVP runtime.
@@ -1427,6 +1429,8 @@ The MVP data decision should compare:
 
 PostgreSQL should not be introduced for MVP unless relational querying becomes a demonstrated requirement. Deja Groove's move away from PostgreSQL and hosted collection APIs is a useful warning against adding a managed database before the product needs it.
 
+If Cosmos DB is selected, it must be accessed through managed identity/RBAC where supported and private networking in production. Public network access must remain disabled except for explicit, time-bound development exceptions.
+
 ### Azure Key Vault
 
 Stores server-side secrets such as:
@@ -1437,11 +1441,15 @@ Stores server-side secrets such as:
 
 Secrets are never embedded in the mobile app binary.
 
+The backend must access Key Vault with managed identity and RBAC. Production Key Vault access must be restricted through private endpoint/private DNS unless a temporary development exception is explicitly enabled.
+
 ### Azure Storage Account
 
 Required by Azure Functions for host/runtime storage and deployment package storage.
 
 Use standard locally redundant storage. Do not store learner audio or raw transcripts here by default.
+
+Storage account shared key access and blob public access must be disabled. The Function App must use managed identity for runtime/deployment storage access. Production storage access must be through private endpoint/private DNS.
 
 ### Azure Container Registry
 
@@ -1463,6 +1471,17 @@ Used for:
 - cost monitoring.
 
 Telemetry must be sampled and retained for the shortest practical period in dev/test. Logs must not contain raw audio, full transcripts, OpenAI responses, API keys, subscription receipts, or sensitive learner data.
+
+### Virtual Network, Private Endpoints, and Private DNS
+
+The MVP Azure network baseline should be small but private for data-plane services:
+
+- one virtual network per environment;
+- one subnet for Azure Functions Flex Consumption outbound integration;
+- one subnet for private endpoints;
+- private endpoints and private DNS for Storage, Key Vault, and Cosmos DB if Cosmos is enabled.
+
+This is a security requirement, not a signal to add a full enterprise network. Do not add hub-and-spoke networking, firewalls, NAT Gateway, peering, or private ingress services unless a specific threat model or runtime requirement justifies the extra cost.
 
 ## 25.2 Explicitly Not Required Initially
 
@@ -2015,7 +2034,7 @@ For MVP, the default posture is:
 - no always-on compute unless proven necessary;
 - no container registry unless a container runtime is selected;
 - no API Management;
-- no private network topology;
+- private networking limited to one small VNet, two subnets, and private endpoints for required data-plane services;
 - no managed cache;
 - no queue or message bus unless async processing is required;
 - shortest practical telemetry retention;
@@ -2030,6 +2049,8 @@ Function executions / active learner
 Data-store cost / active learner
 Telemetry ingestion GB / month
 Key Vault operations / month
+Private endpoint cost / environment / month
+Private DNS zone cost / environment / month
 ```
 
 Before public beta, the team must produce a simple cost model covering:
@@ -2069,7 +2090,10 @@ Requirements:
 - OpenAI permanent credentials backend-only;
 - short-lived realtime session credentials;
 - Key Vault for secrets;
-- managed identity for Azure resource access where supported;
+- user-assigned managed identity for backend Azure resource access;
+- RBAC instead of connection strings or account keys where Azure services support it;
+- private endpoints and private DNS for Azure data-plane resources in production;
+- public network access disabled for Storage, Key Vault, and Cosmos DB in production;
 - rate limiting;
 - request validation;
 - abuse controls;
@@ -3041,6 +3065,9 @@ Azure
   Azure Storage Account
   Cosmos DB Serverless or cheapest validated durable store
   Key Vault
+  User-assigned Managed Identity
+  Virtual Network with minimal subnets
+  Private Endpoints / Private DNS for data-plane resources
   Application Insights / Log Analytics
   Container Apps only after upgrade triggers
   Container Registry only if container runtime is selected
@@ -3049,7 +3076,7 @@ Infrastructure
   Bicep
 
 Architecture principle
-  Minimal, cost-gated infrastructure until load or functionality proves otherwise
+  Minimal, cost-gated infrastructure with private data-plane access and managed identity by default
 ```
 
 This baseline should be considered the starting architecture for Voxa.

@@ -14,6 +14,15 @@
     "deployCosmos": {
       "value": false
     },
+    "enablePrivateNetworking": {
+      "value": true
+    },
+    "allowPublicNetworkAccessForDev": {
+      "value": false
+    },
+    "enablePrivateFunctionIngress": {
+      "value": false
+    },
     "appInsightsDailyCapGb": {
       "value": 1
     }

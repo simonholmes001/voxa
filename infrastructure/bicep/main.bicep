@@ -18,6 +18,15 @@ param openAiApiKey string = ''
 @description('Whether to deploy Cosmos DB serverless as the initial durable store candidate.')
 param deployCosmos bool = false
 
+@description('Deploy private networking controls: VNet integration, private endpoints, and private DNS zones.')
+param enablePrivateNetworking bool = true
+
+@description('Temporary dev/test escape hatch. Keep false for production.')
+param allowPublicNetworkAccessForDev bool = false
+
+@description('Make the Function App ingress private. Leave false for the mobile MVP unless a public edge such as Front Door, API Management, or VPN is added.')
+param enablePrivateFunctionIngress bool = false
+
 @description('Application Insights daily data cap in GB.')
 @minValue(1)
 param appInsightsDailyCapGb int = 1
@@ -38,6 +47,165 @@ var storageTableDataContributorRoleId = subscriptionResourceId('Microsoft.Author
 var monitoringMetricsPublisherRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')
 var keyVaultSecretsOfficerRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
 var keyVaultSecretsUserRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
+var publicNetworkAccessValue = enablePrivateNetworking && !allowPublicNetworkAccessForDev ? 'Disabled' : 'Enabled'
+var functionPublicNetworkAccessValue = enablePrivateFunctionIngress ? 'Disabled' : 'Enabled'
+
+resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-03-01' = if (enablePrivateNetworking) {
+  name: 'azvnet${resourceToken}'
+  location: location
+  tags: tags
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        '10.42.0.0/24'
+      ]
+    }
+    subnets: [
+      {
+        name: 'function-integration'
+        properties: {
+          addressPrefix: '10.42.0.0/27'
+          delegations: [
+            {
+              name: 'function-flex-delegation'
+              properties: {
+                serviceName: 'Microsoft.App/environments'
+              }
+            }
+          ]
+        }
+      }
+      {
+        name: 'private-endpoints'
+        properties: {
+          addressPrefix: '10.42.0.32/27'
+          privateEndpointNetworkPolicies: 'Disabled'
+        }
+      }
+    ]
+  }
+}
+
+resource functionIntegrationSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-03-01' existing = if (enablePrivateNetworking) {
+  parent: virtualNetwork
+  name: 'function-integration'
+}
+
+resource privateEndpointSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-03-01' existing = if (enablePrivateNetworking) {
+  parent: virtualNetwork
+  name: 'private-endpoints'
+}
+
+resource blobPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking) {
+  #disable-next-line no-hardcoded-env-urls
+  name: 'privatelink.blob.core.windows.net'
+  location: 'global'
+  tags: tags
+}
+
+resource queuePrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking) {
+  #disable-next-line no-hardcoded-env-urls
+  name: 'privatelink.queue.core.windows.net'
+  location: 'global'
+  tags: tags
+}
+
+resource tablePrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking) {
+  #disable-next-line no-hardcoded-env-urls
+  name: 'privatelink.table.core.windows.net'
+  location: 'global'
+  tags: tags
+}
+
+resource vaultPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking) {
+  name: 'privatelink.vaultcore.azure.net'
+  location: 'global'
+  tags: tags
+}
+
+resource functionPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking && enablePrivateFunctionIngress) {
+  name: 'privatelink.azurewebsites.net'
+  location: 'global'
+  tags: tags
+}
+
+resource cosmosPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking && deployCosmos) {
+  name: 'privatelink.documents.azure.com'
+  location: 'global'
+  tags: tags
+}
+
+resource blobPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking) {
+  parent: blobPrivateDnsZone
+  name: 'voxa-vnet'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: virtualNetwork.id
+    }
+  }
+}
+
+resource queuePrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking) {
+  parent: queuePrivateDnsZone
+  name: 'voxa-vnet'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: virtualNetwork.id
+    }
+  }
+}
+
+resource tablePrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking) {
+  parent: tablePrivateDnsZone
+  name: 'voxa-vnet'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: virtualNetwork.id
+    }
+  }
+}
+
+resource vaultPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking) {
+  parent: vaultPrivateDnsZone
+  name: 'voxa-vnet'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: virtualNetwork.id
+    }
+  }
+}
+
+resource functionPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking && enablePrivateFunctionIngress) {
+  parent: functionPrivateDnsZone
+  name: 'voxa-vnet'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: virtualNetwork.id
+    }
+  }
+}
+
+resource cosmosPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking && deployCosmos) {
+  parent: cosmosPrivateDnsZone
+  name: 'voxa-vnet'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: virtualNetwork.id
+    }
+  }
+}
 
 resource appIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: 'azidn${resourceToken}'
@@ -59,7 +227,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     defaultToOAuthAuthentication: true
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: publicNetworkAccessValue
   }
 }
 
@@ -89,7 +257,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enableRbacAuthorization: true
     enableSoftDelete: true
     enabledForTemplateDeployment: false
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: publicNetworkAccessValue
     softDeleteRetentionInDays: 7
   }
 }
@@ -194,7 +362,8 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
   properties: {
     serverFarmId: functionPlan.id
     httpsOnly: true
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: functionPublicNetworkAccessValue
+    virtualNetworkSubnetId: enablePrivateNetworking ? functionIntegrationSubnet.id : null
     functionAppConfig: {
       runtime: {
         name: 'dotnet-isolated'
@@ -228,6 +397,10 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         {
           name: 'AzureWebJobsStorage__clientId'
           value: appIdentity.properties.clientId
+        }
+        {
+          name: 'WEBSITE_VNET_ROUTE_ALL'
+          value: enablePrivateNetworking ? '1' : '0'
         }
         {
           name: 'FUNCTIONS_EXTENSION_VERSION'
@@ -327,6 +500,191 @@ resource functionDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-p
   }
 }
 
+resource storageBlobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking) {
+  name: 'azpepblob${resourceToken}'
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: privateEndpointSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'storage-blob'
+        properties: {
+          privateLinkServiceId: storageAccount.id
+          groupIds: [
+            'blob'
+          ]
+        }
+      }
+    ]
+  }
+}
+
+resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-03-01' = if (enablePrivateNetworking) {
+  parent: storageBlobPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'blob'
+        properties: {
+          privateDnsZoneId: blobPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource storageQueuePrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking) {
+  name: 'azpepque${resourceToken}'
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: privateEndpointSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'storage-queue'
+        properties: {
+          privateLinkServiceId: storageAccount.id
+          groupIds: [
+            'queue'
+          ]
+        }
+      }
+    ]
+  }
+}
+
+resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-03-01' = if (enablePrivateNetworking) {
+  parent: storageQueuePrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'queue'
+        properties: {
+          privateDnsZoneId: queuePrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource storageTablePrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking) {
+  name: 'azpeptbl${resourceToken}'
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: privateEndpointSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'storage-table'
+        properties: {
+          privateLinkServiceId: storageAccount.id
+          groupIds: [
+            'table'
+          ]
+        }
+      }
+    ]
+  }
+}
+
+resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-03-01' = if (enablePrivateNetworking) {
+  parent: storageTablePrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'table'
+        properties: {
+          privateDnsZoneId: tablePrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking) {
+  name: 'azpepkv${resourceToken}'
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: privateEndpointSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'key-vault'
+        properties: {
+          privateLinkServiceId: keyVault.id
+          groupIds: [
+            'vault'
+          ]
+        }
+      }
+    ]
+  }
+}
+
+resource keyVaultPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-03-01' = if (enablePrivateNetworking) {
+  parent: keyVaultPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'vault'
+        properties: {
+          privateDnsZoneId: vaultPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource functionPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking && enablePrivateFunctionIngress) {
+  name: 'azpepfn${resourceToken}'
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: privateEndpointSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'function-app'
+        properties: {
+          privateLinkServiceId: functionApp.id
+          groupIds: [
+            'sites'
+          ]
+        }
+      }
+    ]
+  }
+}
+
+resource functionPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-03-01' = if (enablePrivateNetworking && enablePrivateFunctionIngress) {
+  parent: functionPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'sites'
+        properties: {
+          privateDnsZoneId: functionPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
 resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = if (deployCosmos) {
   name: 'azcos${resourceToken}'
   location: location
@@ -336,9 +694,9 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = if (
     databaseAccountOfferType: 'Standard'
     enableFreeTier: true
     enableAutomaticFailover: false
-    publicNetworkAccess: 'Enabled'
-    networkAclBypass: 'AzureServices'
-    ipRules: [
+    publicNetworkAccess: publicNetworkAccessValue
+    networkAclBypass: enablePrivateNetworking ? 'None' : 'AzureServices'
+    ipRules: enablePrivateNetworking ? [] : [
       {
         ipAddressOrRange: '0.0.0.0'
       }
@@ -387,9 +745,47 @@ resource learnerContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/co
   }
 }
 
+resource cosmosPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking && deployCosmos) {
+  name: 'azpepcos${resourceToken}'
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: privateEndpointSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'cosmos-sql'
+        properties: {
+          privateLinkServiceId: cosmosAccount.id
+          groupIds: [
+            'Sql'
+          ]
+        }
+      }
+    ]
+  }
+}
+
+resource cosmosPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-03-01' = if (enablePrivateNetworking && deployCosmos) {
+  parent: cosmosPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'documents'
+        properties: {
+          privateDnsZoneId: cosmosPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
 output functionAppName string = functionApp.name
 output functionAppHostName string = functionApp.properties.defaultHostName
 output keyVaultName string = keyVault.name
 output storageAccountName string = storageAccount.name
 output applicationInsightsName string = appInsights.name
 output cosmosAccountName string = deployCosmos ? cosmosAccount.name : ''
+output virtualNetworkName string = enablePrivateNetworking ? virtualNetwork.name : ''
