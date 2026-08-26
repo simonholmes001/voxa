@@ -1,0 +1,43 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  branch-name:
+    name: Branch Name
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch name pattern
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          PATTERN='^(feature|fix|chore|docs|refactor|test|ci)/[a-z0-9][a-z0-9_-]*(/[a-z0-9][a-z0-9_-]*)?$'
+          if echo "$BRANCH" | grep -qE "$PATTERN"; then
+            echo "Branch name '$BRANCH' matches required pattern."
+          else
+            echo "Branch name '$BRANCH' does not match required pattern."
+            echo "Required format: <type>/<description>"
+            echo "Example: feature/setup-ci-hooks-actions"
+            exit 1
+          fi
+
+  pr-title:
+    name: PR Title (Conventional Commits)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title format
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          PATTERN='^(feat|fix|chore|docs|refactor|test|ci|perf|build|revert)(\([a-z0-9_/-]+\))?(!)?: .{1,100}$'
+          if echo "$PR_TITLE" | grep -qE "$PATTERN"; then
+            echo "PR title matches Conventional Commits format."
+          else
+            echo "PR title does not match Conventional Commits format."
+            echo "Required: <type>[(scope)]: <description>"
+            echo "Example: ci: add Voxa repository guardrails"
+            exit 1
+          fi

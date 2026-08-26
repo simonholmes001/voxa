@@ -1,0 +1,99 @@
+name: Azure Infrastructure Deploy (Dev)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/**"
+      - "backend/**"
+      - "functions/**"
+      - ".github/workflows/infrastructure-deploy-dev.yaml"
+      - ".github/workflows/infrastructure-validate.yaml"
+      - ".github/workflows/iac-lint.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: voxa-dev-infrastructure-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-dev:
+    name: Deploy Dev Infrastructure
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Detect Voxa infrastructure
+        id: detect
+        shell: bash
+        run: |
+          if [ -f infrastructure/bicep/main.bicep ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "infrastructure/bicep/main.bicep is not present; deployment is skipped."
+          fi
+
+      - name: Run infrastructure guard tests
+        if: steps.detect.outputs.exists == 'true'
+        shell: bash
+        run: bash ./infrastructure/scripts/guard-tests.sh
+
+      - name: Verify Azure OIDC configuration
+        if: steps.detect.outputs.exists == 'true'
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          missing=0
+          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is not configured in the dev GitHub environment."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Run ./scripts/setup-azure-auth-for-pipeline.sh dev, then copy its outputs into the dev GitHub environment variables."
+            exit 1
+          fi
+
+      - name: Login to Azure (OIDC)
+        if: steps.detect.outputs.exists == 'true'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy dev infrastructure
+        if: steps.detect.outputs.exists == 'true'
+        shell: bash
+        run: bash ./infrastructure/scripts/deploy.sh dev
+
+      - name: Detect deployable Function app package
+        if: steps.detect.outputs.exists == 'true'
+        id: function-code
+        shell: bash
+        run: |
+          if [ -f backend/Voxa.Api/Voxa.Api.csproj ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No backend/Voxa.Api project exists yet; infrastructure-only deployment completed."
+          fi
+
+      - name: Publish Function code
+        if: steps.detect.outputs.exists == 'true' && steps.function-code.outputs.exists == 'true'
+        shell: bash
+        run: |
+          echo "::notice::Function code deployment is intentionally not wired until the backend project and package shape are created."
+          echo "::notice::Add the publish/package command here when backend/Voxa.Api exists."

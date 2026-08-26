@@ -1,0 +1,7 @@
+git_url(ENV.fetch("MATCH_GIT_URL"))
+storage_mode("git")
+type("appstore")
+app_identifier([ENV.fetch("VOXA_APP_IDENTIFIER")])
+username(ENV.fetch("VOXA_APPLE_ID"))
+team_id(ENV.fetch("VOXA_TEAM_ID"))
+readonly(true)

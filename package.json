@@ -1,0 +1,12 @@
+{
+  "name": "voxa",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Voxa iPhone and iPad AI language tutor foundation",
+  "scripts": {
+    "test": "node --test .github/scripts/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

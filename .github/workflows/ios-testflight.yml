@@ -1,0 +1,135 @@
+name: iOS TestFlight
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-testflight.yml"
+      - ".github/scripts/validate-ios-project.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upload-testflight:
+    name: Upload Internal TestFlight Build
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Detect iOS project
+        id: detect
+        shell: bash
+        run: |
+          if [ -d ios ] && find ios -maxdepth 3 \( -name '*.xcodeproj' -o -name '*.xcworkspace' \) -print -quit | grep -q .; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No Xcode project/workspace exists yet; TestFlight upload is skipped."
+          fi
+
+      - name: Validate required secrets
+        if: steps.detect.outputs.exists == 'true'
+        shell: bash
+        env:
+          VOXA_APP_IDENTIFIER: ${{ secrets.VOXA_APP_IDENTIFIER }}
+          VOXA_APPLE_ID: ${{ secrets.VOXA_APPLE_ID }}
+          VOXA_ITC_TEAM_ID: ${{ secrets.VOXA_ITC_TEAM_ID }}
+          VOXA_TEAM_ID: ${{ secrets.VOXA_TEAM_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          VOXA_XCODE_PROJECT: ${{ secrets.VOXA_XCODE_PROJECT }}
+          VOXA_XCODE_WORKSPACE: ${{ secrets.VOXA_XCODE_WORKSPACE }}
+          VOXA_XCODE_SCHEME: ${{ secrets.VOXA_XCODE_SCHEME }}
+        run: |
+          required=(
+            VOXA_APP_IDENTIFIER
+            VOXA_APPLE_ID
+            VOXA_ITC_TEAM_ID
+            VOXA_TEAM_ID
+            MATCH_GIT_URL
+            MATCH_PASSWORD
+            MATCH_KEYCHAIN_PASSWORD
+            MATCH_GIT_BASIC_AUTHORIZATION
+            APP_STORE_CONNECT_API_KEY_ID
+            APP_STORE_CONNECT_API_ISSUER_ID
+            APP_STORE_CONNECT_API_KEY_BASE64
+            VOXA_XCODE_SCHEME
+          )
+          for key in "${required[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "Missing required secret: $key" >&2
+              exit 1
+            fi
+          done
+          if [ -n "${VOXA_XCODE_PROJECT:-}" ] && [ -n "${VOXA_XCODE_WORKSPACE:-}" ]; then
+            echo "Set only one of VOXA_XCODE_PROJECT or VOXA_XCODE_WORKSPACE" >&2
+            exit 1
+          fi
+          if [ -z "${VOXA_XCODE_PROJECT:-}" ] && [ -z "${VOXA_XCODE_WORKSPACE:-}" ]; then
+            echo "Either VOXA_XCODE_PROJECT or VOXA_XCODE_WORKSPACE is required" >&2
+            exit 1
+          fi
+
+      - name: Decode App Store Connect API key
+        if: steps.detect.outputs.exists == 'true'
+        shell: bash
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          umask 077
+          key_path="$(mktemp /tmp/voxa-authkey.XXXXXX.p8)"
+          echo "${APP_STORE_CONNECT_API_KEY_BASE64}" | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          echo "APP_STORE_CONNECT_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Setup Ruby
+        if: steps.detect.outputs.exists == 'true'
+        uses: ruby/setup-ruby@97ecb7b512899eb71ab1bf2310a624c6f1589ac6
+        with:
+          ruby-version: "3.1"
+          bundler: "2.5.23"
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Validate iOS project, scheme, and privacy manifest
+        if: steps.detect.outputs.exists == 'true'
+        shell: bash
+        env:
+          VOXA_XCODE_PROJECT: ${{ secrets.VOXA_XCODE_PROJECT }}
+          VOXA_XCODE_WORKSPACE: ${{ secrets.VOXA_XCODE_WORKSPACE }}
+          VOXA_XCODE_SCHEME: ${{ secrets.VOXA_XCODE_SCHEME }}
+        run: bash .github/scripts/validate-ios-project.sh
+
+      - name: Upload internal TestFlight build
+        if: steps.detect.outputs.exists == 'true'
+        working-directory: ios
+        env:
+          VOXA_APP_IDENTIFIER: ${{ secrets.VOXA_APP_IDENTIFIER }}
+          VOXA_APPLE_ID: ${{ secrets.VOXA_APPLE_ID }}
+          VOXA_ITC_TEAM_ID: ${{ secrets.VOXA_ITC_TEAM_ID }}
+          VOXA_TEAM_ID: ${{ secrets.VOXA_TEAM_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          VOXA_XCODE_PROJECT: ${{ secrets.VOXA_XCODE_PROJECT }}
+          VOXA_XCODE_WORKSPACE: ${{ secrets.VOXA_XCODE_WORKSPACE }}
+          VOXA_XCODE_SCHEME: ${{ secrets.VOXA_XCODE_SCHEME }}
+          VOXA_BUILD_NUMBER: ${{ github.run_number }}
+        run: bundle exec fastlane ios upload_internal_testflight
+
+      - name: Cleanup App Store Connect API key
+        if: always()
+        shell: bash
+        run: rm -f "${APP_STORE_CONNECT_API_KEY_PATH:-}"
