@@ -12,8 +12,14 @@ param location string = deployment().location
 @description('GitHub organization or user that owns the repository.')
 param githubOrg string = 'simonholmes001'
 
+@description('Immutable GitHub organization/user ID used in OIDC subject claims.')
+param githubOrgId string = '31061938'
+
 @description('GitHub repository name.')
 param githubRepo string = 'voxa'
+
+@description('Immutable GitHub repository ID used in OIDC subject claims.')
+param githubRepoId string = '1347555953'
 
 @description('GitHub ref allowed to deploy Azure resources.')
 param githubRef string = 'refs/heads/main'
@@ -66,7 +72,9 @@ module pipelineIdentity './modules/pipeline-identity.bicep' = {
     location: location
     pipelineIdentityName: pipelineIdentityName
     githubOrg: githubOrg
+    githubOrgId: githubOrgId
     githubRepo: githubRepo
+    githubRepoId: githubRepoId
     githubRef: githubRef
   }
 }

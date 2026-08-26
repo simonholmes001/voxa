@@ -11,8 +11,14 @@
     "githubOrg": {
       "value": "simonholmes001"
     },
+    "githubOrgId": {
+      "value": "31061938"
+    },
     "githubRepo": {
       "value": "voxa"
+    },
+    "githubRepoId": {
+      "value": "1347555953"
     },
     "githubRef": {
       "value": "refs/heads/main"

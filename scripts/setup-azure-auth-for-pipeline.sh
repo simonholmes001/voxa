@@ -4,6 +4,8 @@ set -euo pipefail
 ENVIRONMENT="${1:-dev}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-simonholmes001/voxa}"
 GITHUB_REF="${GITHUB_REF:-refs/heads/main}"
+GITHUB_OWNER_ID="${GITHUB_OWNER_ID:-31061938}"
+GITHUB_REPO_ID="${GITHUB_REPO_ID:-1347555953}"
 LOCATION="${AZURE_LOCATION:-swedencentral}"
 SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID:-}"
 PIPELINE_RG="${AZURE_PIPELINE_RESOURCE_GROUP:-rg-voxa-pipeline-identity}"
@@ -30,7 +32,9 @@ az deployment sub create \
     environmentName="$ENVIRONMENT" \
     location="$LOCATION" \
     githubOrg="$GITHUB_ORG" \
+    githubOrgId="$GITHUB_OWNER_ID" \
     githubRepo="$GITHUB_REPO" \
+    githubRepoId="$GITHUB_REPO_ID" \
     githubRef="$GITHUB_REF" \
     pipelineResourceGroupName="$PIPELINE_RG" \
     targetResourceGroupName="$TARGET_RG" \
