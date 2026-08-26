@@ -5,6 +5,7 @@ ENVIRONMENT="${1:-dev}"
 MODE="${2:-}"
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BICEP_FILE="$ROOT_DIR/infrastructure/bicep/main.bicep"
+BOOTSTRAP_BICEP_FILE="$ROOT_DIR/infrastructure/bootstrap/main.bicep"
 PARAM_FILE="$ROOT_DIR/infrastructure/bicep/main.parameters.json"
 RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-rg-voxa-${ENVIRONMENT}}"
 LOCATION="${AZURE_LOCATION:-westeurope}"
@@ -12,18 +13,13 @@ LOCATION="${AZURE_LOCATION:-westeurope}"
 cd "$ROOT_DIR"
 
 bash ./infrastructure/scripts/guard-tests.sh
+az bicep build --file "$BOOTSTRAP_BICEP_FILE"
 az bicep build --file "$BICEP_FILE"
 
 if [ "$MODE" = "--lint-only" ]; then
   echo "Bicep lint/build completed."
   exit 0
 fi
-
-az group create \
-  --name "$RESOURCE_GROUP" \
-  --location "$LOCATION" \
-  --tags application=voxa environment="$ENVIRONMENT" managedBy=bicep costProfile=minimal \
-  --yes >/dev/null
 
 if [ "$MODE" = "--what-if" ]; then
   az deployment group what-if \

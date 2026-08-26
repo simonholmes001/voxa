@@ -5,6 +5,9 @@
 
 .artifacts/
 .worktrees/
+
+# Bicep build output; source of truth is *.bicep.
+infrastructure/**/main.json
 .azure/
 !.azure/pipeline-setup.md
 

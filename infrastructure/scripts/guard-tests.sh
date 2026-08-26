@@ -3,8 +3,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BICEP_FILE="$ROOT_DIR/infrastructure/bicep/main.bicep"
+BOOTSTRAP_BICEP_FILE="$ROOT_DIR/infrastructure/bootstrap/main.bicep"
 
 [ -f "$BICEP_FILE" ] || { echo "Missing $BICEP_FILE" >&2; exit 1; }
+[ -f "$BOOTSTRAP_BICEP_FILE" ] || { echo "Missing $BOOTSTRAP_BICEP_FILE" >&2; exit 1; }
 
 grep -q "FlexConsumption" "$BICEP_FILE" || { echo "Function plan must use Flex Consumption." >&2; exit 1; }
 grep -q "UserAssigned" "$BICEP_FILE" || { echo "Function app must use user-assigned managed identity." >&2; exit 1; }
@@ -29,5 +31,12 @@ if grep -q "Microsoft.ContainerRegistry" "$BICEP_FILE"; then
   echo "ACR must not be part of the MVP baseline." >&2
   exit 1
 fi
+
+grep -q "targetScope = 'subscription'" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must deploy at subscription scope." >&2; exit 1; }
+grep -q "Microsoft.Resources/resourceGroups" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must create resource groups through Bicep." >&2; exit 1; }
+grep -R -q "Microsoft.ManagedIdentity/userAssignedIdentities" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must create the GitHub Actions managed identity." >&2; exit 1; }
+grep -R -q "federatedIdentityCredentials" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must configure GitHub OIDC federated credentials." >&2; exit 1; }
+grep -R -q "repo:\${githubOrg}/\${githubRepo}:environment:\${githubEnvironment}" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Federated credential must be scoped to a GitHub environment." >&2; exit 1; }
+grep -R -q "Microsoft.Authorization/roleAssignments" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must assign target resource group RBAC." >&2; exit 1; }
 
 echo "Infrastructure guard tests passed."

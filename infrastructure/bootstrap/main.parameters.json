@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "dev"
+    },
+    "location": {
+      "value": "westeurope"
+    },
+    "githubOrg": {
+      "value": "simonholmes001"
+    },
+    "githubRepo": {
+      "value": "voxa"
+    },
+    "githubEnvironment": {
+      "value": "dev"
+    },
+    "pipelineResourceGroupName": {
+      "value": "rg-voxa-pipeline-identity"
+    },
+    "targetResourceGroupName": {
+      "value": "rg-voxa-dev"
+    },
+    "pipelineIdentityName": {
+      "value": "id-voxa-github-actions"
+    }
+  }
+}

@@ -1483,6 +1483,20 @@ The MVP Azure network baseline should be small but private for data-plane servic
 
 This is a security requirement, not a signal to add a full enterprise network. Do not add hub-and-spoke networking, firewalls, NAT Gateway, peering, or private ingress services unless a specific threat model or runtime requirement justifies the extra cost.
 
+### CI/CD Bootstrap Identity
+
+GitHub Actions Azure access must be bootstrapped through code, not portal-only setup.
+
+The repository should include subscription-scoped Bicep that creates:
+
+- pipeline identity resource group;
+- user-assigned managed identity for GitHub Actions;
+- GitHub OIDC federated credentials scoped to repository environments;
+- target environment resource group;
+- resource-group-scoped RBAC for deployment.
+
+Do not store Azure client secrets in GitHub. The GitHub workflow should use OIDC and the managed identity client ID, tenant ID, and subscription ID as environment variables.
+
 ## 25.2 Explicitly Not Required Initially
 
 Do not introduce the following until justified:
@@ -3074,6 +3088,7 @@ Azure
 
 Infrastructure
   Bicep
+  Subscription-scoped bootstrap Bicep for GitHub Actions OIDC identity
 
 Architecture principle
   Minimal, cost-gated infrastructure with private data-plane access and managed identity by default

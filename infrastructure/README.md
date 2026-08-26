@@ -14,6 +14,28 @@ Container Apps and Azure Container Registry are intentionally not part of the MV
 
 The Function App keeps public HTTPS ingress enabled for the mobile MVP so iPhone and iPad clients can reach the backend without adding a paid public edge. Data-plane resources default to public network access disabled. If Function ingress must also become private, set `enablePrivateFunctionIngress=true` and add an explicit public access pattern such as Front Door, API Management, App Gateway, or VPN.
 
+## One-Time Azure Bootstrap
+
+The GitHub Actions deployment identity is also managed through Bicep. Run the bootstrap deployment once from an Azure CLI session that has permission to create resource groups, managed identities, federated credentials, and role assignments:
+
+```bash
+az login
+az account set --subscription "<subscription-id>"
+
+AZURE_SUBSCRIPTION_ID="<subscription-id>" \
+./scripts/setup-azure-auth-for-pipeline.sh dev
+```
+
+The bootstrap deployment creates:
+
+- `rg-voxa-pipeline-identity`
+- `id-voxa-github-actions`
+- GitHub OIDC federated credential for the `dev` environment
+- `rg-voxa-dev`
+- `Contributor` assignment for the pipeline identity on `rg-voxa-dev`
+
+Copy the deployment outputs into the `dev` GitHub environment variables listed below.
+
 ## Required GitHub Environment Variables
 
 Configure these as GitHub environment variables for `dev`, `staging`, and `production` as needed:
@@ -39,8 +61,6 @@ AZURE_CONFIG_DIR=/tmp/voxa-azure ./infrastructure/scripts/validate.sh dev --lint
 Full validation and what-if require Azure login:
 
 ```bash
-AZURE_RESOURCE_GROUP=rg-voxa-dev \
-AZURE_LOCATION=westeurope \
 AZURE_CONFIG_DIR=/tmp/voxa-azure \
 ./infrastructure/scripts/validate.sh dev --what-if
 ```

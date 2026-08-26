@@ -17,12 +17,6 @@ cd "$ROOT_DIR"
 
 bash ./infrastructure/scripts/validate.sh "$ENVIRONMENT" --lint-only
 
-az group create \
-  --name "$RESOURCE_GROUP" \
-  --location "$LOCATION" \
-  --tags application=voxa environment="$ENVIRONMENT" managedBy=bicep costProfile=minimal \
-  --yes >/dev/null
-
 az deployment group create \
   --resource-group "$RESOURCE_GROUP" \
   --template-file "$BICEP_FILE" \
