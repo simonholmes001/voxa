@@ -30,7 +30,7 @@ The bootstrap deployment creates:
 
 - `rg-voxa-pipeline-identity`
 - `id-voxa-github-actions`
-- GitHub OIDC federated credential for `refs/heads/main`
+- GitHub OIDC federated credential for `refs/heads/main` using GitHub's immutable owner/repository subject format
 - `rg-voxa-dev`
 - `Contributor` assignment for the pipeline identity on `rg-voxa-dev`
 
