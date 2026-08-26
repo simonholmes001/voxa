@@ -1,0 +1,4 @@
+app_identifier(ENV.fetch("VOXA_APP_IDENTIFIER"))
+apple_id(ENV.fetch("VOXA_APPLE_ID"))
+itc_team_id(ENV.fetch("VOXA_ITC_TEAM_ID"))
+team_id(ENV.fetch("VOXA_TEAM_ID"))

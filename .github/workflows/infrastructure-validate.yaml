@@ -1,0 +1,63 @@
+name: Azure Infrastructure Validate (PR)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infrastructure/**"
+      - ".github/workflows/infrastructure-validate.yaml"
+      - ".github/workflows/iac-lint.yaml"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate-dev:
+    name: Validate Dev Infrastructure
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Detect Voxa infrastructure
+        id: detect
+        shell: bash
+        run: |
+          if [ -f infrastructure/bicep/main.bicep ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "needs_azure=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "needs_azure=false" >> "$GITHUB_OUTPUT"
+            echo "Voxa infrastructure is not present yet; Azure validation is skipped."
+          fi
+
+      - name: Run infrastructure guard tests
+        if: steps.detect.outputs.exists == 'true'
+        shell: bash
+        run: bash ./infrastructure/scripts/guard-tests.sh
+
+      - name: Lint Voxa infrastructure
+        if: steps.detect.outputs.exists == 'true'
+        shell: bash
+        run: bash ./infrastructure/scripts/validate.sh dev --lint-only
+
+      - name: Login to Azure (OIDC)
+        if: steps.detect.outputs.needs_azure == 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate Voxa infrastructure
+        if: steps.detect.outputs.needs_azure == 'true'
+        shell: bash
+        run: bash ./infrastructure/scripts/validate.sh dev
+
+      - name: Run Voxa infrastructure what-if
+        if: steps.detect.outputs.needs_azure == 'true'
+        shell: bash
+        run: bash ./infrastructure/scripts/validate.sh dev --what-if

@@ -1,0 +1,47 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and upload an internal TestFlight build"
+  lane :upload_internal_testflight do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("APP_STORE_CONNECT_API_KEY_ID"),
+      issuer_id: ENV.fetch("APP_STORE_CONNECT_API_ISSUER_ID"),
+      key_filepath: ENV.fetch("APP_STORE_CONNECT_API_KEY_PATH"),
+      duration: 1200,
+      in_house: false
+    )
+
+    setup_ci
+    match(
+      type: "appstore",
+      readonly: true,
+      git_basic_authorization: ENV.fetch("MATCH_GIT_BASIC_AUTHORIZATION")
+    )
+
+    project_path = ENV["VOXA_XCODE_PROJECT"]
+    workspace_path = ENV["VOXA_XCODE_WORKSPACE"]
+    scheme = ENV.fetch("VOXA_XCODE_SCHEME")
+
+    increment_build_number(
+      build_number: ENV.fetch("VOXA_BUILD_NUMBER")
+    )
+
+    gym_options = {
+      scheme: scheme,
+      configuration: "Release",
+      export_method: "app-store",
+      clean: true
+    }
+
+    if project_path && !project_path.empty?
+      gym_options[:project] = project_path
+    elsif workspace_path && !workspace_path.empty?
+      gym_options[:workspace] = workspace_path
+    else
+      UI.user_error!("Set VOXA_XCODE_PROJECT or VOXA_XCODE_WORKSPACE")
+    end
+
+    build_app(gym_options)
+    upload_to_testflight(api_key: api_key, skip_waiting_for_build_processing: true)
+  end
+end

@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+NPM_CACHE_DIR="$ROOT_DIR/.artifacts/npm-cache"
+mkdir -p "$NPM_CACHE_DIR"
+
+run_root_node_tests() {
+  if [ ! -f "package.json" ]; then
+    echo "No root package.json; skipping Node tests."
+    return 0
+  fi
+
+  echo ""
+  echo "Running root Node tests before commit..."
+  if [ -f "package-lock.json" ]; then
+    npm --cache "$NPM_CACHE_DIR" ci --workspaces=false
+  else
+    npm --cache "$NPM_CACHE_DIR" install
+  fi
+
+  if node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts.test ? 0 : 1)"; then
+    npm --cache "$NPM_CACHE_DIR" run test
+  else
+    echo "No root test script; skipping."
+  fi
+}
+
+run_node_tests() {
+  local dir="$1"
+  if [ ! -f "$dir/package.json" ]; then
+    echo "No Node project in $dir; skipping."
+    return 0
+  fi
+
+  echo ""
+  echo "Running Node tests in $dir before commit..."
+  if [ -f "$dir/package-lock.json" ]; then
+    npm --cache "$NPM_CACHE_DIR" --prefix "$dir" ci --workspaces=false
+  else
+    npm --cache "$NPM_CACHE_DIR" --prefix "$dir" install
+  fi
+
+  if node -e "const p=require('./$dir/package.json'); process.exit(p.scripts && p.scripts.test ? 0 : 1)"; then
+    npm --cache "$NPM_CACHE_DIR" --prefix "$dir" run test
+  else
+    echo "No test script in $dir/package.json; skipping."
+  fi
+}
+
+run_dotnet_tests() {
+  if compgen -G "backend/*.sln" > /dev/null; then
+    echo ""
+    echo "Running .NET tests before commit..."
+    dotnet test backend/*.sln --verbosity minimal
+  else
+    echo "No backend .NET solution; skipping."
+  fi
+}
+
+run_swift_tests() {
+  local target_dir="$1"
+  if [ ! -f "$target_dir/Package.swift" ]; then
+    echo "No Swift package in $target_dir; skipping."
+    return 0
+  fi
+
+  if ! command -v swift >/dev/null 2>&1; then
+    echo "swift not found in PATH. Cannot run Swift tests in $target_dir."
+    return 1
+  fi
+
+  echo ""
+  echo "Running Swift tests in $target_dir before commit..."
+  swift test --package-path "$target_dir"
+}
+
+run_root_node_tests
+run_node_tests "functions/voxa-api"
+run_dotnet_tests
+run_swift_tests "ios/VoxaApp"
+
+echo ""
+echo "Pre-commit guardrails passed."
