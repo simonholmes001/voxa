@@ -3,8 +3,6 @@ targetScope = 'resourceGroup'
 @description('Deployment environment name.')
 @allowed([
   'dev'
-  'staging'
-  'prod'
 ])
 param environmentName string
 

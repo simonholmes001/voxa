@@ -3,6 +3,7 @@ set -euo pipefail
 
 ENVIRONMENT="${1:-dev}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-simonholmes001/voxa}"
+GITHUB_REF="${GITHUB_REF:-refs/heads/main}"
 LOCATION="${AZURE_LOCATION:-westeurope}"
 SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID:-}"
 PIPELINE_RG="${AZURE_PIPELINE_RESOURCE_GROUP:-rg-voxa-pipeline-identity}"
@@ -30,14 +31,14 @@ az deployment sub create \
     location="$LOCATION" \
     githubOrg="$GITHUB_ORG" \
     githubRepo="$GITHUB_REPO" \
-    githubEnvironment="$ENVIRONMENT" \
+    githubRef="$GITHUB_REF" \
     pipelineResourceGroupName="$PIPELINE_RG" \
     targetResourceGroupName="$TARGET_RG" \
     pipelineIdentityName="$IDENTITY_NAME" \
   --query properties.outputs
 
 echo
-echo "Copy these output values into the '${ENVIRONMENT}' GitHub environment variables:"
+echo "Copy these output values into repository secrets:"
 echo "AZURE_CLIENT_ID      = azureClientId.value"
 echo "AZURE_TENANT_ID      = azureTenantId.value"
 echo "AZURE_SUBSCRIPTION_ID= azureSubscriptionId.value"

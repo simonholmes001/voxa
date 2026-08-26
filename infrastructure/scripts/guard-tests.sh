@@ -36,7 +36,7 @@ grep -q "targetScope = 'subscription'" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootst
 grep -q "Microsoft.Resources/resourceGroups" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must create resource groups through Bicep." >&2; exit 1; }
 grep -R -q "Microsoft.ManagedIdentity/userAssignedIdentities" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must create the GitHub Actions managed identity." >&2; exit 1; }
 grep -R -q "federatedIdentityCredentials" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must configure GitHub OIDC federated credentials." >&2; exit 1; }
-grep -R -q "repo:\${githubOrg}/\${githubRepo}:environment:\${githubEnvironment}" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Federated credential must be scoped to a GitHub environment." >&2; exit 1; }
+grep -R -q "repo:\${githubOrg}/\${githubRepo}:ref:\${githubRef}" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Federated credential must be scoped to the main branch ref." >&2; exit 1; }
 grep -R -q "Microsoft.Authorization/roleAssignments" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must assign target resource group RBAC." >&2; exit 1; }
 
 echo "Infrastructure guard tests passed."

@@ -30,26 +30,23 @@ The bootstrap deployment creates:
 
 - `rg-voxa-pipeline-identity`
 - `id-voxa-github-actions`
-- GitHub OIDC federated credential for the `dev` environment
+- GitHub OIDC federated credential for `refs/heads/main`
 - `rg-voxa-dev`
 - `Contributor` assignment for the pipeline identity on `rg-voxa-dev`
 
-Copy the deployment outputs into the `dev` GitHub environment variables listed below.
+Copy the deployment outputs into the repository secrets listed below.
 
-Pull request infrastructure validation intentionally runs local guard tests and Bicep lint only. Azure-authenticated validation and deployment run from the protected `dev` environment after the bootstrap variables exist.
+Pull request infrastructure validation intentionally runs local guard tests and Bicep lint only. Azure-authenticated deployment runs after the repository secrets exist.
 
-## Required GitHub Environment Variables
+## Required Repository Secrets
 
-Configure these as GitHub environment variables for `dev`, `staging`, and `production` as needed:
+Configure these as GitHub repository secrets:
 
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 - `AZURE_LOCATION`
 - `AZURE_RESOURCE_GROUP`
-
-Configure this as a GitHub environment secret:
-
 - `OPENAI_API_KEY`
 
 Do not configure Azure client secrets. The deployment workflows use GitHub OIDC with a user-assigned managed identity.
