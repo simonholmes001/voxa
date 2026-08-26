@@ -36,6 +36,8 @@ The bootstrap deployment creates:
 
 Copy the deployment outputs into the `dev` GitHub environment variables listed below.
 
+Pull request infrastructure validation intentionally runs local guard tests and Bicep lint only. Azure-authenticated validation and deployment run from the protected `dev` environment after the bootstrap variables exist.
+
 ## Required GitHub Environment Variables
 
 Configure these as GitHub environment variables for `dev`, `staging`, and `production` as needed:
