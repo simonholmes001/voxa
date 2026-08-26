@@ -4,7 +4,7 @@ set -euo pipefail
 ENVIRONMENT="${1:-dev}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-simonholmes001/voxa}"
 GITHUB_REF="${GITHUB_REF:-refs/heads/main}"
-LOCATION="${AZURE_LOCATION:-westeurope}"
+LOCATION="${AZURE_LOCATION:-swedencentral}"
 SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID:-}"
 PIPELINE_RG="${AZURE_PIPELINE_RESOURCE_GROUP:-rg-voxa-pipeline-identity}"
 TARGET_RG="${AZURE_RESOURCE_GROUP:-rg-voxa-${ENVIRONMENT}}"
