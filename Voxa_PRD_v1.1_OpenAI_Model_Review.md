@@ -1491,11 +1491,11 @@ The repository should include subscription-scoped Bicep that creates:
 
 - pipeline identity resource group;
 - user-assigned managed identity for GitHub Actions;
-- GitHub OIDC federated credentials scoped to repository environments;
+- GitHub OIDC federated credential scoped to the main branch deployment workflow;
 - target environment resource group;
 - resource-group-scoped RBAC for deployment.
 
-Do not store Azure client secrets in GitHub. The GitHub workflow should use OIDC and the managed identity client ID, tenant ID, and subscription ID as environment variables.
+Do not store Azure client secrets in GitHub. The GitHub workflow should use OIDC and repository secrets for the managed identity client ID, tenant ID, subscription ID, target location, target resource group, and OpenAI API key.
 
 ## 25.2 Explicitly Not Required Initially
 

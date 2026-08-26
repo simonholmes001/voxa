@@ -12,10 +12,10 @@ param githubOrg string
 @description('GitHub repository name.')
 param githubRepo string
 
-@description('GitHub environment name used by Azure deployment workflows.')
-param githubEnvironment string
+@description('GitHub ref allowed to deploy Azure resources.')
+param githubRef string
 
-var federatedCredentialName = 'github-${githubEnvironment}'
+var federatedCredentialName = 'github-main'
 
 resource pipelineIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: pipelineIdentityName
@@ -32,7 +32,7 @@ resource githubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdenti
   name: federatedCredentialName
   properties: {
     issuer: 'https://token.actions.githubusercontent.com'
-    subject: 'repo:${githubOrg}/${githubRepo}:environment:${githubEnvironment}'
+    subject: 'repo:${githubOrg}/${githubRepo}:ref:${githubRef}'
     audiences: [
       'api://AzureADTokenExchange'
     ]

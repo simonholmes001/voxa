@@ -14,8 +14,8 @@
     "githubRepo": {
       "value": "voxa"
     },
-    "githubEnvironment": {
-      "value": "dev"
+    "githubRef": {
+      "value": "refs/heads/main"
     },
     "pipelineResourceGroupName": {
       "value": "rg-voxa-pipeline-identity"

@@ -3,8 +3,6 @@ targetScope = 'subscription'
 @description('Deployment environment name.')
 @allowed([
   'dev'
-  'staging'
-  'prod'
 ])
 param environmentName string = 'dev'
 
@@ -17,8 +15,8 @@ param githubOrg string = 'simonholmes001'
 @description('GitHub repository name.')
 param githubRepo string = 'voxa'
 
-@description('GitHub environment name used by Azure deployment workflows.')
-param githubEnvironment string = environmentName
+@description('GitHub ref allowed to deploy Azure resources.')
+param githubRef string = 'refs/heads/main'
 
 @description('Resource group that contains CI/CD identity resources.')
 param pipelineResourceGroupName string = 'rg-voxa-pipeline-identity'
@@ -69,7 +67,7 @@ module pipelineIdentity './modules/pipeline-identity.bicep' = {
     pipelineIdentityName: pipelineIdentityName
     githubOrg: githubOrg
     githubRepo: githubRepo
-    githubEnvironment: githubEnvironment
+    githubRef: githubRef
   }
 }
 
