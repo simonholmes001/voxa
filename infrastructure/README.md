@@ -33,10 +33,12 @@ The bootstrap deployment creates:
 - GitHub OIDC federated credential for `refs/heads/main` using GitHub's immutable owner/repository subject format
 - `rg-voxa-network-dev`
 - `rg-voxa-dev`
-- `Contributor` assignment for the pipeline identity on `rg-voxa-network-dev`
+- `Network Contributor` and `Private DNS Zone Contributor` assignments for the pipeline identity on `rg-voxa-network-dev`
 - `Contributor` and `Role Based Access Control Administrator` assignments for the pipeline identity on `rg-voxa-dev`
 
 Copy the deployment outputs into the repository secrets listed below.
+
+The network template preserves the original workload resource naming seed so moving the VNet and private DNS zones into `rg-voxa-network-dev` does not change the expected Azure resource names. Existing environments still need an explicit migration decision for old network resources that already exist in `rg-voxa-dev`; this PR does not hide cleanup or destructive moves in the deployment path.
 
 Pull request infrastructure validation intentionally runs local guard tests and Bicep lint only. Azure-authenticated deployment runs after the repository secrets exist.
 

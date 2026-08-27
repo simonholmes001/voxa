@@ -21,6 +21,8 @@ grep -q "param enablePrivateFunctionIngress bool = false" "$BICEP_FILE" || { ech
 grep -q "publicNetworkAccess: publicNetworkAccessValue" "$BICEP_FILE" || { echo "Data resources must use the private-network public access guard." >&2; exit 1; }
 grep -q "publicNetworkAccess: functionPublicNetworkAccessValue" "$BICEP_FILE" || { echo "Function ingress must use an explicit public/private access guard." >&2; exit 1; }
 grep -q "param networkResourceGroupName string = 'rg-voxa-network-\${environmentName}'" "$BICEP_FILE" || { echo "Workload deployment must reference the network resource group." >&2; exit 1; }
+grep -q "var resourceToken = uniqueString(subscription().id, resourceGroup().id, location, environmentName)" "$BICEP_FILE" || { echo "Workload resource names must keep the original resource token seed." >&2; exit 1; }
+grep -q "var resourceToken = uniqueString(subscription().id, workloadResourceGroupId, location, environmentName)" "$NETWORK_BICEP_FILE" || { echo "Network resource names must use the original workload resource group seed." >&2; exit 1; }
 grep -q "Microsoft.Network/virtualNetworks" "$NETWORK_BICEP_FILE" || { echo "A VNet must be part of the private networking baseline." >&2; exit 1; }
 grep -q "Microsoft.App/environments" "$NETWORK_BICEP_FILE" || { echo "Flex Consumption VNet integration subnet delegation is required." >&2; exit 1; }
 grep -q "Microsoft.Network/privateEndpoints" "$BICEP_FILE" || { echo "Private endpoints must be part of the private networking baseline." >&2; exit 1; }
@@ -38,6 +40,9 @@ fi
 grep -q "targetScope = 'subscription'" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must deploy at subscription scope." >&2; exit 1; }
 grep -q "Microsoft.Resources/resourceGroups" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must create resource groups through Bicep." >&2; exit 1; }
 grep -q "networkResourceGroupName" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must create a separate network resource group." >&2; exit 1; }
+grep -q "networkContributorRoleDefinitionId" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must grant Network Contributor on the network resource group." >&2; exit 1; }
+grep -q "privateDnsZoneContributorRoleDefinitionId" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must grant Private DNS Zone Contributor on the network resource group." >&2; exit 1; }
+grep -q "roleBasedAccessControlAdministratorRoleDefinitionId" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must grant workload-scoped RBAC Administrator for workload role assignments." >&2; exit 1; }
 grep -R -q "Microsoft.ManagedIdentity/userAssignedIdentities" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must create the GitHub Actions managed identity." >&2; exit 1; }
 grep -R -q "federatedIdentityCredentials" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must configure GitHub OIDC federated credentials." >&2; exit 1; }
 grep -R -q "repo:\${githubOrgSubject}/\${githubRepoSubject}:ref:\${githubRef}" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Federated credential must use GitHub immutable OIDC subject format." >&2; exit 1; }

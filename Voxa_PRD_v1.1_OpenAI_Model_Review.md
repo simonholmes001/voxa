@@ -1483,6 +1483,8 @@ The MVP Azure network baseline should be small but private for data-plane servic
 
 Network foundation resources must be deployed to a dedicated environment network resource group, for example `rg-voxa-network-dev`. Workload compute, storage, Key Vault, monitoring, application identities, and workload-specific private endpoints must be deployed to the workload resource group, for example `rg-voxa-dev`. This keeps shared network ownership separate while avoiding paid hub networking components for the MVP.
 
+The deployment identity should receive only the permissions required at each boundary: network management and private DNS zone permissions on the network resource group, and workload deployment plus workload-scoped RBAC assignment permissions on the workload resource group. Resource naming must remain stable when splitting resource groups so existing environments do not silently create parallel network foundations.
+
 This is a security requirement, not a signal to add a full enterprise network. Do not add hub-and-spoke networking, firewalls, NAT Gateway, peering, or private ingress services unless a specific threat model or runtime requirement justifies the extra cost.
 
 ### CI/CD Bootstrap Identity
@@ -1496,7 +1498,7 @@ The repository should include subscription-scoped Bicep that creates:
 - GitHub OIDC federated credential scoped to the main branch deployment workflow;
 - network resource group for shared VNet, subnets, and private DNS zones;
 - target environment resource group;
-- resource-group-scoped RBAC for deployment.
+- resource-group-scoped RBAC for deployment, including network-scoped Network Contributor and Private DNS Zone Contributor permissions and workload-scoped Role Based Access Control Administrator permissions only where the workload deployment creates Azure role assignments.
 
 Do not store Azure client secrets in GitHub. The GitHub workflow should use OIDC and repository secrets for the managed identity client ID, tenant ID, subscription ID, target location, workload resource group, network resource group, and OpenAI API key.
 

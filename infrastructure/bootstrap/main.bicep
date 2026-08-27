@@ -44,6 +44,8 @@ param targetResourceGroupRole string = 'Contributor'
 
 var contributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
 var roleBasedAccessControlAdministratorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f58310d9-a9f6-439a-9e8d-f62e7b41a168')
+var networkContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7')
+var privateDnsZoneContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b12aa53e-6015-4669-85d0-8515ebb3ae7f')
 var roleDefinitionIdByName = {
   Contributor: contributorRoleDefinitionId
 }
@@ -117,14 +119,25 @@ module targetResourceGroupRbacAdministrator './modules/target-rbac.bicep' = {
   }
 }
 
-module networkResourceGroupRbac './modules/target-rbac.bicep' = {
-  name: 'network-contributor-${environmentName}'
+module networkResourceGroupNetworkContributor './modules/target-rbac.bicep' = {
+  name: 'network-network-contributor-${environmentName}'
   scope: networkResourceGroup
   params: {
     principalId: pipelineIdentity.outputs.principalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: contributorRoleDefinitionId
+    roleDefinitionId: networkContributorRoleDefinitionId
     roleAssignmentSeed: pipelineIdentity.outputs.identityId
+  }
+}
+
+module networkResourceGroupPrivateDnsContributor './modules/target-rbac.bicep' = {
+  name: 'network-private-dns-contributor-${environmentName}'
+  scope: networkResourceGroup
+  params: {
+    principalId: pipelineIdentity.outputs.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: privateDnsZoneContributorRoleDefinitionId
+    roleAssignmentSeed: '${pipelineIdentity.outputs.identityId}-private-dns'
   }
 }
 
