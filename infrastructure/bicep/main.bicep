@@ -25,6 +25,9 @@ param allowPublicNetworkAccessForDev bool = false
 @description('Make the Function App ingress private. Leave false for the mobile MVP unless a public edge such as Front Door, API Management, or VPN is added.')
 param enablePrivateFunctionIngress bool = false
 
+@description('Resource group that contains shared network resources for this environment.')
+param networkResourceGroupName string = 'rg-voxa-network-${environmentName}'
+
 @description('Application Insights daily data cap in GB.')
 @minValue(1)
 param appInsightsDailyCapGb int = 1
@@ -47,41 +50,11 @@ var keyVaultSecretsOfficerRoleId = subscriptionResourceId('Microsoft.Authorizati
 var keyVaultSecretsUserRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
 var publicNetworkAccessValue = enablePrivateNetworking && !allowPublicNetworkAccessForDev ? 'Disabled' : 'Enabled'
 var functionPublicNetworkAccessValue = enablePrivateFunctionIngress ? 'Disabled' : 'Enabled'
+var networkResourceGroup = resourceGroup(networkResourceGroupName)
 
-resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-03-01' = if (enablePrivateNetworking) {
+resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-03-01' existing = if (enablePrivateNetworking) {
+  scope: networkResourceGroup
   name: 'azvnet${resourceToken}'
-  location: location
-  tags: tags
-  properties: {
-    addressSpace: {
-      addressPrefixes: [
-        '10.42.0.0/24'
-      ]
-    }
-    subnets: [
-      {
-        name: 'function-integration'
-        properties: {
-          addressPrefix: '10.42.0.0/27'
-          delegations: [
-            {
-              name: 'function-flex-delegation'
-              properties: {
-                serviceName: 'Microsoft.App/environments'
-              }
-            }
-          ]
-        }
-      }
-      {
-        name: 'private-endpoints'
-        properties: {
-          addressPrefix: '10.42.0.32/27'
-          privateEndpointNetworkPolicies: 'Disabled'
-        }
-      }
-    ]
-  }
 }
 
 resource functionIntegrationSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-03-01' existing = if (enablePrivateNetworking) {
@@ -94,115 +67,37 @@ resource privateEndpointSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-0
   name: 'private-endpoints'
 }
 
-resource blobPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking) {
+resource blobPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' existing = if (enablePrivateNetworking) {
+  scope: networkResourceGroup
   #disable-next-line no-hardcoded-env-urls
   name: 'privatelink.blob.core.windows.net'
-  location: 'global'
-  tags: tags
 }
 
-resource queuePrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking) {
+resource queuePrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' existing = if (enablePrivateNetworking) {
+  scope: networkResourceGroup
   #disable-next-line no-hardcoded-env-urls
   name: 'privatelink.queue.core.windows.net'
-  location: 'global'
-  tags: tags
 }
 
-resource tablePrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking) {
+resource tablePrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' existing = if (enablePrivateNetworking) {
+  scope: networkResourceGroup
   #disable-next-line no-hardcoded-env-urls
   name: 'privatelink.table.core.windows.net'
-  location: 'global'
-  tags: tags
 }
 
-resource vaultPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking) {
+resource vaultPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' existing = if (enablePrivateNetworking) {
+  scope: networkResourceGroup
   name: 'privatelink.vaultcore.azure.net'
-  location: 'global'
-  tags: tags
 }
 
-resource functionPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking && enablePrivateFunctionIngress) {
+resource functionPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' existing = if (enablePrivateNetworking && enablePrivateFunctionIngress) {
+  scope: networkResourceGroup
   name: 'privatelink.azurewebsites.net'
-  location: 'global'
-  tags: tags
 }
 
-resource cosmosPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (enablePrivateNetworking && deployCosmos) {
+resource cosmosPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' existing = if (enablePrivateNetworking && deployCosmos) {
+  scope: networkResourceGroup
   name: 'privatelink.documents.azure.com'
-  location: 'global'
-  tags: tags
-}
-
-resource blobPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking) {
-  parent: blobPrivateDnsZone
-  name: 'voxa-vnet'
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: virtualNetwork.id
-    }
-  }
-}
-
-resource queuePrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking) {
-  parent: queuePrivateDnsZone
-  name: 'voxa-vnet'
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: virtualNetwork.id
-    }
-  }
-}
-
-resource tablePrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking) {
-  parent: tablePrivateDnsZone
-  name: 'voxa-vnet'
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: virtualNetwork.id
-    }
-  }
-}
-
-resource vaultPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking) {
-  parent: vaultPrivateDnsZone
-  name: 'voxa-vnet'
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: virtualNetwork.id
-    }
-  }
-}
-
-resource functionPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking && enablePrivateFunctionIngress) {
-  parent: functionPrivateDnsZone
-  name: 'voxa-vnet'
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: virtualNetwork.id
-    }
-  }
-}
-
-resource cosmosPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (enablePrivateNetworking && deployCosmos) {
-  parent: cosmosPrivateDnsZone
-  name: 'voxa-vnet'
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: virtualNetwork.id
-    }
-  }
 }
 
 resource appIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {

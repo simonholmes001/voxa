@@ -5,15 +5,19 @@ ENVIRONMENT="${1:-dev}"
 MODE="${2:-}"
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BICEP_FILE="$ROOT_DIR/infrastructure/bicep/main.bicep"
+NETWORK_BICEP_FILE="$ROOT_DIR/infrastructure/bicep/network.bicep"
 BOOTSTRAP_BICEP_FILE="$ROOT_DIR/infrastructure/bootstrap/main.bicep"
 PARAM_FILE="$ROOT_DIR/infrastructure/bicep/main.parameters.json"
+NETWORK_PARAM_FILE="$ROOT_DIR/infrastructure/bicep/network.parameters.json"
 RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-rg-voxa-${ENVIRONMENT}}"
+NETWORK_RESOURCE_GROUP="${AZURE_NETWORK_RESOURCE_GROUP:-rg-voxa-network-${ENVIRONMENT}}"
 LOCATION="${AZURE_LOCATION:-swedencentral}"
 
 cd "$ROOT_DIR"
 
 bash ./infrastructure/scripts/guard-tests.sh
 az bicep build --file "$BOOTSTRAP_BICEP_FILE"
+az bicep build --file "$NETWORK_BICEP_FILE"
 az bicep build --file "$BICEP_FILE"
 
 if [ "$MODE" = "--lint-only" ]; then
@@ -23,15 +27,31 @@ fi
 
 if [ "$MODE" = "--what-if" ]; then
   az deployment group what-if \
+    --name "network-${ENVIRONMENT}" \
+    --resource-group "$NETWORK_RESOURCE_GROUP" \
+    --template-file "$NETWORK_BICEP_FILE" \
+    --parameters "$NETWORK_PARAM_FILE" \
+    --parameters environmentName="$ENVIRONMENT" location="$LOCATION"
+
+  az deployment group what-if \
+    --name "main" \
     --resource-group "$RESOURCE_GROUP" \
     --template-file "$BICEP_FILE" \
     --parameters "$PARAM_FILE" \
-    --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}"
+    --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
   exit 0
 fi
 
 az deployment group validate \
+  --name "network-${ENVIRONMENT}" \
+  --resource-group "$NETWORK_RESOURCE_GROUP" \
+  --template-file "$NETWORK_BICEP_FILE" \
+  --parameters "$NETWORK_PARAM_FILE" \
+  --parameters environmentName="$ENVIRONMENT" location="$LOCATION"
+
+az deployment group validate \
+  --name "main" \
   --resource-group "$RESOURCE_GROUP" \
   --template-file "$BICEP_FILE" \
   --parameters "$PARAM_FILE" \
-  --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}"
+  --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
