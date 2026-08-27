@@ -30,6 +30,9 @@ param pipelineResourceGroupName string = 'rg-voxa-pipeline-identity'
 @description('Resource group that contains Voxa workload resources for this environment.')
 param targetResourceGroupName string = 'rg-voxa-${environmentName}'
 
+@description('Resource group that contains shared Voxa network resources for this environment.')
+param networkResourceGroupName string = 'rg-voxa-network-${environmentName}'
+
 @description('User-assigned managed identity used by GitHub Actions OIDC.')
 param pipelineIdentityName string = 'id-voxa-github-actions'
 
@@ -40,6 +43,7 @@ param pipelineIdentityName string = 'id-voxa-github-actions'
 param targetResourceGroupRole string = 'Contributor'
 
 var contributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
+var roleBasedAccessControlAdministratorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f58310d9-a9f6-439a-9e8d-f62e7b41a168')
 var roleDefinitionIdByName = {
   Contributor: contributorRoleDefinitionId
 }
@@ -65,6 +69,18 @@ resource targetResourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   }
 }
 
+resource networkResourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
+  name: networkResourceGroupName
+  location: location
+  tags: {
+    application: 'voxa'
+    environment: environmentName
+    managedBy: 'bicep'
+    costProfile: 'minimal'
+    workloadBoundary: 'network'
+  }
+}
+
 module pipelineIdentity './modules/pipeline-identity.bicep' = {
   name: 'pipeline-identity-${environmentName}'
   scope: pipelineResourceGroup
@@ -80,7 +96,7 @@ module pipelineIdentity './modules/pipeline-identity.bicep' = {
 }
 
 module targetResourceGroupRbac './modules/target-rbac.bicep' = {
-  name: 'target-rbac-${environmentName}'
+  name: 'target-contributor-${environmentName}'
   scope: targetResourceGroup
   params: {
     principalId: pipelineIdentity.outputs.principalId
@@ -90,11 +106,34 @@ module targetResourceGroupRbac './modules/target-rbac.bicep' = {
   }
 }
 
+module targetResourceGroupRbacAdministrator './modules/target-rbac.bicep' = {
+  name: 'target-rbac-admin-${environmentName}'
+  scope: targetResourceGroup
+  params: {
+    principalId: pipelineIdentity.outputs.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: roleBasedAccessControlAdministratorRoleDefinitionId
+    roleAssignmentSeed: '${pipelineIdentity.outputs.identityId}-rbac-admin'
+  }
+}
+
+module networkResourceGroupRbac './modules/target-rbac.bicep' = {
+  name: 'network-contributor-${environmentName}'
+  scope: networkResourceGroup
+  params: {
+    principalId: pipelineIdentity.outputs.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: contributorRoleDefinitionId
+    roleAssignmentSeed: pipelineIdentity.outputs.identityId
+  }
+}
+
 output azureClientId string = pipelineIdentity.outputs.clientId
 output azureTenantId string = tenant().tenantId
 output azureSubscriptionId string = subscription().subscriptionId
 output azureLocation string = location
 output azureResourceGroup string = targetResourceGroup.name
+output azureNetworkResourceGroup string = networkResourceGroup.name
 output pipelineIdentityResourceGroup string = pipelineResourceGroup.name
 output pipelineIdentityName string = pipelineIdentity.outputs.identityName
 output federatedCredentialSubject string = pipelineIdentity.outputs.federatedCredentialSubject

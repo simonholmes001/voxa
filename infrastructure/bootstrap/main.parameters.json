@@ -29,6 +29,9 @@
     "targetResourceGroupName": {
       "value": "rg-voxa-dev"
     },
+    "networkResourceGroupName": {
+      "value": "rg-voxa-network-dev"
+    },
     "pipelineIdentityName": {
       "value": "id-voxa-github-actions"
     }

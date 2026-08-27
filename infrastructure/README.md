@@ -5,8 +5,8 @@ Voxa starts with a deliberately small Azure footprint:
 - Azure Functions Flex Consumption for the backend API and OpenAI Realtime client-secret issuance.
 - Azure Storage for Function runtime and deployment package storage, reached privately by the backend.
 - Azure Key Vault with RBAC for server-side secrets, reached privately by the backend.
-- One small virtual network with separate subnets for Function outbound integration and private endpoints.
-- Private DNS zones and private endpoints for Storage, Key Vault, and optional Cosmos DB.
+- One small virtual network with separate subnets for Function outbound integration and private endpoints, deployed to a dedicated network resource group.
+- Private DNS zones in the network resource group and workload-specific private endpoints in the workload resource group.
 - Application Insights and Log Analytics with short retention and a daily cap.
 - Optional Cosmos DB Serverless, disabled by default until the first durable-store cost decision is made.
 
@@ -31,8 +31,10 @@ The bootstrap deployment creates:
 - `rg-voxa-pipeline-identity`
 - `id-voxa-github-actions`
 - GitHub OIDC federated credential for `refs/heads/main` using GitHub's immutable owner/repository subject format
+- `rg-voxa-network-dev`
 - `rg-voxa-dev`
-- `Contributor` assignment for the pipeline identity on `rg-voxa-dev`
+- `Contributor` assignment for the pipeline identity on `rg-voxa-network-dev`
+- `Contributor` and `Role Based Access Control Administrator` assignments for the pipeline identity on `rg-voxa-dev`
 
 Copy the deployment outputs into the repository secrets listed below.
 
@@ -47,6 +49,7 @@ Configure these as GitHub repository secrets:
 - `AZURE_SUBSCRIPTION_ID`
 - `AZURE_LOCATION`
 - `AZURE_RESOURCE_GROUP`
+- `AZURE_NETWORK_RESOURCE_GROUP`
 - `OPENAI_API_KEY`
 
 Do not configure Azure client secrets. The deployment workflows use GitHub OIDC with a user-assigned managed identity.

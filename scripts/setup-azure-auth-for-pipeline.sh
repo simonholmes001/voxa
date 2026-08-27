@@ -10,6 +10,7 @@ LOCATION="${AZURE_LOCATION:-swedencentral}"
 SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID:-}"
 PIPELINE_RG="${AZURE_PIPELINE_RESOURCE_GROUP:-rg-voxa-pipeline-identity}"
 TARGET_RG="${AZURE_RESOURCE_GROUP:-rg-voxa-${ENVIRONMENT}}"
+NETWORK_RG="${AZURE_NETWORK_RESOURCE_GROUP:-rg-voxa-network-${ENVIRONMENT}}"
 IDENTITY_NAME="${AZURE_PIPELINE_IDENTITY_NAME:-id-voxa-github-actions}"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BOOTSTRAP_BICEP_FILE="$ROOT_DIR/infrastructure/bootstrap/main.bicep"
@@ -38,6 +39,7 @@ az deployment sub create \
     githubRef="$GITHUB_REF" \
     pipelineResourceGroupName="$PIPELINE_RG" \
     targetResourceGroupName="$TARGET_RG" \
+    networkResourceGroupName="$NETWORK_RG" \
     pipelineIdentityName="$IDENTITY_NAME" \
   --query properties.outputs
 
@@ -48,3 +50,4 @@ echo "AZURE_TENANT_ID      = azureTenantId.value"
 echo "AZURE_SUBSCRIPTION_ID= azureSubscriptionId.value"
 echo "AZURE_LOCATION       = azureLocation.value"
 echo "AZURE_RESOURCE_GROUP = azureResourceGroup.value"
+echo "AZURE_NETWORK_RESOURCE_GROUP = azureNetworkResourceGroup.value"

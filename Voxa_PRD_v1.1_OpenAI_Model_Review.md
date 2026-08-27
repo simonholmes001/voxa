@@ -1481,6 +1481,8 @@ The MVP Azure network baseline should be small but private for data-plane servic
 - one subnet for private endpoints;
 - private endpoints and private DNS for Storage, Key Vault, and Cosmos DB if Cosmos is enabled.
 
+Network foundation resources must be deployed to a dedicated environment network resource group, for example `rg-voxa-network-dev`. Workload compute, storage, Key Vault, monitoring, application identities, and workload-specific private endpoints must be deployed to the workload resource group, for example `rg-voxa-dev`. This keeps shared network ownership separate while avoiding paid hub networking components for the MVP.
+
 This is a security requirement, not a signal to add a full enterprise network. Do not add hub-and-spoke networking, firewalls, NAT Gateway, peering, or private ingress services unless a specific threat model or runtime requirement justifies the extra cost.
 
 ### CI/CD Bootstrap Identity
@@ -1492,10 +1494,11 @@ The repository should include subscription-scoped Bicep that creates:
 - pipeline identity resource group;
 - user-assigned managed identity for GitHub Actions;
 - GitHub OIDC federated credential scoped to the main branch deployment workflow;
+- network resource group for shared VNet, subnets, and private DNS zones;
 - target environment resource group;
 - resource-group-scoped RBAC for deployment.
 
-Do not store Azure client secrets in GitHub. The GitHub workflow should use OIDC and repository secrets for the managed identity client ID, tenant ID, subscription ID, target location, target resource group, and OpenAI API key.
+Do not store Azure client secrets in GitHub. The GitHub workflow should use OIDC and repository secrets for the managed identity client ID, tenant ID, subscription ID, target location, workload resource group, network resource group, and OpenAI API key.
 
 ## 25.2 Explicitly Not Required Initially
 
@@ -2049,6 +2052,7 @@ For MVP, the default posture is:
 - no container registry unless a container runtime is selected;
 - no API Management;
 - private networking limited to one small VNet, two subnets, and private endpoints for required data-plane services;
+- separate network and workload resource groups per environment without adding hub networking or paid egress appliances;
 - no managed cache;
 - no queue or message bus unless async processing is required;
 - shortest practical telemetry retention;

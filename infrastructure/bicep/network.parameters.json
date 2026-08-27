@@ -8,26 +8,14 @@
     "location": {
       "value": "swedencentral"
     },
-    "openAiApiKey": {
-      "value": "set-in-github-actions"
-    },
     "deployCosmos": {
-      "value": false
-    },
-    "enablePrivateNetworking": {
-      "value": true
-    },
-    "allowPublicNetworkAccessForDev": {
       "value": false
     },
     "enablePrivateFunctionIngress": {
       "value": false
     },
-    "networkResourceGroupName": {
-      "value": "rg-voxa-network-dev"
-    },
-    "appInsightsDailyCapGb": {
-      "value": 1
+    "workloadResourceGroupName": {
+      "value": "rg-voxa-dev"
     }
   }
 }
