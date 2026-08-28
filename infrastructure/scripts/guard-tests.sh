@@ -40,7 +40,7 @@ fi
 grep -q "targetScope = 'subscription'" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must deploy at subscription scope." >&2; exit 1; }
 grep -q "Microsoft.Resources/resourceGroups" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must create resource groups through Bicep." >&2; exit 1; }
 grep -q "networkResourceGroupName" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must create a separate network resource group." >&2; exit 1; }
-grep -q "networkContributorRoleDefinitionId" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must grant Network Contributor on the network resource group." >&2; exit 1; }
+grep -q "module networkResourceGroupContributor" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must grant Contributor on the network resource group for ARM deployment operations." >&2; exit 1; }
 grep -q "privateDnsZoneContributorRoleDefinitionId" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must grant Private DNS Zone Contributor on the network resource group." >&2; exit 1; }
 grep -q "roleBasedAccessControlAdministratorRoleDefinitionId" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must grant workload-scoped RBAC Administrator for workload role assignments." >&2; exit 1; }
 grep -R -q "Microsoft.ManagedIdentity/userAssignedIdentities" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must create the GitHub Actions managed identity." >&2; exit 1; }

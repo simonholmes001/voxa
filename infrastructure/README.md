@@ -33,7 +33,7 @@ The bootstrap deployment creates:
 - GitHub OIDC federated credential for `refs/heads/main` using GitHub's immutable owner/repository subject format
 - `rg-voxa-network-dev`
 - `rg-voxa-dev`
-- `Network Contributor` and `Private DNS Zone Contributor` assignments for the pipeline identity on `rg-voxa-network-dev`
+- `Contributor` and `Private DNS Zone Contributor` assignments for the pipeline identity on `rg-voxa-network-dev`
 - `Contributor` and `Role Based Access Control Administrator` assignments for the pipeline identity on `rg-voxa-dev`
 
 Copy the deployment outputs into the repository secrets listed below.
