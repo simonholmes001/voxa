@@ -46,6 +46,7 @@ grep -q "privateDnsZoneContributorRoleDefinitionId" "$BOOTSTRAP_BICEP_FILE" || {
 grep -q "roleBasedAccessControlAdministratorRoleDefinitionId" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must grant workload-scoped RBAC Administrator for workload role assignments." >&2; exit 1; }
 grep -R -q "Microsoft.ManagedIdentity/userAssignedIdentities" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must create the GitHub Actions managed identity." >&2; exit 1; }
 grep -R -q "federatedIdentityCredentials" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must configure GitHub OIDC federated credentials." >&2; exit 1; }
+grep -R -q "param federatedCredentialName string" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must allow separate OIDC credential names for branch validation." >&2; exit 1; }
 grep -R -q "repo:\${githubOrgSubject}/\${githubRepoSubject}:ref:\${githubRef}" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Federated credential must use GitHub immutable OIDC subject format." >&2; exit 1; }
 grep -R -q "Microsoft.Authorization/roleAssignments" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must assign target resource group RBAC." >&2; exit 1; }
 

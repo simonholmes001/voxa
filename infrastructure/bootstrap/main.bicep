@@ -24,6 +24,9 @@ param githubRepoId string = '1347555953'
 @description('GitHub ref allowed to deploy Azure resources.')
 param githubRef string = 'refs/heads/main'
 
+@description('Name for the GitHub OIDC federated credential.')
+param federatedCredentialName string = 'github-main-immutable'
+
 @description('Resource group that contains CI/CD identity resources.')
 param pipelineResourceGroupName string = 'rg-voxa-pipeline-identity'
 
@@ -93,6 +96,7 @@ module pipelineIdentity './modules/pipeline-identity.bicep' = {
     githubRepo: githubRepo
     githubRepoId: githubRepoId
     githubRef: githubRef
+    federatedCredentialName: federatedCredentialName
   }
 }
 
