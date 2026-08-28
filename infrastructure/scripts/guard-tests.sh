@@ -22,6 +22,7 @@ grep -q "publicNetworkAccess: publicNetworkAccessValue" "$BICEP_FILE" || { echo 
 grep -q "publicNetworkAccess: functionPublicNetworkAccessValue" "$BICEP_FILE" || { echo "Function ingress must use an explicit public/private access guard." >&2; exit 1; }
 grep -q "param networkResourceGroupName string = 'rg-voxa-network-\${environmentName}'" "$BICEP_FILE" || { echo "Workload deployment must reference the network resource group." >&2; exit 1; }
 grep -q "var resourceToken = uniqueString(subscription().id, resourceGroup().id, location, environmentName)" "$BICEP_FILE" || { echo "Workload resource names must keep the original resource token seed." >&2; exit 1; }
+grep -q "var privateEndpointToken = uniqueString(subscription().id, networkResourceGroupName, resourceGroup().id, location, environmentName)" "$BICEP_FILE" || { echo "Private endpoints must use a split-network migration token to avoid immutable subnet updates." >&2; exit 1; }
 grep -q "var resourceToken = uniqueString(subscription().id, workloadResourceGroupId, location, environmentName)" "$NETWORK_BICEP_FILE" || { echo "Network resource names must use the original workload resource group seed." >&2; exit 1; }
 grep -q "Microsoft.Network/virtualNetworks" "$NETWORK_BICEP_FILE" || { echo "A VNet must be part of the private networking baseline." >&2; exit 1; }
 grep -q "Microsoft.App/environments" "$NETWORK_BICEP_FILE" || { echo "Flex Consumption VNet integration subnet delegation is required." >&2; exit 1; }

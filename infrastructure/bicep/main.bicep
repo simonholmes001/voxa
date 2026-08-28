@@ -41,6 +41,7 @@ param tags object = {
 }
 
 var resourceToken = uniqueString(subscription().id, resourceGroup().id, location, environmentName)
+var privateEndpointToken = uniqueString(subscription().id, networkResourceGroupName, resourceGroup().id, location, environmentName)
 var storageBlobDataOwnerRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')
 var storageBlobDataContributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
 var storageQueueDataContributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
@@ -394,7 +395,7 @@ resource functionDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-p
 }
 
 resource storageBlobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking) {
-  name: 'azpepblob${resourceToken}'
+  name: 'azpepb${privateEndpointToken}'
   location: location
   tags: tags
   properties: {
@@ -431,7 +432,7 @@ resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/priv
 }
 
 resource storageQueuePrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking) {
-  name: 'azpepque${resourceToken}'
+  name: 'azpepq${privateEndpointToken}'
   location: location
   tags: tags
   properties: {
@@ -468,7 +469,7 @@ resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/pri
 }
 
 resource storageTablePrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking) {
-  name: 'azpeptbl${resourceToken}'
+  name: 'azpept${privateEndpointToken}'
   location: location
   tags: tags
   properties: {
@@ -505,7 +506,7 @@ resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/pri
 }
 
 resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking) {
-  name: 'azpepkv${resourceToken}'
+  name: 'azpepk${privateEndpointToken}'
   location: location
   tags: tags
   properties: {
@@ -542,7 +543,7 @@ resource keyVaultPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/private
 }
 
 resource functionPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking && enablePrivateFunctionIngress) {
-  name: 'azpepfn${resourceToken}'
+  name: 'azpepf${privateEndpointToken}'
   location: location
   tags: tags
   properties: {
@@ -639,7 +640,7 @@ resource learnerContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/co
 }
 
 resource cosmosPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = if (enablePrivateNetworking && deployCosmos) {
-  name: 'azpepcos${resourceToken}'
+  name: 'azpepc${privateEndpointToken}'
   location: location
   tags: tags
   properties: {

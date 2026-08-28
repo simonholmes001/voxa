@@ -1485,6 +1485,8 @@ Network foundation resources must be deployed to a dedicated environment network
 
 The deployment identity should receive only the permissions required at each boundary: network resource group deployment/network/private DNS permissions on the network resource group, and workload deployment plus workload-scoped RBAC assignment permissions on the workload resource group. Resource naming must remain stable when splitting resource groups so existing environments do not silently create parallel network foundations.
 
+Private endpoints must not be mutated across subnets during network-boundary migrations because Azure private endpoint subnet assignment is immutable. If a network split changes the subnet resource ID, the deployment must create replacement private endpoints under migration-safe names and leave old private endpoints for a separate explicit cleanup step after validation.
+
 This is a security requirement, not a signal to add a full enterprise network. Do not add hub-and-spoke networking, firewalls, NAT Gateway, peering, or private ingress services unless a specific threat model or runtime requirement justifies the extra cost.
 
 ### CI/CD Bootstrap Identity
