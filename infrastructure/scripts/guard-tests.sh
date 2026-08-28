@@ -22,6 +22,7 @@ grep -q "publicNetworkAccess: publicNetworkAccessValue" "$BICEP_FILE" || { echo 
 grep -q "publicNetworkAccess: functionPublicNetworkAccessValue" "$BICEP_FILE" || { echo "Function ingress must use an explicit public/private access guard." >&2; exit 1; }
 grep -q "param networkResourceGroupName string = 'rg-voxa-network-\${environmentName}'" "$BICEP_FILE" || { echo "Workload deployment must reference the network resource group." >&2; exit 1; }
 grep -q "var resourceToken = uniqueString(subscription().id, resourceGroup().id, location, environmentName)" "$BICEP_FILE" || { echo "Workload resource names must keep the original resource token seed." >&2; exit 1; }
+grep -q "var privateEndpointToken = uniqueString(subscription().id, networkResourceGroupName, resourceGroup().id, location, environmentName)" "$BICEP_FILE" || { echo "Private endpoints must use a split-network migration token to avoid immutable subnet updates." >&2; exit 1; }
 grep -q "var resourceToken = uniqueString(subscription().id, workloadResourceGroupId, location, environmentName)" "$NETWORK_BICEP_FILE" || { echo "Network resource names must use the original workload resource group seed." >&2; exit 1; }
 grep -q "Microsoft.Network/virtualNetworks" "$NETWORK_BICEP_FILE" || { echo "A VNet must be part of the private networking baseline." >&2; exit 1; }
 grep -q "Microsoft.App/environments" "$NETWORK_BICEP_FILE" || { echo "Flex Consumption VNet integration subnet delegation is required." >&2; exit 1; }
@@ -45,6 +46,7 @@ grep -q "privateDnsZoneContributorRoleDefinitionId" "$BOOTSTRAP_BICEP_FILE" || {
 grep -q "roleBasedAccessControlAdministratorRoleDefinitionId" "$BOOTSTRAP_BICEP_FILE" || { echo "Bootstrap must grant workload-scoped RBAC Administrator for workload role assignments." >&2; exit 1; }
 grep -R -q "Microsoft.ManagedIdentity/userAssignedIdentities" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must create the GitHub Actions managed identity." >&2; exit 1; }
 grep -R -q "federatedIdentityCredentials" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must configure GitHub OIDC federated credentials." >&2; exit 1; }
+grep -R -q "param federatedCredentialName string" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must allow separate OIDC credential names for branch validation." >&2; exit 1; }
 grep -R -q "repo:\${githubOrgSubject}/\${githubRepoSubject}:ref:\${githubRef}" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Federated credential must use GitHub immutable OIDC subject format." >&2; exit 1; }
 grep -R -q "Microsoft.Authorization/roleAssignments" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must assign target resource group RBAC." >&2; exit 1; }
 

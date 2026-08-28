@@ -4,6 +4,7 @@ set -euo pipefail
 ENVIRONMENT="${1:-dev}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-simonholmes001/voxa}"
 GITHUB_REF="${GITHUB_REF:-refs/heads/main}"
+FEDERATED_CREDENTIAL_NAME="${GITHUB_FEDERATED_CREDENTIAL_NAME:-github-main-immutable}"
 GITHUB_OWNER_ID="${GITHUB_OWNER_ID:-31061938}"
 GITHUB_REPO_ID="${GITHUB_REPO_ID:-1347555953}"
 LOCATION="${AZURE_LOCATION:-swedencentral}"
@@ -37,6 +38,7 @@ az deployment sub create \
     githubRepo="$GITHUB_REPO" \
     githubRepoId="$GITHUB_REPO_ID" \
     githubRef="$GITHUB_REF" \
+    federatedCredentialName="$FEDERATED_CREDENTIAL_NAME" \
     pipelineResourceGroupName="$PIPELINE_RG" \
     targetResourceGroupName="$TARGET_RG" \
     networkResourceGroupName="$NETWORK_RG" \

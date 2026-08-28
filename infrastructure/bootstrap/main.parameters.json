@@ -23,6 +23,9 @@
     "githubRef": {
       "value": "refs/heads/main"
     },
+    "federatedCredentialName": {
+      "value": "github-main-immutable"
+    },
     "pipelineResourceGroupName": {
       "value": "rg-voxa-pipeline-identity"
     },

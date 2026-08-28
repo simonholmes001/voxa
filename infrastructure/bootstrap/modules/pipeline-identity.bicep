@@ -21,7 +21,9 @@ param githubRepoId string
 @description('GitHub ref allowed to deploy Azure resources.')
 param githubRef string
 
-var federatedCredentialName = 'github-main-immutable'
+@description('Name for the federated identity credential.')
+param federatedCredentialName string = 'github-main-immutable'
+
 var githubOrgSubject = empty(githubOrgId) ? githubOrg : '${githubOrg}@${githubOrgId}'
 var githubRepoSubject = empty(githubRepoId) ? githubRepo : '${githubRepo}@${githubRepoId}'
 
