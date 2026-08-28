@@ -4,10 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BICEP_FILE="$ROOT_DIR/infrastructure/bicep/main.bicep"
 NETWORK_BICEP_FILE="$ROOT_DIR/infrastructure/bicep/network.bicep"
+PRIVATE_ENDPOINTS_BICEP_FILE="$ROOT_DIR/infrastructure/bicep/private-endpoints.bicep"
 BOOTSTRAP_BICEP_FILE="$ROOT_DIR/infrastructure/bootstrap/main.bicep"
 
 [ -f "$BICEP_FILE" ] || { echo "Missing $BICEP_FILE" >&2; exit 1; }
 [ -f "$NETWORK_BICEP_FILE" ] || { echo "Missing $NETWORK_BICEP_FILE" >&2; exit 1; }
+[ -f "$PRIVATE_ENDPOINTS_BICEP_FILE" ] || { echo "Missing $PRIVATE_ENDPOINTS_BICEP_FILE" >&2; exit 1; }
 [ -f "$BOOTSTRAP_BICEP_FILE" ] || { echo "Missing $BOOTSTRAP_BICEP_FILE" >&2; exit 1; }
 
 grep -q "FlexConsumption" "$BICEP_FILE" || { echo "Function plan must use Flex Consumption." >&2; exit 1; }
@@ -22,12 +24,19 @@ grep -q "publicNetworkAccess: publicNetworkAccessValue" "$BICEP_FILE" || { echo 
 grep -q "publicNetworkAccess: functionPublicNetworkAccessValue" "$BICEP_FILE" || { echo "Function ingress must use an explicit public/private access guard." >&2; exit 1; }
 grep -q "param networkResourceGroupName string = 'rg-voxa-network-\${environmentName}'" "$BICEP_FILE" || { echo "Workload deployment must reference the network resource group." >&2; exit 1; }
 grep -q "var resourceToken = uniqueString(subscription().id, resourceGroup().id, location, environmentName)" "$BICEP_FILE" || { echo "Workload resource names must keep the original resource token seed." >&2; exit 1; }
-grep -q "var privateEndpointToken = uniqueString(subscription().id, networkResourceGroupName, resourceGroup().id, location, environmentName)" "$BICEP_FILE" || { echo "Private endpoints must use a split-network migration token to avoid immutable subnet updates." >&2; exit 1; }
+if grep -q "Microsoft.Network/privateEndpoints" "$BICEP_FILE"; then
+  echo "Private endpoints must not be deployed from the workload resource group template." >&2
+  exit 1
+fi
 grep -q "var resourceToken = uniqueString(subscription().id, workloadResourceGroupId, location, environmentName)" "$NETWORK_BICEP_FILE" || { echo "Network resource names must use the original workload resource group seed." >&2; exit 1; }
 grep -q "Microsoft.Network/virtualNetworks" "$NETWORK_BICEP_FILE" || { echo "A VNet must be part of the private networking baseline." >&2; exit 1; }
 grep -q "Microsoft.App/environments" "$NETWORK_BICEP_FILE" || { echo "Flex Consumption VNet integration subnet delegation is required." >&2; exit 1; }
-grep -q "Microsoft.Network/privateEndpoints" "$BICEP_FILE" || { echo "Private endpoints must be part of the private networking baseline." >&2; exit 1; }
 grep -q "Microsoft.Network/privateDnsZones" "$NETWORK_BICEP_FILE" || { echo "Private DNS zones must be part of the private networking baseline." >&2; exit 1; }
+grep -q "targetScope = 'resourceGroup'" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoints must deploy at network resource group scope." >&2; exit 1; }
+grep -q "workloadResourceGroupName" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoints must reference workload private link targets across the resource group boundary." >&2; exit 1; }
+grep -q "var privateEndpointToken = uniqueString(subscription().id, resourceGroup().name, workloadResourceGroupId, location, environmentName)" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoints must use a network-resource-group naming token." >&2; exit 1; }
+grep -q "Microsoft.Network/privateEndpoints" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoints must be deployed from the network resource group template." >&2; exit 1; }
+grep -q "customNetworkInterfaceName" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint NIC names must be explicitly controlled." >&2; exit 1; }
 grep -q "virtualNetworkSubnetId" "$BICEP_FILE" || { echo "Function outbound VNet integration must be configured." >&2; exit 1; }
 grep -q "diagnosticSettings" "$BICEP_FILE" || { echo "Function diagnostics must be configured." >&2; exit 1; }
 grep -q "networkAclBypass: enablePrivateNetworking ? 'None' : 'AzureServices'" "$BICEP_FILE" || { echo "Cosmos must disable network ACL bypass when private networking is enabled." >&2; exit 1; }

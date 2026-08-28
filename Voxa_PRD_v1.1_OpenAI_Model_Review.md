@@ -1481,11 +1481,11 @@ The MVP Azure network baseline should be small but private for data-plane servic
 - one subnet for private endpoints;
 - private endpoints and private DNS for Storage, Key Vault, and Cosmos DB if Cosmos is enabled.
 
-Network foundation resources must be deployed to a dedicated environment network resource group, for example `rg-voxa-network-dev`. Workload compute, storage, Key Vault, monitoring, application identities, and workload-specific private endpoints must be deployed to the workload resource group, for example `rg-voxa-dev`. This keeps shared network ownership separate while avoiding paid hub networking components for the MVP.
+Network foundation resources must be deployed to a dedicated environment network resource group, for example `rg-voxa-network-dev`. This boundary must include the VNet, subnets, private DNS zones, private endpoints, and generated private endpoint NICs. Workload compute, storage, Key Vault, monitoring, and application identities must be deployed to the workload resource group, for example `rg-voxa-dev`. This keeps network ownership separate while avoiding paid hub networking components for the MVP.
 
 The deployment identity should receive only the permissions required at each boundary: network resource group deployment/network/private DNS permissions on the network resource group, and workload deployment plus workload-scoped RBAC assignment permissions on the workload resource group. Resource naming must remain stable when splitting resource groups so existing environments do not silently create parallel network foundations.
 
-Private endpoints must not be mutated across subnets during network-boundary migrations because Azure private endpoint subnet assignment is immutable. If a network split changes the subnet resource ID, the deployment must create replacement private endpoints under migration-safe names and leave old private endpoints for a separate explicit cleanup step after validation.
+Private endpoints must not be mutated across subnets during network-boundary migrations because Azure private endpoint subnet assignment is immutable. Private endpoints must be deployed from a network-scoped IaC template after workload private link targets exist so their NICs are created in the network resource group. If a network split changes the subnet resource ID, the deployment must create replacement private endpoints under migration-safe names and leave old private endpoints/NICs for a separate explicit cleanup step after validation.
 
 This is a security requirement, not a signal to add a full enterprise network. Do not add hub-and-spoke networking, firewalls, NAT Gateway, peering, or private ingress services unless a specific threat model or runtime requirement justifies the extra cost.
 
@@ -1498,7 +1498,7 @@ The repository should include subscription-scoped Bicep that creates:
 - pipeline identity resource group;
 - user-assigned managed identity for GitHub Actions;
 - GitHub OIDC federated credential scoped to the main branch deployment workflow;
-- network resource group for shared VNet, subnets, and private DNS zones;
+- network resource group for shared VNet, subnets, private DNS zones, private endpoints, and generated private endpoint NICs;
 - target environment resource group;
 - resource-group-scoped RBAC for deployment, including network resource group Contributor and Private DNS Zone Contributor permissions and workload-scoped Role Based Access Control Administrator permissions only where the workload deployment creates Azure role assignments.
 
