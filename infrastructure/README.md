@@ -6,7 +6,7 @@ Voxa starts with a deliberately small Azure footprint:
 - Azure Storage for Function runtime and deployment package storage, reached privately by the backend.
 - Azure Key Vault with RBAC for server-side secrets, reached privately by the backend.
 - One small virtual network with separate subnets for Function outbound integration and private endpoints, deployed to a dedicated network resource group.
-- Private DNS zones in the network resource group and workload-specific private endpoints in the workload resource group.
+- Private DNS zones, private endpoints, and generated private endpoint NICs in the network resource group.
 - Application Insights and Log Analytics with short retention and a daily cap.
 - Optional Cosmos DB Serverless, disabled by default until the first durable-store cost decision is made.
 
@@ -38,9 +38,9 @@ The bootstrap deployment creates:
 
 Copy the deployment outputs into the repository secrets listed below.
 
-The network template preserves the original workload resource naming seed so moving the VNet and private DNS zones into `rg-voxa-network-dev` does not change the expected Azure resource names. Existing environments still need an explicit migration decision for old network resources that already exist in `rg-voxa-dev`; this PR does not hide cleanup or destructive moves in the deployment path.
+The network template preserves the original workload resource naming seed so moving the VNet and private DNS zones into `rg-voxa-network-dev` does not change the expected Azure resource names. Existing environments still need an explicit migration decision for old network resources that already exist in `rg-voxa-dev`; this repository does not hide cleanup or destructive moves in the deployment path.
 
-Private endpoint subnet assignment is immutable in Azure. During the split from workload-owned networking to `rg-voxa-network-dev`, private endpoints use a network-boundary naming token so the pipeline creates new private endpoints against the new subnet instead of attempting to mutate the old private endpoints in place. Old private endpoints in `rg-voxa-dev` should be removed only through an explicit cleanup PR/runbook after the split deployment succeeds.
+Private endpoint subnet assignment is immutable in Azure. During the split from workload-owned networking to `rg-voxa-network-dev`, private endpoints are deployed from a separate network-scoped Bicep template after workload resources exist. This places the private endpoints and their generated NICs in `rg-voxa-network-dev`. Old private endpoints and NICs in `rg-voxa-dev` should be removed only through an explicit cleanup PR/runbook after the split deployment succeeds.
 
 Pull request infrastructure validation intentionally runs local guard tests and Bicep lint only. Azure-authenticated deployment runs after the repository secrets exist.
 

@@ -5,8 +5,10 @@ ENVIRONMENT="${1:-dev}"
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 BICEP_FILE="$ROOT_DIR/infrastructure/bicep/main.bicep"
 NETWORK_BICEP_FILE="$ROOT_DIR/infrastructure/bicep/network.bicep"
+PRIVATE_ENDPOINTS_BICEP_FILE="$ROOT_DIR/infrastructure/bicep/private-endpoints.bicep"
 PARAM_FILE="$ROOT_DIR/infrastructure/bicep/main.parameters.json"
 NETWORK_PARAM_FILE="$ROOT_DIR/infrastructure/bicep/network.parameters.json"
+PRIVATE_ENDPOINTS_PARAM_FILE="$ROOT_DIR/infrastructure/bicep/private-endpoints.parameters.json"
 RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-rg-voxa-${ENVIRONMENT}}"
 NETWORK_RESOURCE_GROUP="${AZURE_NETWORK_RESOURCE_GROUP:-rg-voxa-network-${ENVIRONMENT}}"
 LOCATION="${AZURE_LOCATION:-swedencentral}"
@@ -33,3 +35,10 @@ az deployment group create \
   --template-file "$BICEP_FILE" \
   --parameters "$PARAM_FILE" \
   --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="$OPENAI_API_KEY" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
+
+az deployment group create \
+  --name "private-endpoints-${ENVIRONMENT}" \
+  --resource-group "$NETWORK_RESOURCE_GROUP" \
+  --template-file "$PRIVATE_ENDPOINTS_BICEP_FILE" \
+  --parameters "$PRIVATE_ENDPOINTS_PARAM_FILE" \
+  --parameters environmentName="$ENVIRONMENT" location="$LOCATION" workloadResourceGroupName="$RESOURCE_GROUP"
