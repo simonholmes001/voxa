@@ -14,6 +14,7 @@ let package = Package(
     ],
     products: [
         .library(name: "VoxaAppShell", targets: ["VoxaAppShell"]),
+        .library(name: "VoxaAuth", targets: ["VoxaAuth"]),
         .library(name: "VoxaDomain", targets: ["VoxaDomain"]),
         .library(name: "VoxaNetworking", targets: ["VoxaNetworking"]),
         .library(name: "VoxaPersistence", targets: ["VoxaPersistence"]),
@@ -22,11 +23,13 @@ let package = Package(
         .target(name: "VoxaDomain"),
         .target(name: "VoxaNetworking", dependencies: ["VoxaDomain"]),
         .target(name: "VoxaPersistence", dependencies: ["VoxaDomain"]),
+        .target(name: "VoxaAuth", dependencies: ["VoxaDomain"]),
         .target(
             name: "VoxaAppShell",
-            dependencies: ["VoxaDomain", "VoxaNetworking", "VoxaPersistence"]
+            dependencies: ["VoxaDomain", "VoxaNetworking", "VoxaPersistence", "VoxaAuth"]
         ),
         .testTarget(name: "VoxaAppShellTests", dependencies: ["VoxaAppShell"]),
+        .testTarget(name: "VoxaAuthTests", dependencies: ["VoxaAuth"]),
         .testTarget(name: "VoxaDomainTests", dependencies: ["VoxaDomain"]),
     ],
     swiftLanguageModes: [.v5]

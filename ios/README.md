@@ -46,13 +46,32 @@ macOS CI host via `swift test`; there is no macOS product.
 
 | Module | Responsibility |
 | --- | --- |
-| `VoxaAppShell` | Adaptive navigation shell (`RootView`, routes, layout resolver). |
+| `VoxaAppShell` | Adaptive navigation shell (`RootView`, routes, layout resolver), auth- and onboarding-gated. |
+| `VoxaAuth` | Sign in with Apple UI, session lifecycle, and secure Keychain token storage. |
 | `VoxaDomain` | Domain models (contracts defined in issue #14). |
 | `VoxaNetworking` | Voxa backend networking boundary (contracts in #14). Clients call the Voxa backend only, never OpenAI directly. |
 | `VoxaPersistence` | On-device learner-state persistence boundary (strategy in #21/#22). |
 
 `VoxaDomain`, `VoxaNetworking`, and `VoxaPersistence` are intentionally thin
 module boundaries for now; their concrete types land in their owning issues.
+
+### Authentication (Sign in with Apple)
+
+`RootView` gates the navigation shell behind authentication: when signed out it
+shows `SignInView` (Sign in with Apple); once signed in it shows the shell.
+`AuthViewModel` owns the session lifecycle — restore on launch, exchange,
+refresh, sign out — persisting tokens through a `SessionStore`
+(`KeychainSessionStore` in the app, `EphemeralSessionStore` for tests/previews).
+
+The backend exchange is behind the `AuthenticationService` protocol. The wire
+contract and network client are backend responsibilities (#17 backend, #14), so
+the default `UnavailableAuthenticationService` fails until a real client is
+injected. Wiring the app to the real service still requires:
+
+- Adding the **Sign in with Apple** capability
+  (`com.apple.developer.applesignin` entitlement) to the app target (#54).
+- Injecting the backend `AuthenticationService` implementation into
+  `AuthViewModel` once it exists.
 
 ### Adaptive navigation
 
