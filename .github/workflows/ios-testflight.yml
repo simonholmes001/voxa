@@ -23,13 +23,21 @@ jobs:
       - name: Detect iOS project
         id: detect
         shell: bash
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          VOXA_XCODE_SCHEME: ${{ secrets.VOXA_XCODE_SCHEME }}
         run: |
-          if [ -d ios ] && find ios -maxdepth 3 \( -name '*.xcodeproj' -o -name '*.xcworkspace' \) -print -quit | grep -q .; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
+          if ! { [ -d ios ] && find ios -maxdepth 3 \( -name '*.xcodeproj' -o -name '*.xcworkspace' \) -print -quit | grep -q .; }; then
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "No Xcode project/workspace exists yet; TestFlight upload is skipped."
+            exit 0
           fi
+          if [ -z "${APP_STORE_CONNECT_API_KEY_BASE64:-}" ] || [ -z "${VOXA_XCODE_SCHEME:-}" ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Xcode project exists but TestFlight signing secrets are not configured; upload is skipped."
+            exit 0
+          fi
+          echo "exists=true" >> "$GITHUB_OUTPUT"
 
       - name: Validate required secrets
         if: steps.detect.outputs.exists == 'true'
