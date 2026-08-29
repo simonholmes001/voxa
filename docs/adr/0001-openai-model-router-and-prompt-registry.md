@@ -24,7 +24,7 @@ Two coupled concerns must be decided together, because a router without a prompt
 
 Introduce an internal **AI Router** in the backend modular monolith that:
 
-- Exposes eight **logical capabilities** (`RealtimeTutorModel`, `RealtimeTutorModelLite`, `TutorModel`, `CurriculumModel`, `AssessmentModel`, `UtilityModel`, `LiveTranscriptionModel`, `TranscriptionModel`) matching PRD §22.3.
+- Exposes the **logical capability enum** defined in the canonical table in the [model router spec §3](../specs/model-router-and-prompt-registry.md#3-logical-capabilities) — the spec's table is the single source of truth for the count and the mapping to PRD §22.3. `SpeechGenerationModel`'s default model resolution is deliberately deferred to a scoped follow-up per that section; the capability remains in the enum so call sites can plan against it.
 - Resolves each capability to a concrete OpenAI model via a precedence chain (per-call override → env override → committed config → hard-coded fallback).
 - Enforces a **model allowlist** and a **reasoning-effort default per capability**.
 - Provides one entry point per call kind (`CompleteAsync`, `StreamAsync`, `IssueRealtimeSessionAsync`) — call sites never talk to the OpenAI SDK directly.
@@ -75,7 +75,7 @@ Similar to (C) with the same tradeoffs, plus vendor lock-in on prompt storage an
 
 - Aligned with PRD §22.1 (per-capability defaults), §22.3 (capability names + example config), §22.4 (eval-driven selection).
 - Aligned with engineering guideline "OpenAI keys are server-side only" — router is the only OpenAI caller.
-- Aligned with engineering guideline "No hardcoded Azure regions, IDs, or secrets" — extended in spirit to no hardcoded OpenAI model IDs outside `backend/config/`.
+- Aligned with engineering guideline "No hardcoded Azure regions, IDs, or secrets" — extended in spirit to OpenAI model IDs: at runtime, model IDs exist only in `backend/config/router.defaults.json`, `backend/config/router.allowed-models.json`, and the router's own fallback constants file. Prompt files (`backend/prompts/**`) MUST NOT contain OpenAI model IDs in any field, including `notes:`. Design documents (this ADR, the spec, extracts of the PRD) may reference model IDs illustratively; the runtime rule is the enforced one. See the model router spec §10 for the CI grep check.
 
 ## Revisit Triggers
 

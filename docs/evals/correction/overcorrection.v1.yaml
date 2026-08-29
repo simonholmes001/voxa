@@ -46,7 +46,7 @@ cases:
   - id: natural-b1-medium-recurring-promoted
     description: >
       Natural mode + B1: a medium item that is `recurring` MUST be promoted
-      into the debrief per the `↑1` rule in the matrix.
+      into the debrief per the recurrence promotion rule in §3.3 (— → D).
     input:
       coachingMode: natural
       proficiencyBand: B1-B2
@@ -112,7 +112,10 @@ cases:
   - id: nitpick-spiral-cap-reduction
     description: >
       G-06: two consecutive debriefs with zero blocking/high and ≥ 1 low
-      MUST reduce the next debrief cap by 1 (floor 1).
+      MUST reduce the next debrief cap by 1 (floor 1). Provides 8 eligible
+      low candidates so a system that fails to reduce the cap from 7 to 6
+      would emit 7 items and the assertion would catch it (a smaller
+      candidate set would pass trivially).
     input:
       coachingMode: tutor
       proficiencyBand: C1+
@@ -125,7 +128,15 @@ cases:
         - severity: low
         - severity: low
         - severity: low
+        - severity: low
+        - severity: low
+        - severity: low
     assertions:
       - path: debrief.items
         length:
           atMost: 6   # C1+ cap 7 minus 1 by G-06
+      # Belt-and-braces assertion if the harness exposes the applied cap:
+      # remove either this or the length assertion once the harness API is
+      # stable — both encode the same guarantee.
+      - path: debrief.appliedCap
+        equals: 6

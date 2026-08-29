@@ -47,6 +47,10 @@ Canonical enum, matching PRD §22.3 verbatim:
 | `TranscriptionModel` | Bounded / file transcription | `gpt-transcribe` |
 | `SpeechGenerationModel` | Standalone generated audio outside Realtime | (see PRD §22, TBD by eval) |
 
+The enum above is the **canonical list** — nine capabilities. The table in this section is the single source of truth; any downstream reference to a capability count (ADR, DoD, tests) MUST link back to this table rather than restate the number, so the count cannot drift.
+
+`SpeechGenerationModel`'s default model id is deliberately unresolved (PRD §22 — "Only when Realtime audio output is not appropriate", model choice deferred pending eval). Router configuration MAY leave it unmapped; call sites MUST handle `RouterConfigurationException` for this capability specifically until a default is committed. This does not remove `SpeechGenerationModel` from the enum — it stays in the canonical contract so mobile/backend developers can plan against it, and its resolution becomes a scoped follow-up.
+
 Capabilities are additive-only. Removing a capability is a breaking change and requires a deprecation window plus explicit call-site migration.
 
 ## 4. Configuration
@@ -73,9 +77,13 @@ Per PRD §22.1: Realtime 2.1 begins at **low** reasoning effort; the router expo
     "UtilityModel":           "low",
     "LiveTranscriptionModel": "low",
     "TranscriptionModel":     "low"
+    // SpeechGenerationModel: reasoning-effort is not applicable to text-to-speech
+    // generation; the router omits it from this table by design.
   }
 }
 ```
+
+Reasoning-effort applies only to reasoning-capable text/multimodal models. `SpeechGenerationModel` is a text-to-speech capability and has no reasoning-effort default; the router MUST NOT reject a call to that capability for lacking a reasoning-effort default, and MUST reject a call to that capability that specifies one.
 
 Increasing reasoning effort at a call site MUST be justified with an eval win recorded in the PR that changes it.
 
@@ -178,6 +186,13 @@ user: |
 
   ## Mode / band
   {{coachingMode}} / {{proficiencyBand}}
+fragments:                           # optional; ordered list of fragments composed into `system`
+  - id: correction/mode-fragment.tutor
+    version: 1
+    # Optional variableMap when the governing prompt's variable names differ
+    # from the fragment's. Omit for direct name reuse.
+    # variableMap:
+    #   proficiencyBand: proficiencyBand
 tools: []                            # optional; declares any tool calls
 guardrails:
   refusesTopics: []                  # optional
@@ -185,6 +200,15 @@ guardrails:
 notes: >
   See docs/specs/correction-and-explanation-policy.md §3–4.
 ```
+
+**Fragment composition rules** (apply when a completion prompt declares `fragments:`):
+
+1. **Deterministic ordering.** Fragments are composed in the order listed. Each rendered fragment is appended to the governing prompt's `system` block, separated by a single blank line. The composition point is always end-of-`system`; fragments cannot be interleaved mid-`system`.
+2. **Explicit refs.** Each entry MUST specify `(id, version)`. "Latest" is not resolvable, matching the top-level prompt reference rule.
+3. **Variable propagation.** The governing prompt MUST declare every variable required by every composed fragment (either directly or through an explicit `variableMap`). Missing required fragment variables fail at render time. Unknown variables in a fragment fail at render time. The router does not silently paper over either.
+4. **No cross-fragment conflict resolution.** Fragments are additive text. If two fragments encode contradictory rules for the same situation, the governing prompt is misconfigured — the router does not attempt to resolve the conflict; the fix is at the prompt registry level (bump versions or split the governing prompt).
+5. **Same-capability rule.** Every composed fragment's `capability` MUST equal the governing prompt's `capability`. A `TutorModel` prompt cannot compose a `RealtimeTutorModel` fragment; the mismatch is caught at build time.
+6. **Fragments cannot compose fragments.** The composition tree is exactly one level deep.
 
 #### `kind: fragment`
 
@@ -230,10 +254,10 @@ At build time, `router-index.json` is regenerated. For each prompt, a `hash` is 
 
 | Kind | Behavioral fields hashed |
 |---|---|
-| `completion` | `{kind, system, user, tools, outputSchema, variables}` |
+| `completion` | `{kind, system, user, tools, outputSchema, variables, fragments}` |
 | `fragment`   | `{kind, fragment, variables}` |
 
-`kind` is always included so migrating a prompt between kinds is a behavioral change. Non-behavioral fields (`description`, `notes`, comments, whitespace outside a hashed string) are excluded so cosmetic edits do not change the hash. CI enforces: **if any hashed field of an existing `(id, version)` differs from its recorded hash, the build fails.** The fix is to bump `version` and add a new file at `<name>.v<n+1>.yaml`.
+`kind` is always included so migrating a prompt between kinds is a behavioral change. For completion prompts, `fragments` is hashed as an ordered list of `{id, version, variableMap?}` entries: bumping a composed fragment's version (and updating the governing prompt to reference the new version) counts as a behavioral change to the governing prompt, forcing a governing-prompt version bump too — this is intentional, because a governing prompt that composes a different fragment version behaves differently at runtime and needs a distinct traceable identity. Non-behavioral fields (`description`, `notes`, comments, whitespace outside a hashed string) are excluded so cosmetic edits do not change the hash. CI enforces: **if any hashed field of an existing `(id, version)` differs from its recorded hash, the build fails.** The fix is to bump `version` and add a new file at `<name>.v<n+1>.yaml`.
 
 ### 6.5 Runtime resolution
 
@@ -262,6 +286,9 @@ Every non-streaming call and every streaming call at completion emit a `PromptTr
   "promptId": "correction/classify",
   "promptVersion": 1,
   "promptHash": "sha256:…",
+  "composedFragments": [
+    { "id": "correction/mode-fragment.tutor", "version": 1, "promptHash": "sha256:…" }
+  ],
   "variableKeys": ["learnerUtterance", "conversationContext", "coachingMode", "proficiencyBand"],
   "startedAt": "2026-08-29T10:12:03.412Z",
   "latencyMs": 843,
@@ -303,12 +330,13 @@ The Realtime path additionally has a test that `IssueRealtimeSessionAsync` centr
 
 ## 10. Definition of Done (issue #31)
 
-- Every one of the eight logical capabilities in §3 is implemented, with the initial default model mapping matching PRD §22.
-- Cost-aware defaults per §4.2 are in place and covered by tests.
-- Every generated output is accompanied by a `PromptTrace` row containing `promptId`, `promptVersion`, `promptHash`, `resolvedModel`, and `reasoningEffort`.
+- Every logical capability listed in the canonical table in §3 is implemented (as of this version of the spec, nine capabilities), with the initial default model mapping matching PRD §22 and with `SpeechGenerationModel` left unmapped as described in §3.
+- Cost-aware defaults per §4.2 are in place and covered by tests. Reasoning-effort behavior for `SpeechGenerationModel` (rejection when supplied) is covered by an explicit test.
+- Every generated output is accompanied by a `PromptTrace` row containing `promptId`, `promptVersion`, `promptHash`, `composedFragments[]` (per §6.2), `resolvedModel`, and `reasoningEffort`.
 - The router can be fully exercised in tests via `FakeOpenAiClient` with no live OpenAI calls.
-- The prompt hash rule (§6.4) is enforced in CI.
-- No hardcoded model IDs remain in backend business logic — a repo grep for `gpt-` in `backend/` returns matches only in `backend/config/router.*` and `backend/prompts/**/*.yaml` `notes:` blocks.
+- The prompt hash rule (§6.4) is enforced in CI, including the completion-prompt `fragments` field.
+- **Model-ID location rule (single source of truth).** No OpenAI model IDs (matching `gpt-`, `o4-`, `o5-`, or any future family prefix declared in the allowlist) appear anywhere in `backend/` except in `backend/config/router.defaults.json`, `backend/config/router.allowed-models.json`, and the router's own hard-coded fallback constants file. In particular, prompt files (`backend/prompts/**/*.yaml`) MUST NOT contain OpenAI model IDs in any field, including `notes:`. A repo-grep CI check enforces this.
+- Documentation may reference model IDs illustratively (this spec, the ADR, PRD extracts). The rule above governs runtime code only.
 
 ## 11. Implementer Notes
 

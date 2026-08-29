@@ -63,23 +63,30 @@ Every classified error is looked up against the learner's error memory before su
 - `recurring` — 2–4 matching observations in the last 30 days.
 - `chronic` — 5+ matching observations, or on the current remediation queue.
 
-Recurrence overrides mode defaults upward for `high` / `medium` severity (see §4).
+**Recurrence promotion rule.** Recurrence promotes an item's effective surfacing by exactly one band relative to the base cell in the §4 matrix:
+
+- `—` (do not surface) → `D` (debrief only)
+- `D` (debrief only) → `D` (unchanged — recurrence never adds live-interrupt permission)
+- `I + D` → `I + D` (unchanged)
+
+Recurrence, in other words, only prevents Voxa from *hiding* chronic problems from the debrief; it never earns an extra live interrupt. That decision is deliberate and protects §8 G-04 (debrief caps) and the interrupt budget in §4.4 rule 2 against a "chronic-item flood" that would otherwise override the anti-overcorrection guardrails.
+
+`chronic` items additionally enter the remediation queue (see §7).
 
 ## 4. Behavior Matrix
 
-Rows are the coaching modes from PRD §12.1; columns are proficiency bands. Cell values state **live-interrupt allowance** and **debrief surfacing** for each severity.
+Rows are the coaching modes from PRD §12.1; columns are proficiency bands. Cell values state **live-interrupt allowance** and **debrief surfacing** for each severity, before recurrence promotion (§3.3) is applied.
 
 Legend:
-- **I:** may interrupt live (barge-in with a brief recast)
-- **D:** surface in post-turn debrief
-- **—:** do not surface
-- `↑1` on a cell means "one severity band lower is also promoted if recurrence ≥ `recurring`"
+- **I + D:** may interrupt live (barge-in with a brief recast) AND surface in debrief
+- **D:** surface in post-turn debrief; no live interrupt
+- **—:** do not surface (subject to promotion to `D` on recurrence per §3.3)
 
 ### 4.1 Beginner (A0–A2)
 
 | Mode | blocking | high | medium | low |
 |---|---|---|---|---|
-| Tutor | I + D | D | D↑1 | — |
+| Tutor | I + D | D | D | — |
 | Natural | I + D | D | — | — |
 | Strict | I + D | I + D | D | — |
 | Immersion | D | D | — | — |
@@ -91,12 +98,12 @@ Legend:
 
 | Mode | blocking | high | medium | low |
 |---|---|---|---|---|
-| Tutor | I + D | D | D | D↑1 |
-| Natural | I + D (rare) | D | D↑1 | — |
+| Tutor | I + D | D | D | D |
+| Natural | I + D (rare) | D | — | — |
 | Strict | I + D | I + D | D | D |
-| Immersion | D | D | D↑1 | — |
-| Scenario | I + D (only if in-role) | D | D↑1 | — |
-| Debate | D | D | D↑1 | — |
+| Immersion | D | D | — | — |
+| Scenario | I + D (only if in-role) | D | — | — |
+| Debate | D | D | — | — |
 | Story | D | D | — | — |
 
 ### 4.3 Advanced (C1+)
@@ -104,11 +111,11 @@ Legend:
 | Mode | blocking | high | medium | low |
 |---|---|---|---|---|
 | Tutor | I + D | D | D | D |
-| Natural | I + D (rare) | D | D | D↑1 |
+| Natural | I + D (rare) | D | D | — |
 | Strict | I + D | I + D | D | D |
 | Immersion | D | D | D | — |
-| Scenario | I + D (only if in-role) | D | D | D↑1 |
-| Debate | D | D | D | D↑1 |
+| Scenario | I + D (only if in-role) | D | D | — |
+| Debate | D | D | D | — |
 | Story | D | D | D | — |
 
 ### 4.4 Absolute rules (override the matrix)

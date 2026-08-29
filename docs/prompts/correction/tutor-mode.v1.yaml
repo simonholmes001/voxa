@@ -55,8 +55,13 @@ fragment: |
     at most a 4-7 word cue, prompt the learner to continue.
   - Total interrupt speech ≤ 6 seconds. No grammar lectures live.
 
-  Recurring errors:
-  - If a candidate error's skillId appears in recurringSkillIds, weight it
+  Recurring errors (recurrence promotion — matches policy §3.3):
+  - If a candidate error's skillId appears in recurringSkillIds, promote its
+    surfacing by one band: an item that would be suppressed (—) becomes
+    debrief-only (D). An item already at D stays at D. Recurrence NEVER adds
+    live-interrupt permission — the interrupt budget is not increased by
+    recurrence.
+  - Chronic recurrences (already on the remediation queue) are also weighted
     higher in the debrief ordering (chronic first).
 
   Never surface:
