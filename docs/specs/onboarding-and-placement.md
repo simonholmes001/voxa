@@ -102,8 +102,7 @@ The server maintains a **placement session state**:
 
 **Written production.** Item 12 (if administered) is a 2–3 sentence prompt at the current-mode difficulty; graded on grammar, vocabulary, and coherence.
 
-**No spoken audio in MVP.** Voice-based placement items are deferred until [#19 iOS WebRTC Realtime session client](https://github.com/simonholmes001/voxa/issues/19) is available; the conversational segment uses text-only input during onboarding for MVP.
-> **Open decision D-01.** The above defers pronunciation placement to after the first lesson. Alternative: gate onboarding on Realtime being ready. Recommend deferring; revisit when #19 lands.
+**No spoken audio in MVP.** Voice-based placement items are deferred until [#19 iOS WebRTC Realtime session client](https://github.com/simonholmes001/voxa/issues/19) is available; the conversational segment uses text-only input during onboarding for MVP. The follow-up work is tracked as a first-class board item — see §10 Follow-ups.
 
 ### 4.3 First Learning Plan (PRD §9.3)
 
@@ -196,6 +195,9 @@ Acceptance test cases live under [`docs/evals/onboarding/`](../evals/) (initial 
 
 ## 9. Open Decisions
 
-- **D-01.** Voice-based placement is deferred to post-first-lesson. Revisit when [#19](https://github.com/simonholmes001/voxa/issues/19) is ready.
 - **D-02.** Anonymous session token lifetime — proposed 30 days, deleted on `finalize`. Awaiting confirmation from [#37 Privacy and consent](https://github.com/simonholmes001/voxa/issues/37).
 - **D-03.** Whether the first-plan `estimatedWeeksToTarget` is shown to the learner. Recommend showing as "roughly N weeks at your chosen pace" to set expectations; alternative is hiding it to avoid discouragement.
+
+## 10. Follow-ups
+
+- [#51 Add voice-based placement to onboarding](https://github.com/simonholmes001/voxa/issues/51) — tracks the voice-first placement experience (spoken conversational segment + short pronunciation micro-assessment) once [#19 iOS WebRTC Realtime session client](https://github.com/simonholmes001/voxa/issues/19) is available. This is the durable tracker for what was previously flagged as D-01; text-only placement in this spec is deliberately an MVP stepping stone, not the target end state.

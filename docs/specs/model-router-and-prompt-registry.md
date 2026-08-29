@@ -268,8 +268,10 @@ The Realtime path additionally has a test that `IssueRealtimeSessionAsync` centr
 - The prompt hash rule (§6.4) is enforced in CI.
 - No hardcoded model IDs remain in backend business logic — a repo grep for `gpt-` in `backend/` returns matches only in `backend/config/router.*` and `backend/prompts/**/*.yaml` `notes:` blocks.
 
-## 11. Open Decisions
+## 11. Implementer Notes
 
-- **D-07.** Where the prompt files live at runtime: embedded resources in the backend assembly, or loaded from a mounted config volume. Recommend embedded — simpler, version-locked with the deployed binary, and consistent with the immutability rule.
-- **D-08.** Whether `PromptTraceContent` (rendered prompt + output) is written by default and later purged, or written only on consent. Awaits [#37](https://github.com/simonholmes001/voxa/issues/37).
-- **D-09.** Whether the experiment framework should surface to the mobile client at all (e.g. for feature flags), or stay purely server-side. Recommend server-side only for MVP.
+These are implementation-time notes, not product decisions. They are recorded here so the backend implementer can address each explicitly during the build-out of this spec rather than rediscovering them.
+
+- **I-01 (packaging).** Prompt YAML files should be embedded as resources in the backend assembly rather than mounted from a config volume: it is simpler, keeps prompts version-locked with the deployed binary, and is consistent with the immutability rule in §6.3. Final call sits with the implementer.
+- **I-02 (pending [#37 Privacy and consent](https://github.com/simonholmes001/voxa/issues/37)).** The write policy for `PromptTraceContent` (rendered prompt text + model output) is defined by the privacy and consent work in #37. This spec expects it to be consent-gated by default; wire the storage seam so #37 can flip the switch without a router change.
+- **I-03 (deferred).** Whether the A/B experiment framework surfaces to the mobile client (e.g. for feature flags) is deferred until Voxa actually runs an experiment. MVP stays server-side only.

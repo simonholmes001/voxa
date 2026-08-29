@@ -117,8 +117,10 @@ Legend:
 2. **Interrupt budget per session.** At most **1 interruption per 3 minutes** of live conversation, regardless of mode. Additional would-be interruptions are queued to the debrief.
 3. **No two consecutive interruptions.** After an interruption, the next candidate must go to debrief.
 4. **Learner-initiated silence protection.** If the learner has held silence < 800ms after finishing a clause, do not interrupt.
-5. **Learner requested a pause on corrections** (`"just let me talk"`, `"stop correcting"`, or the corresponding UI toggle) → suppress live interruptions for the rest of the session; debrief still runs unless the learner also disables debrief.
+5. **Learner requested a pause on corrections.** In-conversation instructions such as `"just let me talk"` or `"stop correcting"` suppress live interruptions for the **rest of the current session only**; debrief still runs unless the learner also disables debrief. A separate persistent **"Disable live corrections"** toggle in Settings applies across all future sessions until reversed. Spoken instructions never silently mutate the persistent preference — the boundary between session-only and persistent behavior is always driven by an explicit UI action.
 6. **Native-variance is never a correction.** If the classifier returns `native-variance`, the item is discarded from the correction pipeline and optionally recorded as a preference.
+7. **Pronunciation drills use a separate interrupt track.** Live feedback during pronunciation practice (repeat-after-me, minimal-pair drills) is intrinsically per-attempt and MUST NOT consume or share the grammar/vocabulary interrupt budget defined in rule 2. The pronunciation subsystem ([#26](https://github.com/simonholmes001/voxa/issues/26)) owns its own cadence rules; this policy applies only to conversational corrections.
+8. **Debate mode holds blocking corrections to end of round.** In Debate, `blocking`-severity errors are never surfaced as live interrupts — they surface only in the post-round debrief. Debate is a rhetorical exercise where flow beats immediate correctness, and interrupting mid-argument would break the mode's contract even for otherwise "may interrupt" cases.
 
 ## 5. Interruption Mechanics
 
@@ -237,6 +239,4 @@ Initial cases under [`docs/evals/correction/`](../evals/):
 
 ## 12. Open Decisions
 
-- **D-04.** Whether learner-visible "Disable live corrections" is a per-session toggle only, or a persisted preference. Recommend persisted with an obvious per-session-only affordance.
-- **D-05.** Whether pronunciation live-interrupts follow the same budget as grammatical ones. Recommend a **separate** pronunciation interrupt track owned by [#26](https://github.com/simonholmes001/voxa/issues/26) since pronunciation drilling is inherently more repetitive.
-- **D-06.** Whether `Debate` mode's `blocking` threshold defers even the first interrupt to the end (to preserve debate flow). Awaiting product call.
+_None outstanding. D-04, D-05, and D-06 have been resolved and folded into §4.4 (rules 5, 7, and 8 respectively)._
