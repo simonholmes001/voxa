@@ -1,25 +1,31 @@
 #if canImport(SwiftUI)
 import SwiftUI
 import VoxaAuth
+import VoxaOnboarding
 
-/// The root of the Voxa app: gates the adaptive navigation shell behind
-/// authentication. When signed out it shows Sign in with Apple; once signed in
-/// it presents the tab bar (compact width) or split view (regular width).
+/// The root of the Voxa app. It composes the app's gates around the adaptive
+/// navigation shell: first Sign in with Apple, then first-run onboarding, then
+/// the tab bar (compact width) or split view (regular width).
 public struct RootView: View {
     @State private var navigationModel: AppNavigationModel
     @State private var authModel: AuthViewModel
+    @State private var onboardingModel: OnboardingViewModel
 
     public init(
         navigationModel: AppNavigationModel = AppNavigationModel(),
-        authModel: AuthViewModel? = nil
+        authModel: AuthViewModel? = nil,
+        onboardingModel: OnboardingViewModel? = nil
     ) {
         _navigationModel = State(initialValue: navigationModel)
         _authModel = State(initialValue: authModel ?? AuthViewModel())
+        _onboardingModel = State(initialValue: onboardingModel ?? OnboardingViewModel())
     }
 
     public var body: some View {
         AuthGate(model: authModel) {
-            MainShellView(model: navigationModel)
+            OnboardingGate(model: onboardingModel) {
+                MainShellView(model: navigationModel)
+            }
         }
         .task { await authModel.restore() }
     }
@@ -120,6 +126,9 @@ private struct SplitLayout: View {
                     expiresAt: .distantFuture
                 )
             )
+        ),
+        onboardingModel: OnboardingViewModel(
+            store: InMemoryOnboardingDraftStore(draft: OnboardingDraft(isCompleted: true))
         )
     )
 }

@@ -48,6 +48,7 @@ macOS CI host via `swift test`; there is no macOS product.
 | --- | --- |
 | `VoxaAppShell` | Adaptive navigation shell (`RootView`, routes, layout resolver), auth- and onboarding-gated. |
 | `VoxaAuth` | Sign in with Apple UI, session lifecycle, and secure Keychain token storage. |
+| `VoxaOnboarding` | First-run onboarding flow, CEFR placement estimate, and resumable draft. |
 | `VoxaDomain` | Domain models (contracts defined in issue #14). |
 | `VoxaNetworking` | Voxa backend networking boundary (contracts in #14). Clients call the Voxa backend only, never OpenAI directly. |
 | `VoxaPersistence` | On-device learner-state persistence boundary (strategy in #21/#22). |
@@ -72,6 +73,21 @@ injected. Wiring the app to the real service still requires:
   (`com.apple.developer.applesignin` entitlement) to the app target (#54).
 - Injecting the backend `AuthenticationService` implementation into
   `AuthViewModel` once it exists.
+
+### Onboarding and placement
+
+After sign-in, `RootView` shows onboarding until it is complete. `OnboardingView`
+is a short stepped flow (target/native language, goal, daily time, a quick
+placement, summary). `OnboardingViewModel` persists a resumable `OnboardingDraft`
+after every answer via an `OnboardingDraftStore`
+(`UserDefaultsOnboardingDraftStore` in the app, `InMemoryOnboardingDraftStore`
+for tests/previews), so an interrupted onboarding resumes on the same device.
+
+`PlacementEstimator` produces a deterministic initial CEFR estimate from a short
+"can-do" self-assessment ladder. The completed profile is submitted through the
+`OnboardingService` seam; backend profile/plan storage and cross-device resume
+are backend responsibilities (#20 backend, #14), so the default
+`UnavailableOnboardingService` fails until a real client is injected.
 
 ### Adaptive navigation
 
