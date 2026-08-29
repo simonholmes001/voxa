@@ -31,8 +31,8 @@ fragment: |
       - B1-B2 or C1+: DO NOT interrupt; note for debrief.
   - low-severity errors:
       - A0-A2: ignore.
-      - B1-B2: note for debrief only if the learner made this mistake before.
-      - C1+: note for debrief.
+      - B1-B2: DO NOT interrupt; note for debrief.
+      - C1+: DO NOT interrupt; note for debrief.
 
   Absolute rules that override the above:
   1. At most 1 interrupt per 3 minutes; if interruptBudgetRemaining == 0,
