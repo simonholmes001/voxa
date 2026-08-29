@@ -10,11 +10,11 @@ const allowedCapabilities = new Set([
   'RealtimeTutorModel',
   'RealtimeTutorModelLite',
   'TutorModel',
-  'LessonGenerationModel',
   'CurriculumModel',
   'AssessmentModel',
-  'BoundedTaskModel',
+  'UtilityModel',
   'LiveTranscriptionModel',
+  'TranscriptionModel',
   'SpeechGenerationModel',
 ]);
 const allowedAssertionPredicates = new Set([

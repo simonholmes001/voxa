@@ -89,5 +89,5 @@ guardrails:
   redactionRequired: [recentTurns]
 notes: >
   See docs/specs/onboarding-and-placement.md §4 (Placement Assessment) for
-  the algorithm this prompt participates in, and D-01 for the current
-  deferral of voice-based placement.
+  the algorithm this prompt participates in, and §10 Follow-ups / #51 for
+  the current deferral of voice-based placement.
