@@ -1,7 +1,10 @@
 kind: fragment
 id: correction/mode-fragment.tutor
 version: 1
-capability: TutorModel
+compatibleCapabilities:
+  - RealtimeTutorModel
+  - RealtimeTutorModelLite
+  - TutorModel
 description: >
   System-prompt fragment composed into Realtime and debrief prompts when the
   learner is in Tutor conversation mode. Encodes §4.1/§4.2/§4.3 and §4.4 of

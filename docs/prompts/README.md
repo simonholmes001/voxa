@@ -20,8 +20,8 @@ The examples committed here are enough for Codex to generate the remaining files
 
 Every prompt file declares a `kind`:
 
-- **`completion`** (default) — a prompt that produces a model completion. Behavioral fields: `system`, `user`, `tools`, `outputSchema`, `variables`.
-- **`fragment`** — a prompt-shaped snippet composed into another prompt's `system` block rather than issued to a model on its own. Behavioral fields: `fragment`, `variables`.
+- **`completion`** (default) — a prompt that produces a model completion. Behavioral fields: `capability`, `system`, `user`, `tools`, `outputSchema`, `variables`.
+- **`fragment`** — a prompt-shaped snippet composed into another prompt's `system` block rather than issued to a model on its own. Behavioral fields: `compatibleCapabilities`, `fragment`, `variables`.
 
 The hash rule in the [model router spec](../specs/model-router-and-prompt-registry.md#64-hashing) covers both kinds; migrating a prompt between kinds is itself a behavioral change and forces a version bump.
 
@@ -29,7 +29,7 @@ The hash rule in the [model router spec](../specs/model-router-and-prompt-regist
 
 1. **Immutability.** A committed prompt version is immutable. Any change to a behavioral field (per the kind — see above and [spec §6.4](../specs/model-router-and-prompt-registry.md#64-hashing)) requires bumping `version` and adding a new file `<name>.v<n+1>.yaml`. Non-behavioral edits (`description`, `notes`, comments) are permitted in place.
 2. **Explicit versioning.** Callers reference prompts by `(id, version)`. The router does not resolve "latest".
-3. **One capability per prompt.** A prompt is bound to exactly one `capability` from the [logical enum](../specs/model-router-and-prompt-registry.md#3-logical-capabilities). Cross-capability reuse means duplicating the prompt.
+3. **Explicit capability binding.** A completion prompt is bound to exactly one `capability` from the [logical enum](../specs/model-router-and-prompt-registry.md#3-logical-capabilities). A fragment declares a non-empty `compatibleCapabilities` allowlist; a governing prompt may compose that fragment only when its own `capability` is listed.
 4. **Strict variables.** Unknown variables in the template and missing required variables both fail loudly at render time.
 5. **No secrets, no model IDs, no user data in prompt files.** Model choice is the router's concern; user data is passed at call time via `variables`.
 6. **Behavior specs are the source of truth for policy.** Prompt files enforce policy; the corresponding spec documents (`docs/specs/*`) explain it. Every prompt's `notes` MUST link back to the governing spec.

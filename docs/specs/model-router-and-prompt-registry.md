@@ -207,7 +207,7 @@ notes: >
 2. **Explicit refs.** Each entry MUST specify `(id, version)`. "Latest" is not resolvable, matching the top-level prompt reference rule.
 3. **Variable propagation.** The governing prompt MUST declare every variable required by every composed fragment (either directly or through an explicit `variableMap`). Missing required fragment variables fail at render time. Unknown variables in a fragment fail at render time. The router does not silently paper over either.
 4. **No cross-fragment conflict resolution.** Fragments are additive text. If two fragments encode contradictory rules for the same situation, the governing prompt is misconfigured — the router does not attempt to resolve the conflict; the fix is at the prompt registry level (bump versions or split the governing prompt).
-5. **Same-capability rule.** Every composed fragment's `capability` MUST equal the governing prompt's `capability`. A `TutorModel` prompt cannot compose a `RealtimeTutorModel` fragment; the mismatch is caught at build time.
+5. **Capability compatibility rule.** Completion prompts declare exactly one `capability`. Fragments declare a non-empty `compatibleCapabilities` list. The governing prompt's `capability` MUST be present in every composed fragment's `compatibleCapabilities`; the mismatch is caught at build time. A shared policy fragment may therefore be composed into both `RealtimeTutorModel` and `TutorModel` prompts only when it explicitly lists both capabilities.
 6. **Fragments cannot compose fragments.** The composition tree is exactly one level deep.
 
 #### `kind: fragment`
@@ -218,7 +218,10 @@ Fragments carry policy text that is composed into a governing prompt at render t
 kind: fragment
 id: correction/mode-fragment.tutor
 version: 1
-capability: TutorModel               # the capability of the governing prompt this fragment composes into
+compatibleCapabilities:              # governing prompt capabilities allowed to compose this fragment
+  - RealtimeTutorModel
+  - RealtimeTutorModelLite
+  - TutorModel
 description: >
   Tutor-mode behavior policy composed into the correction/live-recast and
   correction/debrief prompts. Encodes the correction policy §4.1/§4.2/§4.3
@@ -254,8 +257,8 @@ At build time, `router-index.json` is regenerated. For each prompt, a `hash` is 
 
 | Kind | Behavioral fields hashed |
 |---|---|
-| `completion` | `{kind, system, user, tools, outputSchema, variables, fragments}` |
-| `fragment`   | `{kind, fragment, variables}` |
+| `completion` | `{kind, capability, system, user, tools, outputSchema, variables, fragments}` |
+| `fragment`   | `{kind, compatibleCapabilities, fragment, variables}` |
 
 `kind` is always included so migrating a prompt between kinds is a behavioral change. For completion prompts, `fragments` is hashed as an ordered list of `{id, version, variableMap?}` entries: bumping a composed fragment's version (and updating the governing prompt to reference the new version) counts as a behavioral change to the governing prompt, forcing a governing-prompt version bump too — this is intentional, because a governing prompt that composes a different fragment version behaves differently at runtime and needs a distinct traceable identity. Non-behavioral fields (`description`, `notes`, comments, whitespace outside a hashed string) are excluded so cosmetic edits do not change the hash. CI enforces: **if any hashed field of an existing `(id, version)` differs from its recorded hash, the build fails.** The fix is to bump `version` and add a new file at `<name>.v<n+1>.yaml`.
 
