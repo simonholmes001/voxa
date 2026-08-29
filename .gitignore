@@ -14,6 +14,10 @@ infrastructure/**/main.json
 node_modules/
 npm-debug.log*
 
+# Swift Package Manager
+.build/
+.swiftpm/
+
 bin/
 obj/
 TestResults/
