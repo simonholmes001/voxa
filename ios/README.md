@@ -5,16 +5,31 @@ The iPhone and iPad app lives under this directory as a Swift package at
 
 ## Scope / status
 
-This is the **Swift package foundation** for the app: the navigation shell,
-module boundaries, and tests. It compiles for iPhone/iPad simulators and is
-covered by `swift test`, but it is **not yet an installable app bundle**.
+The app is an installable iPhone/iPad target (`ios/Voxa.xcodeproj`, scheme
+`Voxa`) that hosts `RootView` from the `VoxaApp` Swift package. It builds for
+iPhone and iPad simulators **without** Apple signing secrets. TestFlight upload
+stays gated on the signing secrets listed below (the workflow skips, rather
+than fails, until they are configured).
 
-Producing a runnable, installable app requires a minimal Xcode app project/
-target that hosts `RootView`. That is deliberately a **follow-up**, because the
-`ios-testflight.yml` workflow detects any Xcode project on `main` and then
-requires Apple signing secrets (see below), which are not configured yet.
-Adding the app target should be coordinated with configuring those secrets so
-`main` stays green.
+## App target and project generation
+
+The Xcode project is generated from `ios/project.yml` with
+[XcodeGen](https://github.com/yonaskolb/XcodeGen). `ios/Voxa.xcodeproj` is
+committed so CI (`validate-ios-project.sh`, Fastlane `gym`) can consume it
+without XcodeGen. After editing `project.yml`, regenerate and commit the result:
+
+```bash
+cd ios && xcodegen generate
+```
+
+Layout:
+
+- `ios/Voxa/` — app target sources: `VoxaApp` (`@main`), `AppComposition`
+  (composition root), and `Info.plist` (microphone + speech usage strings).
+- `ios/Voxa.xcodeproj` — generated project with the `Voxa` app target and the
+  `VoxaTests` hosted unit-test target.
+- `ios/VoxaApp/PrivacyInfo.xcprivacy` — app privacy manifest.
+- `ios/VoxaApp/` — the Swift package hosting all app logic (see below).
 
 ## Minimum supported OS
 
@@ -31,7 +46,7 @@ macOS CI host via `swift test`; there is no macOS product.
 
 | Module | Responsibility |
 | --- | --- |
-| `VoxaAppShell` | SwiftUI app entry point and adaptive navigation shell. |
+| `VoxaAppShell` | Adaptive navigation shell (`RootView`, routes, layout resolver). |
 | `VoxaDomain` | Domain models (contracts defined in issue #14). |
 | `VoxaNetworking` | Voxa backend networking boundary (contracts in #14). Clients call the Voxa backend only, never OpenAI directly. |
 | `VoxaPersistence` | On-device learner-state persistence boundary (strategy in #21/#22). |
@@ -54,20 +69,27 @@ preserved when the layout switches on rotation or multitasking size changes.
 ## Build and test
 
 ```bash
-# Logic tests on the macOS host (this is what CI runs)
+# Fast logic tests on the macOS host (run in CI)
 swift test --package-path ios/VoxaApp
 
-# Compile the app shell for an iPhone/iPad simulator destination
-xcodebuild -scheme VoxaAppShell -destination 'generic/platform=iOS Simulator' build
+# Build the installable app for an iPhone or iPad simulator (no signing)
+xcodebuild -project ios/Voxa.xcodeproj -scheme Voxa \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build CODE_SIGNING_ALLOWED=NO
+
+# Run the app target's hosted unit tests on a simulator
+xcodebuild -project ios/Voxa.xcodeproj -scheme Voxa \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' test CODE_SIGNING_ALLOWED=NO
 ```
 
 ## TestFlight
 
-The TestFlight workflow skips until an Xcode project or workspace exists under
-`ios/`. This Swift package does not by itself trigger a TestFlight upload; an
-Xcode app target/project (and the secrets below) are still required.
+`ios-testflight.yml` runs on push to `main`. It detects the Xcode project and
+then **skips** the upload unless the signing secrets below are configured, so
+adding the app target does not break `main`. When the secrets exist, the
+workflow validates the project/scheme and privacy manifest and uploads an
+internal build.
 
-Expected repository secrets before enabling TestFlight uploads:
+Required repository secrets before TestFlight uploads work:
 
 - `VOXA_APP_IDENTIFIER`
 - `VOXA_APPLE_ID`

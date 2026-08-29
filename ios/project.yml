@@ -1,0 +1,69 @@
+# XcodeGen spec for the installable Voxa iPhone/iPad app.
+#
+# This spec is the source of truth for `ios/Voxa.xcodeproj`, which is committed
+# so CI (validate-ios-project.sh, fastlane gym) can consume it without needing
+# XcodeGen. Regenerate after editing this file with:
+#
+#     cd ios && xcodegen generate
+#
+# The app is a thin host for `RootView` from the local `VoxaApp` Swift package;
+# all app logic lives in that package.
+name: Voxa
+options:
+  bundleIdPrefix: com.voxa
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    # Simulator builds must succeed without Apple signing secrets (#54).
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGN_IDENTITY: ""
+    DEVELOPMENT_TEAM: ""
+packages:
+  VoxaApp:
+    path: VoxaApp
+targets:
+  Voxa:
+    type: application
+    platform: iOS
+    sources:
+      - path: Voxa
+      - path: VoxaApp/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    dependencies:
+      - package: VoxaApp
+        product: VoxaAppShell
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.voxa.app
+        INFOPLIST_FILE: Voxa/Info.plist
+        GENERATE_INFOPLIST_FILE: "NO"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: "NO"
+  VoxaTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: VoxaTests
+    dependencies:
+      - target: Voxa
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.voxa.app.tests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Voxa.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Voxa"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+schemes:
+  Voxa:
+    build:
+      targets:
+        Voxa: all
+        VoxaTests: [test]
+    test:
+      targets:
+        - VoxaTests
