@@ -1,25 +1,45 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import VoxaAuth
 
-/// The adaptive root of the Voxa app.
+/// The root of the Voxa app: gates the adaptive navigation shell behind
+/// authentication. When signed out it shows Sign in with Apple; once signed in
+/// it presents the tab bar (compact width) or split view (regular width).
+public struct RootView: View {
+    @State private var navigationModel: AppNavigationModel
+    @State private var authModel: AuthViewModel
+
+    public init(
+        navigationModel: AppNavigationModel = AppNavigationModel(),
+        authModel: AuthViewModel? = nil
+    ) {
+        _navigationModel = State(initialValue: navigationModel)
+        _authModel = State(initialValue: authModel ?? AuthViewModel())
+    }
+
+    public var body: some View {
+        AuthGate(model: authModel) {
+            MainShellView(model: navigationModel)
+        }
+        .task { await authModel.restore() }
+    }
+}
+
+/// The adaptive navigation shell shown once the learner is signed in.
 ///
 /// It reads the horizontal size class and presents either a tab bar (compact
 /// width, typically iPhone) or a split/sidebar layout (regular width, typically
 /// iPad). The selected route lives in `AppNavigationModel`, so the current
 /// destination is preserved when the layout changes on rotation or
 /// multitasking size changes.
-public struct RootView: View {
-    @State private var model: AppNavigationModel
+struct MainShellView: View {
+    var model: AppNavigationModel
 
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
 
-    public init(model: AppNavigationModel = AppNavigationModel()) {
-        _model = State(initialValue: model)
-    }
-
-    public var body: some View {
+    var body: some View {
         switch AdaptiveLayoutResolver.layout(for: resolvedSizeClass) {
         case .tabBar:
             TabLayout(model: model)
@@ -91,6 +111,16 @@ private struct SplitLayout: View {
 }
 
 #Preview {
-    RootView()
+    RootView(
+        authModel: AuthViewModel(
+            store: EphemeralSessionStore(
+                session: AuthSession(
+                    accessToken: "preview",
+                    refreshToken: "preview",
+                    expiresAt: .distantFuture
+                )
+            )
+        )
+    )
 }
 #endif
