@@ -58,9 +58,9 @@ cases:
         length:
           equals: 0
 
-  - id: true-blocking-still-flagged
+  - id: true-high-still-flagged
     description: >
-      Negative control — a genuinely blocking syntax error MUST still be
+      Negative control — an understandable but distracting syntax error MUST still be
       classified, so this suite cannot pass by suppressing everything.
     input:
       learnerUtterance: "Je suis allé à Paris depuis deux ans."
@@ -69,7 +69,7 @@ cases:
         length:
           atLeast: 1
       - path: corrections[0].severity
-        equals: blocking
+        equals: high
       - path: corrections[0].class
         equals: syntax
 

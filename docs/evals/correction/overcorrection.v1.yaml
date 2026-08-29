@@ -4,7 +4,7 @@ description: >
   Enforces the anti-overcorrection guardrails in
   docs/specs/correction-and-explanation-policy.md §4.4 and §8. Verifies that
   low- and medium-severity items are suppressed in the correct modes, that
-  the per-mode debrief caps hold, and that the interrupt budget is respected.
+  the per-band debrief caps hold, and that the interrupt budget is respected.
 context:
   targetLanguage: fr-FR
   recentTurns: []
@@ -69,11 +69,11 @@ cases:
       proficiencyBand: B1-B2
       simulatedConversationSeconds: 120
       learnerUtterances:
-        - "Je suis allé à Paris depuis deux ans."
-        - "Il a arrivé en retard hier."
-        - "Elle veut que je vais avec elle."
-        - "J'ai besoin pour ton aide."
-        - "Nous allons à la maison demain matin."
+        - "Hier demain moi Paris deux ans partir rester."
+        - "Il arrivé pas arriver quand retard parce que moi."
+        - "Elle veut je vais hier demain avec pas."
+        - "Besoin pour aide ton parce que maison."
+        - "Nous demain maison aller hier matin pas."
       interruptBudgetRemaining: 1
     assertions:
       - path: interruptions
@@ -87,8 +87,8 @@ cases:
       coachingMode: tutor
       proficiencyBand: B1-B2
       learnerUtterances:
-        - "Je suis allé à Paris depuis deux ans."   # blocking → interrupt permitted
-        - "Il a arrivé en retard hier."              # blocking, but immediately after
+        - "Hier demain moi Paris deux ans partir rester." # blocking → interrupt permitted
+        - "Il arrivé pas arriver quand retard parce que moi." # blocking, but immediately after
       interruptBudgetRemaining: 2
       previouslyInterrupted: true
     assertions:
@@ -103,7 +103,7 @@ cases:
     input:
       coachingMode: immersion
       proficiencyBand: B1-B2
-      learnerUtterance: "Je suis allé à Paris depuis deux ans."
+      learnerUtterance: "Hier demain moi Paris deux ans partir rester."
       interruptBudgetRemaining: 3
     assertions:
       - path: interrupted

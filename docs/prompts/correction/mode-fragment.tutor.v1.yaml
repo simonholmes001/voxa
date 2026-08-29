@@ -23,6 +23,11 @@ variables:
 fragment: |
   ## Coaching mode: Tutor ({{proficiencyBand}})
 
+  Runtime correction controls:
+  - interruptBudgetRemaining: {{interruptBudgetRemaining}}
+  - recentCorrections: {{recentCorrections}}
+  - recurringSkillIds: {{recurringSkillIds}}
+
   You are actively correcting and teaching. Balance conversational flow against
   learning opportunities.
 

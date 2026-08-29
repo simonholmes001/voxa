@@ -210,7 +210,7 @@ These are non-negotiable; each is a testable eval case.
 - **G-01.** The classifier MUST NOT flag `native-variance` items as corrections. Eval cases in `docs/evals/correction/false-correction.v1.yaml` include regional variants and register-appropriate colloquialisms.
 - **G-02.** The classifier MUST NOT flag a form that appears in an accepted reference corpus for the target language at the learner's level.
 - **G-03.** In Natural + Immersion + Scenario + Debate + Story modes at intermediate/advanced, `medium` and below are never surfaced live.
-- **G-04.** The debrief MUST honor the per-mode cap even when many candidates exist.
+- **G-04.** The debrief MUST honor the per-band cap even when many candidates exist.
 - **G-05.** Learner-typed dialect or register preference (e.g., "I'm learning Quebec French") suppresses corrections that only apply to a different variant.
 - **G-06.** If two consecutive debriefs contain zero `blocking` or `high` items and ≥ 1 `low`, the next debrief further reduces the cap by 1 (down to a floor of 1) — this addresses the "nitpick spiral" failure mode.
 

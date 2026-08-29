@@ -1,3 +1,4 @@
+kind: completion
 id: onboarding/placement-conversation
 version: 1
 capability: TutorModel
