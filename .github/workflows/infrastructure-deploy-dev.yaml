@@ -86,11 +86,11 @@ jobs:
         id: function-code
         shell: bash
         run: |
-          if [ -f backend/Voxa.Api/Voxa.Api.csproj ]; then
+          if [ -f backend/src/Voxa.Api/Voxa.Api.csproj ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "No backend/Voxa.Api project exists yet; infrastructure-only deployment completed."
+            echo "No backend/src/Voxa.Api project exists yet; infrastructure-only deployment completed."
           fi
 
       - name: Publish Function code
