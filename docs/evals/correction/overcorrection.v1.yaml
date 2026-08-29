@@ -1,0 +1,142 @@
+suite: correction/overcorrection
+version: 1
+description: >
+  Enforces the anti-overcorrection guardrails in
+  docs/specs/correction-and-explanation-policy.md §4.4 and §8. Verifies that
+  low- and medium-severity items are suppressed in the correct modes, that
+  the per-band debrief caps hold, and that the interrupt budget is respected.
+context:
+  targetLanguage: fr-FR
+  recentTurns: []
+cases:
+  - id: natural-b1-medium-suppressed-live
+    description: >
+      Natural mode + B1 intermediate: a medium-severity morphology slip must
+      not trigger a live interrupt.
+    input:
+      coachingMode: natural
+      proficiencyBand: B1-B2
+      learnerUtterance: "Hier je suis allé au restaurant avec ma amie."
+      # "ma amie" is a medium morphology/agreement slip (should be "mon amie").
+      interruptBudgetRemaining: 1
+      recurringSkillIds: []
+    assertions:
+      - path: interrupted
+        equals: false
+      - path: debrief.items
+        length:
+          atMost: 5
+
+  - id: natural-b1-medium-firstobs-suppressed-debrief
+    description: >
+      Natural mode + B1: a first-observation medium item should NOT appear
+      in the debrief (matrix cell says "—" for medium unless promoted).
+    input:
+      coachingMode: natural
+      proficiencyBand: B1-B2
+      learnerUtterance: "Je préfère plus le café."
+      # medium usage slip; first observation
+      interruptBudgetRemaining: 1
+      recurringSkillIds: []
+    assertions:
+      - path: debrief.items
+        length:
+          equals: 0
+
+  - id: natural-b1-medium-recurring-promoted
+    description: >
+      Natural mode + B1: a medium item that is `recurring` MUST be promoted
+      into the debrief per the recurrence promotion rule in §3.3 (— → D).
+    input:
+      coachingMode: natural
+      proficiencyBand: B1-B2
+      learnerUtterance: "Je préfère plus le café."
+      interruptBudgetRemaining: 1
+      recurringSkillIds: ["fr.usage.preferer-plus"]
+    assertions:
+      - path: debrief.items
+        length:
+          atLeast: 1
+      - path: debrief.items[0].skillIds
+        contains: "fr.usage.preferer-plus"
+
+  - id: interrupt-budget-caps-at-one
+    description: >
+      Five correction-worthy blocking utterances in a 2-minute span in Tutor
+      mode B1 MUST yield at most one live interrupt.
+    input:
+      coachingMode: tutor
+      proficiencyBand: B1-B2
+      simulatedConversationSeconds: 120
+      learnerUtterances:
+        - "Hier demain moi Paris deux ans partir rester."
+        - "Il arrivé pas arriver quand retard parce que moi."
+        - "Elle veut je vais hier demain avec pas."
+        - "Besoin pour aide ton parce que maison."
+        - "Nous demain maison aller hier matin pas."
+      interruptBudgetRemaining: 1
+    assertions:
+      - path: interruptions
+        length:
+          atMost: 1
+
+  - id: no-consecutive-interrupts
+    description: >
+      After a live interrupt, the next candidate MUST be deferred to debrief.
+    input:
+      coachingMode: tutor
+      proficiencyBand: B1-B2
+      learnerUtterances:
+        - "Hier demain moi Paris deux ans partir rester." # blocking → interrupt permitted
+        - "Il arrivé pas arriver quand retard parce que moi." # blocking, but immediately after
+      interruptBudgetRemaining: 2
+      previouslyInterrupted: true
+    assertions:
+      - path: interruptions
+        length:
+          atMost: 1
+
+  - id: immersion-never-interrupts
+    description: >
+      Immersion mode MUST never emit a live interrupt regardless of severity
+      or budget.
+    input:
+      coachingMode: immersion
+      proficiencyBand: B1-B2
+      learnerUtterance: "Hier demain moi Paris deux ans partir rester."
+      interruptBudgetRemaining: 3
+    assertions:
+      - path: interrupted
+        equals: false
+
+  - id: nitpick-spiral-cap-reduction
+    description: >
+      G-06: two consecutive debriefs with zero blocking/high and ≥ 1 low
+      MUST reduce the next debrief cap by 1 (floor 1). Provides 8 eligible
+      low candidates so a system that fails to reduce the cap from 7 to 6
+      would emit 7 items and the assertion would catch it (a smaller
+      candidate set would pass trivially).
+    input:
+      coachingMode: tutor
+      proficiencyBand: C1+
+      priorDebriefs:
+        - items: [{ severity: low }]
+        - items: [{ severity: low }]
+      currentDebriefCandidates:
+        - severity: low
+        - severity: low
+        - severity: low
+        - severity: low
+        - severity: low
+        - severity: low
+        - severity: low
+        - severity: low
+    assertions:
+      - path: debrief.items
+        length:
+          atMost: 6   # C1+ cap 7 minus 1 by G-06
+      # Belt-and-braces assertion if the harness exposes the applied cap:
+      # remove either this or the length assertion once the harness API is
+      # stable — both encode the same guarantee.
+      - path: debrief.appliedCap
+        equals: 6

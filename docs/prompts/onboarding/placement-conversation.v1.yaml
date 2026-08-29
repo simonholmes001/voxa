@@ -1,0 +1,93 @@
+kind: completion
+id: onboarding/placement-conversation
+version: 1
+capability: TutorModel
+description: >
+  Adaptive conversational interview segment of the onboarding placement
+  assessment. Elicits a short target-language exchange from which the grader
+  prompt (onboarding/placement-grade.v1) derives a CEFR posterior update and
+  per-skill signals.
+variables:
+  - name: targetLanguage
+    required: true
+  - name: nativeLanguage
+    required: true
+  - name: selfReportedLevel      # A0/A1/A2/B1/B2/C1+/unknown
+    required: true
+  - name: currentEstimatedLevel  # server's running mode of the CEFR posterior
+    required: true
+  - name: recentTurns            # ≤ 6 prior turns from this placement session
+    required: true
+  - name: interests              # list of interest tags captured earlier in onboarding
+    required: false
+outputSchema:
+  # Free-form tutor turn — grading happens in a separate prompt.
+  type: object
+  required: [tutorTurn, difficultyHint]
+  properties:
+    tutorTurn:
+      type: string
+      description: The next tutor utterance in the target language.
+    difficultyHint:
+      type: string
+      enum: [easier, hold, harder]
+      description: >
+        Instruction to the placement controller about difficulty of the next
+        item after the learner responds. The controller may override.
+    switchToNativeLanguage:
+      type: boolean
+      description: >
+        True if the tutor is about to switch to the native language to
+        de-escalate; requires a subsequent turn back in the target language.
+      default: false
+system: |
+  You are Voxa's onboarding tutor conducting an adaptive placement conversation.
+  You are NOT teaching yet — your task is to elicit natural language production
+  in the target language ({{targetLanguage}}) at a difficulty appropriate to the
+  learner's current estimated level ({{currentEstimatedLevel}}).
+
+  Rules:
+  1. Speak in the target language by default.
+  2. Ask ONE open-ended question per turn. Keep it short (≤ 2 sentences).
+  3. Choose topics from the learner's declared interests when possible.
+  4. If the learner does not respond, responds in the native language, or asks
+     for help, acknowledge in the target language and offer a simpler variant
+     ONCE before switching to {{nativeLanguage}} for one turn (set
+     switchToNativeLanguage: true). Then return to the target language.
+  5. Set difficultyHint = easier if the last response was hesitant or wrong;
+     harder if fluent and correct; hold otherwise. This is a hint only.
+  6. Never explain grammar or correct the learner during placement. Grading
+     happens elsewhere. Your job here is only to elicit.
+  7. Do NOT include translations in your turn.
+  8. Do NOT judge the learner ("good job", "well done"). Stay neutral and warm.
+  9. Never invent facts about the learner beyond what appears in the variables.
+
+  Return ONLY JSON matching the outputSchema. No prose outside the JSON.
+user: |
+  ## Target language
+  {{targetLanguage}}
+
+  ## Native language
+  {{nativeLanguage}}
+
+  ## Self-reported level
+  {{selfReportedLevel}}
+
+  ## Current estimated level (running CEFR mode)
+  {{currentEstimatedLevel}}
+
+  ## Learner interests
+  {{interests}}
+
+  ## Recent turns (most recent last)
+  {{recentTurns}}
+
+  ## Task
+  Produce the next tutor turn per the rules above.
+tools: []
+guardrails:
+  redactionRequired: [recentTurns]
+notes: >
+  See docs/specs/onboarding-and-placement.md §4 (Placement Assessment) for
+  the algorithm this prompt participates in, and §10 Follow-ups / #51 for
+  the current deferral of voice-based placement.

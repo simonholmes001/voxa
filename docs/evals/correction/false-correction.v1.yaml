@@ -1,0 +1,91 @@
+suite: correction/false-correction
+version: 1
+description: >
+  Enforces guardrails G-01, G-02, and G-05 from
+  docs/specs/correction-and-explanation-policy.md §8: native-variance items,
+  level-appropriate accepted forms, and learner dialect preferences MUST NOT
+  be flagged as corrections.
+context:
+  targetLanguage: fr-FR
+  coachingMode: tutor
+  proficiencyBand: B1-B2
+cases:
+  - id: g01-quebec-variant-not-flagged
+    description: >
+      "C'est-tu correct?" is a valid Quebec French interrogative and MUST NOT
+      be classified as a correction when the learner's declared variant is
+      Quebec French.
+    input:
+      learnerVariantPreference: fr-CA
+      learnerUtterance: "C'est-tu correct comme ça?"
+    assertions:
+      - path: corrections
+        length:
+          equals: 0
+
+  - id: g01-native-filler-not-flagged
+    description: >
+      Native fillers ("euh", "ben", "du coup") are register-appropriate and
+      MUST NOT be classified as corrections at B1+.
+    input:
+      learnerUtterance: "Du coup, euh, je pense que ben, c'est possible."
+    assertions:
+      - path: corrections
+        length:
+          equals: 0
+
+  - id: g02-level-appropriate-simplification-accepted
+    description: >
+      At A2, "Je vais manger" is a level-appropriate simplification of the
+      near-future and MUST NOT be flagged as needing "je mangerai".
+    input:
+      proficiencyBand: A0-A2
+      learnerUtterance: "Demain je vais manger avec ma sœur."
+    assertions:
+      - path: corrections
+        length:
+          equals: 0
+
+  - id: g05-dialect-preference-suppresses-variant-correction
+    description: >
+      Learner has declared Belgian French preference; "septante" MUST NOT be
+      corrected to "soixante-dix".
+    input:
+      learnerVariantPreference: fr-BE
+      learnerUtterance: "J'ai septante euros dans mon portefeuille."
+    assertions:
+      - path: corrections
+        length:
+          equals: 0
+
+  - id: true-high-still-flagged
+    description: >
+      Negative control — an understandable but distracting syntax error MUST still be
+      classified, so this suite cannot pass by suppressing everything.
+    input:
+      learnerUtterance: "Je suis allé à Paris depuis deux ans."
+    assertions:
+      - path: corrections
+        length:
+          atLeast: 1
+      - path: corrections[0].severity
+        equals: high
+      - path: corrections[0].class
+        equals: syntax
+
+  - id: true-high-still-flagged-when-recurring
+    description: >
+      Negative control — a recurring high-severity morphology slip MUST still
+      be classified and surface in the debrief.
+    input:
+      learnerUtterance: "Ma amie est arrivée."
+      recurringSkillIds: ["fr.morphology.elision-ma-mon"]
+    assertions:
+      - path: corrections
+        length:
+          atLeast: 1
+      - path: corrections[0].severity
+        equals: high
+      - path: debrief.items
+        length:
+          atLeast: 1
