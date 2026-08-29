@@ -81,4 +81,4 @@ Similar to (C) with the same tradeoffs, plus vendor lock-in on prompt storage an
 
 - If prompt-edit cadence outgrows the release cadence: reconsider (C).
 - If the eval harness starts requiring live A/B on prompts: reconsider (C) with canary support.
-- If a new capability is required that does not fit any of the eight: add via a follow-up ADR — do not stretch an existing capability.
+- If a new capability is required that does not fit the canonical capability table in the model router spec §3: add via a follow-up ADR — do not stretch an existing capability.
