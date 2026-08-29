@@ -16,9 +16,18 @@ docs/prompts/
 
 The examples committed here are enough for Codex to generate the remaining files against the same schema during backend implementation. Every prompt file MUST validate against the schema in §"Prompt file schema" of the [model router spec](../specs/model-router-and-prompt-registry.md).
 
+## Prompt kinds
+
+Every prompt file declares a `kind`:
+
+- **`completion`** (default) — a prompt that produces a model completion. Behavioral fields: `system`, `user`, `tools`, `outputSchema`, `variables`.
+- **`fragment`** — a prompt-shaped snippet composed into another prompt's `system` block rather than issued to a model on its own. Behavioral fields: `fragment`, `variables`.
+
+The hash rule in the [model router spec](../specs/model-router-and-prompt-registry.md#64-hashing) covers both kinds; migrating a prompt between kinds is itself a behavioral change and forces a version bump.
+
 ## Rules
 
-1. **Immutability.** A committed prompt version is immutable. Any change to `system`, `user`, `tools`, `outputSchema`, or `variables` requires bumping `version` and adding a new file `<name>.v<n+1>.yaml`. Non-behavioral edits (`description`, `notes`, comments) are permitted in place.
+1. **Immutability.** A committed prompt version is immutable. Any change to a behavioral field (per the kind — see above and [spec §6.4](../specs/model-router-and-prompt-registry.md#64-hashing)) requires bumping `version` and adding a new file `<name>.v<n+1>.yaml`. Non-behavioral edits (`description`, `notes`, comments) are permitted in place.
 2. **Explicit versioning.** Callers reference prompts by `(id, version)`. The router does not resolve "latest".
 3. **One capability per prompt.** A prompt is bound to exactly one `capability` from the [logical enum](../specs/model-router-and-prompt-registry.md#3-logical-capabilities). Cross-capability reuse means duplicating the prompt.
 4. **Strict variables.** Unknown variables in the template and missing required variables both fail loudly at render time.

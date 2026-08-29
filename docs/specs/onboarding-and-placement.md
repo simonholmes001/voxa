@@ -144,21 +144,25 @@ This shape drives the `plan_review` screen and seeds the Home / Today surface ow
 
 Owned by the backend modular monolith ([#33](https://github.com/simonholmes001/voxa/issues/33)); this spec proposes shapes for the API-contract issue ([#14](https://github.com/simonholmes001/voxa/issues/14)) to ratify.
 
-Route prefix: `/v1/onboarding`.
+Route family: `/api/*`, aligned with the PRD §50 API surface. The PRD deliberately models the **profile** side of onboarding and the **placement assessment** as separate resources; this spec follows that shape rather than nesting placement under an onboarding-session URL. Cross-device resume uses the PRD's dedicated `/api/session/resume` endpoint.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/sessions` | Start (or resume) an onboarding session for the current caller. Returns `sessionId`, `currentStep`, and `steps[]`. Idempotent by caller identity: repeated calls return the same in-progress session. |
-| `GET` | `/sessions/{sessionId}` | Fetch full session state (for cross-device resume). |
-| `PATCH` | `/sessions/{sessionId}/steps/{stepKey}` | Submit answers for a step. Server validates against step schema, advances `currentStep`, returns updated state. Idempotent — client provides an `Idempotency-Key` header per step submission. |
-| `POST` | `/sessions/{sessionId}/placement/next-item` | (Placement step only) Request the next adaptive item. Body: last item id + graded response. Response: next item, or `{ "done": true, "finalState": {…} }`. |
-| `POST` | `/sessions/{sessionId}/finalize` | Commit the plan, create/update learner state and profile. Returns the finalized profile + first plan. Idempotent. |
+| `POST` | `/api/onboarding` | Upsert the learner onboarding profile. Accepts a partial payload keyed by the step (`native_language`, `target_language`, `prior_experience`, …); the server merges into the caller's profile document and returns the merged profile plus `nextStepKey`. Idempotent per `Idempotency-Key` header (client supplies one per step submission). Advancing through the flow is done by repeated calls to this endpoint. |
+| `GET` | `/api/session/resume` | Cross-device resume. Returns a discriminated union: `{ kind: "onboarding", nextStepKey, profileSoFar }`, `{ kind: "plan_review", planId }`, `{ kind: "lesson", lessonId }`, or `{ kind: "home" }`. Onboarding steps prior to `finalize` are the primary case for this spec. |
+| `POST` | `/api/assessment/start` | Begin adaptive placement. Body includes the profile snapshot needed to seed difficulty. Returns `assessmentId` and the first item. |
+| `POST` | `/api/assessment/{assessmentId}/answer` | Submit a graded response for the current item. Returns either the next item or `{ done: true, resultId }`. Idempotent per `Idempotency-Key` bound to the item id. |
+| `GET` | `/api/assessment/{assessmentId}/result` | Fetch the final placement result (`estimatedLevel`, `levelPosterior`, `skillEstimates`, `priorityWeaknesses`). Callable only after the assessment is `done`. |
+| `GET` | `/api/learning-plan` | Fetch the current first learning plan for the caller (populated by finalization; drives the `plan_review` screen and the Home / Today surface). |
+| `POST` | `/api/learning-plan/regenerate` | Called from `plan_review` when the learner requests adjustments (e.g., "less grammar", "more speaking"). Regenerates the plan through the `CurriculumModel` capability with the same synthesis prompt and returns the new plan. |
 
-**Resume across devices** (PRD acceptance criterion). The session is server-authoritative from step 1 for signed-in users. For pre-sign-in steps, the client caches responses locally under an anonymous session id and replays them via `PATCH …/steps/{stepKey}` on first sign-in. The server accepts out-of-order step patches only within the pre-sign-in window; after finalization, edits go through Settings.
+**Finalization is implicit, not a distinct endpoint.** Once (a) `POST /api/onboarding` has captured every required field in §3.1 up to and including `study_time` and `confidence_self_rating`, and (b) `GET /api/assessment/{id}/result` succeeds (or the beginner shortcut fires in §4.1 which populates a synthetic result), the server auto-materializes the `LearnerState.initial` record and calls the plan-synthesis prompt to produce `LearningPlan.v1`. From that point `GET /api/learning-plan` returns 200. This keeps the API surface as documented in the PRD (no `/api/onboarding/finalize` route) and lets the client rely on `GET /api/session/resume` returning `kind: "plan_review"` as the finalization signal.
 
-**Auth.** All endpoints require the app session issued by [#17 SIWA](https://github.com/simonholmes001/voxa/issues/17) except `POST /sessions` and pre-sign-in `PATCH …/steps/{stepKey}`, which accept an anonymous session token minted at first launch. The server enforces that anonymous sessions cannot call `finalize`.
+**Resume across devices** (PRD acceptance criterion). For signed-in users the profile is server-authoritative from the first step and `GET /api/session/resume` is the canonical way to pick up where the learner left off — including which onboarding step comes next. For pre-sign-in steps the client caches responses locally under an anonymous session token minted at first launch and replays them via `POST /api/onboarding` on first sign-in; the server accepts out-of-order step submissions only until finalization, after which edits go through Settings.
 
-**Data written on `finalize`.**
+**Auth.** All endpoints require the app session issued by [#17 SIWA](https://github.com/simonholmes001/voxa/issues/17) except `POST /api/onboarding` and `POST /api/assessment/*`, which accept the anonymous session token for the pre-sign-in window. The server enforces that anonymous callers cannot trigger finalization: it holds the merged state until the caller either signs in (SIWA at `plan_review`) or the anonymous token expires.
+
+**Data written on finalization.**
 - `Profile`: languages, goals, confidence, study-time preference.
 - `LearnerState.initial`: CEFR estimate, per-skill provisional bucket, priority weaknesses.
 - `LearningPlan.v1`: full plan doc as returned by the synthesis prompt.
@@ -188,8 +192,8 @@ Acceptance test cases live under [`docs/evals/onboarding/`](../evals/) (initial 
 
 - Onboarding captures every PRD §9.1 input without any single screen exceeding one primary decision.
 - The placement step terminates by stop rule and produces a CEFR estimate with per-skill provisional buckets.
-- `finalize` writes `Profile`, `LearnerState.initial`, `LearningPlan.v1`, and `PromptTrace` rows and is idempotent.
-- Interrupted onboarding resumes on a second device to the same step with the same captured state.
+- Finalization (implicit — see §5) writes `Profile`, `LearnerState.initial`, `LearningPlan.v1`, and `PromptTrace` rows; repeated onboarding submissions after finalization are rejected with a clear error and directed to Settings.
+- Interrupted onboarding resumes on a second device via `GET /api/session/resume` with the same captured profile and `nextStepKey`.
 - Evaluation harness in [#32](https://github.com/simonholmes001/voxa/issues/32) picks up the placement + grading eval cases.
 - No hardcoded model IDs anywhere in the onboarding code path — all model calls go through the router by capability.
 

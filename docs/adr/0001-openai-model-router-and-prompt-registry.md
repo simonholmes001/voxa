@@ -33,9 +33,9 @@ Introduce an internal **AI Router** in the backend modular monolith that:
 And a colocated **Prompt Registry** in which:
 
 - Every prompt is a YAML file under `backend/prompts/<domain>/<name>.v<n>.yaml`.
-- Every prompt carries a required schema: `id`, `version`, `capability`, `variables`, `system`, `user`, `outputSchema`, `guardrails`.
+- Every prompt declares a `kind` — `completion` (default; carries `system`, `user`, `tools`, `outputSchema`, `variables`) or `fragment` (carries `fragment`, `variables`; composed into another prompt's system block, never issued on its own). Both kinds carry `id`, `version`, `capability`, and optional `guardrails` / `notes`.
 - Committed versions are **immutable**; behavioral edits require bumping `version`.
-- A build-time `router-index.json` records each version's `sha256` over its behavioral fields; CI fails any behavioral drift on a committed version.
+- A build-time `router-index.json` records each version's `sha256` over its kind-appropriate behavioral fields; CI fails any behavioral drift on a committed version.
 - Callers pass an explicit `(id, version)` `PromptRef` — the router does not resolve "latest".
 - Every model call emits a `PromptTrace` with `promptId`, `promptVersion`, `promptHash`, `resolvedModel`, `reasoningEffort`, token counts, and outcome. Trace content (rendered prompt + output) is stored separately and gated on consent.
 

@@ -144,9 +144,12 @@ backend/prompts/
 
 ### 6.2 Prompt file schema
 
-Each `.yaml` is a single document. Required fields:
+Each `.yaml` is a single document. Every prompt file declares a `kind` — one of `completion` (the default; a prompt that produces a model completion) or `fragment` (a prompt-shaped snippet that is concatenated into another prompt's `system` block rather than issued to a model on its own). The required behavioral fields differ per kind; see §6.4 for the corresponding hash inputs.
+
+#### `kind: completion`
 
 ```yaml
+kind: completion                     # default; may be omitted
 id: correction/classify              # stable, kebab, hierarchical
 version: 1                           # integer, monotonically increasing per id
 capability: AssessmentModel          # from §3
@@ -183,15 +186,54 @@ notes: >
   See docs/specs/correction-and-explanation-policy.md §3–4.
 ```
 
+#### `kind: fragment`
+
+Fragments carry policy text that is composed into a governing prompt at render time; they never produce a completion on their own. `system`, `user`, `outputSchema`, and `tools` are therefore absent — only `fragment` and `variables` are meaningful. The router refuses to issue a completion from a fragment file, and refuses to render a governing prompt whose composed fragments do not all resolve.
+
+```yaml
+kind: fragment
+id: correction/mode-fragment.tutor
+version: 1
+capability: TutorModel               # the capability of the governing prompt this fragment composes into
+description: >
+  Tutor-mode behavior policy composed into the correction/live-recast and
+  correction/debrief prompts. Encodes the correction policy §4.1/§4.2/§4.3
+  matrix cells for Tutor mode.
+variables:
+  - name: proficiencyBand
+    required: true
+  - name: interruptBudgetRemaining
+    required: true
+  - name: recentCorrections
+    required: true
+  - name: recurringSkillIds
+    required: false
+fragment: |
+  ## Coaching mode: Tutor ({{proficiencyBand}})
+
+  You are actively correcting and teaching. Balance conversational flow
+  against learning opportunities. …
+guardrails: {}
+notes: >
+  See docs/specs/correction-and-explanation-policy.md §4 and §5.
+```
+
 ### 6.3 Immutability rule
 
-**A committed prompt version is immutable.** Any change of `system`, `user`, `tools`, `outputSchema`, or `variables` requires bumping `version`. Non-behavioral edits (comments, `description`, `notes`) are permitted without a version bump; CI verifies this using content hashing (see §6.4).
+**A committed prompt version is immutable.** Any change to a behavioral field (defined per kind in §6.4) requires bumping `version`. Non-behavioral edits (comments, `description`, `notes`) are permitted without a version bump; CI verifies this using content hashing (see §6.4).
 
 Deprecated versions remain in-tree with `deprecated: true` and a `supersededBy: <newVersion>` line until no `PromptTrace` in the last 90 days references them.
 
 ### 6.4 Hashing
 
-At build time, `router-index.json` is regenerated. For each prompt, a `hash` is computed as `sha256(canonical_yaml(behavioral_fields))` where `behavioral_fields = {system, user, tools, outputSchema, variables}`. Non-behavioral fields are excluded so cosmetic edits do not change the hash. CI enforces: **if any behavioral field of an existing `(id, version)` differs from its recorded hash, the build fails.** The fix is to bump `version`.
+At build time, `router-index.json` is regenerated. For each prompt, a `hash` is computed as `sha256(canonical_yaml(behavioral_fields))`, where the behavioral field set depends on the prompt's `kind`:
+
+| Kind | Behavioral fields hashed |
+|---|---|
+| `completion` | `{kind, system, user, tools, outputSchema, variables}` |
+| `fragment`   | `{kind, fragment, variables}` |
+
+`kind` is always included so migrating a prompt between kinds is a behavioral change. Non-behavioral fields (`description`, `notes`, comments, whitespace outside a hashed string) are excluded so cosmetic edits do not change the hash. CI enforces: **if any hashed field of an existing `(id, version)` differs from its recorded hash, the build fails.** The fix is to bump `version` and add a new file at `<name>.v<n+1>.yaml`.
 
 ### 6.5 Runtime resolution
 
