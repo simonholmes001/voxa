@@ -23,7 +23,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "VoxaDomain"),
-        .target(name: "VoxaNetworking", dependencies: ["VoxaDomain", "VoxaAuth", "VoxaRealtime"]),
+        .target(name: "VoxaNetworking", dependencies: ["VoxaDomain", "VoxaAuth", "VoxaOnboarding", "VoxaRealtime"]),
         .target(name: "VoxaPersistence", dependencies: ["VoxaDomain"]),
         .target(name: "VoxaAuth", dependencies: ["VoxaDomain"]),
         .target(name: "VoxaOnboarding", dependencies: ["VoxaDomain"]),

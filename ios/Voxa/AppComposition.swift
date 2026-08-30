@@ -49,7 +49,9 @@ enum AppComposition {
         }
         return VoxaBackendOnboardingService(
             baseURL: baseURL,
-            accessTokenProvider: { authModel.state.session?.accessToken }
+            accessTokenProvider: { @MainActor in
+                authModel.state.session?.accessToken
+            }
         )
     }
 
