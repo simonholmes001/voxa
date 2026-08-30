@@ -32,6 +32,8 @@ jobs:
       AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
       AZURE_NETWORK_RESOURCE_GROUP: ${{ secrets.AZURE_NETWORK_RESOURCE_GROUP }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      APP_SESSION_SIGNING_KEY: ${{ secrets.APP_SESSION_SIGNING_KEY }}
+      APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -57,7 +59,7 @@ jobs:
         shell: bash
         run: |
           missing=0
-          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_LOCATION AZURE_RESOURCE_GROUP AZURE_NETWORK_RESOURCE_GROUP OPENAI_API_KEY; do
+          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_LOCATION AZURE_RESOURCE_GROUP AZURE_NETWORK_RESOURCE_GROUP OPENAI_API_KEY APP_SESSION_SIGNING_KEY; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is not configured as a repository secret."
               missing=1
@@ -93,9 +95,37 @@ jobs:
             echo "No backend/src/Voxa.Api project exists yet; infrastructure-only deployment completed."
           fi
 
+      - name: Setup .NET
+        if: steps.detect.outputs.exists == 'true' && steps.function-code.outputs.exists == 'true'
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
       - name: Publish Function code
         if: steps.detect.outputs.exists == 'true' && steps.function-code.outputs.exists == 'true'
         shell: bash
         run: |
-          echo "::notice::Function code deployment is intentionally not wired until the backend project and package shape are created."
-          echo "::notice::Add the publish/package command here when backend/Voxa.Api exists."
+          publish_dir="${RUNNER_TEMP}/voxa-api-publish"
+          package_path="${RUNNER_TEMP}/voxa-api.zip"
+          function_app_name="$(
+            az deployment group show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name main \
+              --query "properties.outputs.functionAppName.value" \
+              --output tsv
+          )"
+
+          if [ -z "$function_app_name" ]; then
+            echo "::error::Function App name was not found in the main deployment outputs."
+            exit 1
+          fi
+
+          dotnet publish backend/src/Voxa.Api/Voxa.Api.csproj \
+            --configuration Release \
+            --output "$publish_dir"
+          (cd "$publish_dir" && zip -qr "$package_path" .)
+
+          az functionapp deployment source config-zip \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$function_app_name" \
+            --src "$package_path"

@@ -2,7 +2,10 @@ namespace Voxa.Api.Configuration;
 
 public sealed record VoxaBackendOptions(
     string? OpenAiApiKey,
-    string? LearnerStateStorageName)
+    string? LearnerStateStorageName,
+    string? AppSessionSigningKey = null,
+    string? AppleClientId = null,
+    string? AppleTenantId = null)
 {
     public IReadOnlyList<string> Validate()
     {
@@ -16,6 +19,11 @@ public sealed record VoxaBackendOptions(
         if (string.IsNullOrWhiteSpace(LearnerStateStorageName))
         {
             errors.Add("LEARNER_STATE_STORAGE_NAME is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(AppSessionSigningKey))
+        {
+            errors.Add("APP_SESSION_SIGNING_KEY is required.");
         }
 
         return errors;

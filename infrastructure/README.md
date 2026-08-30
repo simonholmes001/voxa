@@ -55,6 +55,11 @@ Configure these as GitHub repository secrets:
 - `AZURE_RESOURCE_GROUP`
 - `AZURE_NETWORK_RESOURCE_GROUP`
 - `OPENAI_API_KEY`
+- `APP_SESSION_SIGNING_KEY`
+
+Configure this when Sign in with Apple is enabled for mobile testing:
+
+- `APPLE_CLIENT_ID`
 
 Do not configure Azure client secrets. The deployment workflows use GitHub OIDC with a user-assigned managed identity.
 

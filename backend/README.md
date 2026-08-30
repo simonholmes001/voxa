@@ -2,7 +2,7 @@
 
 The backend is a .NET modular monolith deployed first on Azure Functions Flex Consumption.
 
-The initial skeleton targets `net9.0` so it can be built and tested with the SDK currently installed locally. CI uses the .NET 10 SDK and can still build this target framework. Move the target framework to `net10.0` once the local developer SDK baseline is upgraded.
+The backend targets `net10.0`, matching the Azure Functions isolated worker runtime configured in Bicep and CI.
 
 ## Project Layout
 
@@ -35,6 +35,7 @@ The backend exposes contract classes for:
 - Realtime client-secret issuance for authenticated app sessions.
 
 Permanent OpenAI API keys stay server-side; the mobile app receives only short-lived Realtime client credentials.
+Apple identity tokens are verified against Apple's JWKS and must match the configured `APPLE_CLIENT_ID`.
 
 ## Local Tests
 

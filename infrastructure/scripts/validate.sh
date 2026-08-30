@@ -41,7 +41,7 @@ if [ "$MODE" = "--what-if" ]; then
     --resource-group "$RESOURCE_GROUP" \
     --template-file "$BICEP_FILE" \
     --parameters "$PARAM_FILE" \
-    --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
+    --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}" appSessionSigningKey="${APP_SESSION_SIGNING_KEY:-set-in-github-actions}" appleClientId="${APPLE_CLIENT_ID:-}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
 
   az deployment group what-if \
     --name "private-endpoints-${ENVIRONMENT}" \
@@ -64,7 +64,7 @@ az deployment group validate \
   --resource-group "$RESOURCE_GROUP" \
   --template-file "$BICEP_FILE" \
   --parameters "$PARAM_FILE" \
-  --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
+  --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}" appSessionSigningKey="${APP_SESSION_SIGNING_KEY:-set-in-github-actions}" appleClientId="${APPLE_CLIENT_ID:-}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
 
 az deployment group validate \
   --name "private-endpoints-${ENVIRONMENT}" \

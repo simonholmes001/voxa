@@ -1,4 +1,5 @@
 using Voxa.Application.Realtime;
+using Voxa.Application.Authentication;
 using Voxa.Domain.Learners;
 
 namespace Voxa.Api.Http;
@@ -26,8 +27,8 @@ public sealed class RealtimeSessionEndpoint(IRealtimeSessionService realtimeSess
         try
         {
             var command = RealtimeSessionCommand.Create(
-                principal.TenantId,
-                principal.UserId,
+                principal.TenantId.Value,
+                principal.UserId.Value,
                 request.CoachingMode,
                 request.ProficiencyBand,
                 request.TargetLanguage,
@@ -62,8 +63,6 @@ public sealed class RealtimeSessionEndpoint(IRealtimeSessionService realtimeSess
             new ApiErrorResponse(code, message, correlationId.Value, retryable));
     }
 }
-
-public sealed record AppSessionPrincipal(string TenantId, string UserId);
 
 public sealed record RealtimeSessionHttpRequest(
     string? CoachingMode,

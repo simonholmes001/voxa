@@ -18,6 +18,11 @@ if [ -z "${OPENAI_API_KEY:-}" ]; then
   exit 1
 fi
 
+if [ -z "${APP_SESSION_SIGNING_KEY:-}" ]; then
+  echo "APP_SESSION_SIGNING_KEY is required for deployment." >&2
+  exit 1
+fi
+
 cd "$ROOT_DIR"
 
 bash ./infrastructure/scripts/validate.sh "$ENVIRONMENT" --lint-only
@@ -34,7 +39,7 @@ az deployment group create \
   --resource-group "$RESOURCE_GROUP" \
   --template-file "$BICEP_FILE" \
   --parameters "$PARAM_FILE" \
-  --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="$OPENAI_API_KEY" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
+  --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="$OPENAI_API_KEY" appSessionSigningKey="$APP_SESSION_SIGNING_KEY" appleClientId="${APPLE_CLIENT_ID:-}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
 
 az deployment group create \
   --name "private-endpoints-${ENVIRONMENT}" \
