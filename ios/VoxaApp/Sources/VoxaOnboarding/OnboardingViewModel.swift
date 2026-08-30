@@ -22,7 +22,7 @@ public final class OnboardingViewModel {
 
     public init(
         store: any OnboardingDraftStore = UserDefaultsOnboardingDraftStore(),
-        service: any OnboardingService = UnavailableOnboardingService()
+        service: any OnboardingService = LocalOnboardingService()
     ) {
         self.store = store
         self.service = service

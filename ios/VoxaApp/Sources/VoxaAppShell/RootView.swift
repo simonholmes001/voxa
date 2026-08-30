@@ -123,7 +123,10 @@ private struct SplitLayout: View {
                 session: AuthSession(
                     accessToken: "preview",
                     refreshToken: "preview",
-                    expiresAt: .distantFuture
+                    expiresAt: .distantFuture,
+                    refreshTokenExpiresAt: .distantFuture,
+                    userId: "preview-user",
+                    tenantId: "preview-tenant"
                 )
             )
         ),

@@ -1,7 +1,6 @@
 import XCTest
 @testable import VoxaAuth
 
-/// Configurable fake backend service for exercising the session lifecycle.
 private final class FakeAuthenticationService: AuthenticationService, @unchecked Sendable {
     var exchangeResult: Result<AuthSession, Error>
     var refreshResult: Result<AuthSession, Error>
@@ -30,18 +29,26 @@ private final class FakeAuthenticationService: AuthenticationService, @unchecked
 
 @MainActor
 final class AuthViewModelTests: XCTestCase {
-    private func session(expiresAt: TimeInterval, access: String = "access") -> AuthSession {
+    private func session(
+        expiresAt: TimeInterval,
+        refreshExpiresAt: TimeInterval = 9_000_000_000,
+        access: String = "access"
+    ) -> AuthSession {
         AuthSession(
             accessToken: access,
             refreshToken: "refresh",
-            expiresAt: Date(timeIntervalSince1970: expiresAt)
+            expiresAt: Date(timeIntervalSince1970: expiresAt),
+            refreshTokenExpiresAt: Date(timeIntervalSince1970: refreshExpiresAt),
+            userId: "user",
+            tenantId: "tenant"
         )
     }
 
     private let proof = AppleIdentityProof(
-        userID: "user",
         identityToken: Data("id".utf8),
-        authorizationCode: Data("code".utf8)
+        authorizationCode: Data("code".utf8),
+        nonce: "nonce",
+        userID: "user"
     )
 
     func testSignInSuccessPersistsSessionAndSignsIn() async throws {
@@ -57,7 +64,7 @@ final class AuthViewModelTests: XCTestCase {
 
     func testSignInFailureSetsFailedAndDoesNotPersist() async throws {
         let store = EphemeralSessionStore()
-        let model = AuthViewModel(store: store, service: FakeAuthenticationService(exchange: .failure(AuthenticationServiceError.unavailable)))
+        let model = AuthViewModel(store: store, service: FakeAuthenticationService(exchange: .failure(AuthenticationServiceError.invalidAppleIdentity)))
 
         await model.signIn(with: proof)
 
@@ -80,7 +87,7 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertEqual(model.state, .signedIn(stored))
     }
 
-    func testRestoreWithExpiredSessionRefreshesAndPersists() async throws {
+    func testRestoreWithExpiredAccessRefreshesAndPersists() async throws {
         let expired = session(expiresAt: 100)
         let refreshed = session(expiresAt: 10_000, access: "fresh")
         let store = EphemeralSessionStore(session: expired)
@@ -96,17 +103,30 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertEqual(try store.load(), refreshed)
     }
 
-    func testRestoreWithExpiredSessionAndFailedRefreshSignsOut() async {
+    func testRestoreWithExpiredAccessAndFailedRefreshSignsOut() async {
         let expired = session(expiresAt: 100)
         let model = AuthViewModel(
             store: EphemeralSessionStore(session: expired),
-            service: FakeAuthenticationService(refresh: .failure(AuthenticationServiceError.unavailable)),
+            service: FakeAuthenticationService(refresh: .failure(AuthenticationServiceError.sessionExpired)),
             now: { Date(timeIntervalSince1970: 500) }
         )
 
         await model.restore()
 
         XCTAssertEqual(model.state, .signedOut)
+    }
+
+    func testRestoreWithDeadRefreshTokenSignsOutWithoutCallingRefresh() async throws {
+        // Access expired AND refresh token itself expired -> no refresh attempt.
+        let dead = session(expiresAt: 100, refreshExpiresAt: 200)
+        let store = EphemeralSessionStore(session: dead)
+        let service = FakeAuthenticationService(refresh: .success(session(expiresAt: 10_000)))
+        let model = AuthViewModel(store: store, service: service, now: { Date(timeIntervalSince1970: 500) })
+
+        await model.restore()
+
+        XCTAssertEqual(model.state, .signedOut)
+        XCTAssertNil(try store.load())
     }
 
     func testSignOutInvalidatesBackendAndClearsStore() async throws {

@@ -15,13 +15,24 @@ public protocol AuthenticationService: Sendable {
 }
 
 public enum AuthenticationServiceError: Error, Equatable {
-    /// The backend exchange client has not been wired yet.
+    /// No backend client is wired (e.g. previews/tests default service).
     case unavailable
+    /// The backend base URL is not configured (see `VOXA_API_BASE_URL`).
+    case notConfigured(String)
+    /// Apple identity could not be verified by the backend (HTTP 401).
+    case invalidAppleIdentity
+    /// The refresh token is invalid, revoked, or expired (HTTP 401).
+    case sessionExpired
+    /// The request was rejected as invalid (HTTP 400).
+    case validation(String)
+    /// The backend returned an unexpected error.
+    case server(code: Int, message: String)
+    /// The request could not reach the backend or the response was unreadable.
+    case transport
 }
 
-/// Default service used until the backend client is injected. Every call
-/// fails with `.unavailable`, so the sign-in UI renders but cannot complete
-/// until the backend implementation from #17 is provided.
+/// Default service used in previews/tests. Every call fails with
+/// `.unavailable`.
 public struct UnavailableAuthenticationService: AuthenticationService {
     public init() {}
 
@@ -35,5 +46,27 @@ public struct UnavailableAuthenticationService: AuthenticationService {
 
     public func invalidate(_ session: AuthSession) async throws {
         throw AuthenticationServiceError.unavailable
+    }
+}
+
+/// Fallback service used by the app when the backend base URL is missing, so
+/// the failure surfaces clearly at call time instead of silently doing nothing.
+public struct NotConfiguredAuthenticationService: AuthenticationService {
+    private let reason: String
+
+    public init(reason: String = "The backend base URL (VOXA_API_BASE_URL) is not configured.") {
+        self.reason = reason
+    }
+
+    public func exchange(_ proof: AppleIdentityProof) async throws -> AuthSession {
+        throw AuthenticationServiceError.notConfigured(reason)
+    }
+
+    public func refresh(_ session: AuthSession) async throws -> AuthSession {
+        throw AuthenticationServiceError.notConfigured(reason)
+    }
+
+    public func invalidate(_ session: AuthSession) async throws {
+        throw AuthenticationServiceError.notConfigured(reason)
     }
 }

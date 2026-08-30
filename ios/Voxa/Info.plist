@@ -28,6 +28,8 @@
 	<string>Voxa uses speech recognition to understand and give feedback on what you say in your target language.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<key>VOXA_API_BASE_URL</key>
+	<string>$(VOXA_API_BASE_URL)</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UISupportedInterfaceOrientations</key>

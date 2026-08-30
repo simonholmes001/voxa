@@ -125,4 +125,16 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertTrue(model.isComplete)
         XCTAssertEqual(model.phase, .completed)
     }
+
+    func testFinishCompletesLocallyWithDefaultLocalService() async {
+        let model = OnboardingViewModel(
+            store: InMemoryOnboardingDraftStore(draft: completeDraft()),
+            service: LocalOnboardingService()
+        )
+
+        await model.finish()
+
+        XCTAssertEqual(model.phase, .completed)
+        XCTAssertTrue(model.isComplete)
+    }
 }

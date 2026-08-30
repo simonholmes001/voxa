@@ -50,7 +50,7 @@ macOS CI host via `swift test`; there is no macOS product.
 | `VoxaAuth` | Sign in with Apple UI, session lifecycle, and secure Keychain token storage. |
 | `VoxaOnboarding` | First-run onboarding flow, CEFR placement estimate, and resumable draft. |
 | `VoxaDomain` | Domain models (contracts defined in issue #14). |
-| `VoxaNetworking` | Voxa backend networking boundary (contracts in #14). Clients call the Voxa backend only, never OpenAI directly. |
+| `VoxaNetworking` | Backend HTTP clients (e.g. `VoxaBackendAuthenticationService` for `/api/auth/*`). Clients call the Voxa backend only, never OpenAI directly. |
 | `VoxaPersistence` | On-device learner-state persistence boundary (strategy in #21/#22). |
 
 `VoxaDomain`, `VoxaNetworking`, and `VoxaPersistence` are intentionally thin
@@ -64,15 +64,24 @@ shows `SignInView` (Sign in with Apple); once signed in it shows the shell.
 refresh, sign out — persisting tokens through a `SessionStore`
 (`KeychainSessionStore` in the app, `EphemeralSessionStore` for tests/previews).
 
-The backend exchange is behind the `AuthenticationService` protocol. The wire
-contract and network client are backend responsibilities (#17 backend, #14), so
-the default `UnavailableAuthenticationService` fails until a real client is
-injected. Wiring the app to the real service still requires:
+The backend exchange is implemented by `VoxaBackendAuthenticationService`
+(`VoxaNetworking`) against `POST /api/auth/apple`, `/api/auth/refresh`, and
+`/api/auth/logout` (see `docs/api-contracts.md`). The wire DTOs are isolated in
+`VoxaNetworking` so a contract change stays contained. `AuthSession` tracks both
+`expiresAt` and `refreshTokenExpiresAt`, so a dead refresh token forces a fresh
+sign-in instead of a failed refresh. Sign in with Apple uses a per-request nonce
+(SHA-256 hashed for Apple, raw value sent to the backend).
 
-- Adding the **Sign in with Apple** capability
-  (`com.apple.developer.applesignin` entitlement) to the app target (#54).
-- Injecting the backend `AuthenticationService` implementation into
-  `AuthViewModel` once it exists.
+Configuration and requirements:
+
+- **Backend base URL** comes from the Info.plist key `VOXA_API_BASE_URL`
+  (driven by the `VOXA_API_BASE_URL` build setting; empty by default). When it
+  is blank, `AppComposition` injects `NotConfiguredAuthenticationService`, so
+  sign-in fails clearly instead of silently doing nothing. Set it per
+  configuration (Debug xcconfig / CI / Fastlane) once a deployment URL exists.
+- The **Sign in with Apple** capability is declared in
+  `ios/Voxa/Voxa.entitlements` (`com.apple.developer.applesignin`); the App ID
+  must have the capability enabled for signed device/TestFlight builds.
 
 ### Onboarding and placement
 
@@ -84,10 +93,9 @@ after every answer via an `OnboardingDraftStore`
 for tests/previews), so an interrupted onboarding resumes on the same device.
 
 `PlacementEstimator` produces a deterministic initial CEFR estimate from a short
-"can-do" self-assessment ladder. The completed profile is submitted through the
-`OnboardingService` seam; backend profile/plan storage and cross-device resume
-are backend responsibilities (#20 backend, #14), so the default
-`UnavailableOnboardingService` fails until a real client is injected.
+"can-do" self-assessment ladder. Onboarding **completes locally** by default
+(`LocalOnboardingService`); wiring the `POST /api/onboarding` backend client and
+cross-device resume is tracked as a separate follow-up issue.
 
 ### Adaptive navigation
 
@@ -107,7 +115,10 @@ preserved when the layout switches on rotation or multitasking size changes.
 # Fast logic tests on the macOS host (run in CI)
 swift test --package-path ios/VoxaApp
 
-# Build the installable app for an iPhone or iPad simulator (no signing)
+# Build the installable app for an iPhone or iPad simulator.
+# Simulator builds don't need signing; pass CODE_SIGNING_ALLOWED=NO as a
+# command-line override (the project itself uses automatic signing so device/
+# TestFlight builds still work).
 xcodebuild -project ios/Voxa.xcodeproj -scheme Voxa \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build CODE_SIGNING_ALLOWED=NO
 
@@ -115,6 +126,11 @@ xcodebuild -project ios/Voxa.xcodeproj -scheme Voxa \
 xcodebuild -project ios/Voxa.xcodeproj -scheme Voxa \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' test CODE_SIGNING_ALLOWED=NO
 ```
+
+Signing is **not** disabled at the project level: the app uses automatic signing
+driven by `DEVELOPMENT_TEAM` (supplied via CI/Fastlane match) for device and
+Release/TestFlight builds. Only simulator/CI invocations override
+`CODE_SIGNING_ALLOWED=NO` on the command line.
 
 ## TestFlight
 

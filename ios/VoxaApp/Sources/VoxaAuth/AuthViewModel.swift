@@ -32,6 +32,12 @@ public final class AuthViewModel {
                 return
             }
             if stored.isExpired(asOf: now()) {
+                guard !stored.isRefreshExpired(asOf: now()) else {
+                    // Refresh token is dead too — force a fresh sign in.
+                    try? store.clear()
+                    state = .signedOut
+                    return
+                }
                 try await refresh(stored)
             } else {
                 state = .signedIn(stored)
@@ -70,9 +76,19 @@ public final class AuthViewModel {
     }
 
     private static func message(for error: Error) -> String {
-        if case AuthenticationServiceError.unavailable = error {
+        switch error {
+        case AuthenticationServiceError.unavailable:
             return "Sign in is not available yet. Please try again later."
+        case AuthenticationServiceError.notConfigured:
+            return "Sign in is not configured for this build. Please contact support."
+        case AuthenticationServiceError.invalidAppleIdentity:
+            return "We couldn't verify your Apple ID. Please try again."
+        case AuthenticationServiceError.sessionExpired:
+            return "Your session expired. Please sign in again."
+        case AuthenticationServiceError.transport:
+            return "We couldn't reach Voxa. Check your connection and try again."
+        default:
+            return "Sign in failed. Please try again."
         }
-        return "Sign in failed. Please try again."
     }
 }

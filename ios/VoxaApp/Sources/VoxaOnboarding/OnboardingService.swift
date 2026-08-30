@@ -11,7 +11,16 @@ public enum OnboardingServiceError: Error, Equatable {
     case unavailable
 }
 
-/// Default service used until the backend client is injected.
+/// Default service until the backend `/api/onboarding` client is wired
+/// (tracked as a follow-up issue). It completes onboarding locally without a
+/// network call, so first-run onboarding is not blocked on the backend.
+public struct LocalOnboardingService: OnboardingService {
+    public init() {}
+
+    public func submit(_ profile: OnboardingProfile) async throws {}
+}
+
+/// Service that always fails, useful for tests that assert failure handling.
 public struct UnavailableOnboardingService: OnboardingService {
     public init() {}
 

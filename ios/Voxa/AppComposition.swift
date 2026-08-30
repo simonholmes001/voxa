@@ -1,15 +1,57 @@
+import Foundation
 import SwiftUI
 import VoxaAppShell
+import VoxaAuth
+import VoxaNetworking
+import VoxaOnboarding
 
 /// Composition root for the Voxa app target.
 ///
-/// Keeps app-level wiring in one testable place so the `@main` entry point
-/// stays trivial. As authentication (#17) and onboarding (#20) land, their
-/// gates are composed here rather than in the `App` struct.
+/// Wires the app-level dependencies (auth service, session store, onboarding)
+/// and hands the assembled `RootView` to the `@main` entry point. Keeping this
+/// here means the `App` struct stays trivial and the wiring is testable.
 enum AppComposition {
-    /// Builds the adaptive root view hosted by the app's main window.
     @MainActor
     static func makeRootView() -> RootView {
-        RootView()
+        RootView(authModel: makeAuthModel(), onboardingModel: makeOnboardingModel())
+    }
+
+    @MainActor
+    static func makeAuthModel() -> AuthViewModel {
+        AuthViewModel(store: KeychainSessionStore(), service: makeAuthService())
+    }
+
+    @MainActor
+    static func makeOnboardingModel() -> OnboardingViewModel {
+        // UserDefaults-backed draft store + local completion until the
+        // /api/onboarding client is wired (tracked as a follow-up issue).
+        OnboardingViewModel()
+    }
+
+    /// Builds the auth service against the configured backend, or a
+    /// clearly-failing fallback when the base URL is missing, so a
+    /// misconfigured build fails loudly at sign-in rather than silently.
+    static func makeAuthService() -> any AuthenticationService {
+        guard let baseURL = backendBaseURL() else {
+            return NotConfiguredAuthenticationService()
+        }
+        return VoxaBackendAuthenticationService(baseURL: baseURL)
+    }
+
+    /// Resolves the backend base URL from the app's Info.plist
+    /// (`VOXA_API_BASE_URL`). Returns `nil` when unset or blank.
+    static func backendBaseURL(bundle: Bundle = .main) -> URL? {
+        resolveBaseURL(bundle.object(forInfoDictionaryKey: "VOXA_API_BASE_URL") as? String)
+    }
+
+    /// Pure helper: trims and validates a base-URL string, returning `nil` for
+    /// missing/blank values.
+    static func resolveBaseURL(_ raw: String?) -> URL? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty
+        else {
+            return nil
+        }
+        return URL(string: trimmed)
     }
 }

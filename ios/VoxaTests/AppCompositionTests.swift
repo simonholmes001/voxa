@@ -14,6 +14,25 @@ final class AppCompositionTests: XCTestCase {
         _ = AppComposition.makeRootView()
     }
 
+    func testResolveBaseURLRejectsMissingAndBlankValues() {
+        XCTAssertNil(AppComposition.resolveBaseURL(nil))
+        XCTAssertNil(AppComposition.resolveBaseURL(""))
+        XCTAssertNil(AppComposition.resolveBaseURL("   "))
+    }
+
+    func testResolveBaseURLAcceptsValidURL() {
+        XCTAssertEqual(
+            AppComposition.resolveBaseURL("  https://api.voxa.example  "),
+            URL(string: "https://api.voxa.example")
+        )
+    }
+
+    func testDefaultBuildHasNoBackendBaseURLConfigured() {
+        // The default (unconfigured) build must resolve to nil so network calls
+        // fail clearly rather than hitting an unintended host.
+        XCTAssertNil(AppComposition.backendBaseURL())
+    }
+
     func testInfoPlistDeclaresMicrophoneUsage() {
         let value = Bundle.main.object(
             forInfoDictionaryKey: "NSMicrophoneUsageDescription"

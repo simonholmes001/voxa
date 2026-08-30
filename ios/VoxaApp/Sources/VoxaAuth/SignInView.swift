@@ -1,10 +1,13 @@
 #if canImport(SwiftUI) && canImport(AuthenticationServices)
 import SwiftUI
 import AuthenticationServices
+import CryptoKit
+import Security
 
 /// The Sign in with Apple screen shown when the app has no valid session.
 public struct SignInView: View {
     @Bindable private var model: AuthViewModel
+    @State private var currentNonce = ""
 
     public init(model: AuthViewModel) {
         self.model = model
@@ -35,7 +38,10 @@ public struct SignInView: View {
                     .accessibilityIdentifier("sign-in-error")
             }
             SignInWithAppleButton(.signIn) { request in
+                let nonce = Self.randomNonceString()
+                currentNonce = nonce
                 request.requestedScopes = [.fullName, .email]
+                request.nonce = Self.sha256(nonce)
             } onCompletion: { result in
                 handle(result)
             }
@@ -54,7 +60,8 @@ public struct SignInView: View {
             case let .success(authorization) = result,
             let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
             let identityToken = credential.identityToken,
-            let authorizationCode = credential.authorizationCode
+            let authorizationCode = credential.authorizationCode,
+            !currentNonce.isEmpty
         else {
             return
         }
@@ -63,13 +70,39 @@ public struct SignInView: View {
             PersonNameComponentsFormatter().string(from: $0)
         }
         let proof = AppleIdentityProof(
-            userID: credential.user,
             identityToken: identityToken,
             authorizationCode: authorizationCode,
+            nonce: currentNonce,
+            userID: credential.user,
             email: credential.email,
             fullName: (formattedName?.isEmpty == false) ? formattedName : nil
         )
         Task { await model.signIn(with: proof) }
+    }
+
+    /// Generates a cryptographically random nonce string. The raw value is sent
+    /// to the backend; its SHA-256 hash is supplied to Apple in the request.
+    private static func randomNonceString(length: Int = 32) -> String {
+        let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._")
+        var result = ""
+        var remaining = length
+        while remaining > 0 {
+            var byte: UInt8 = 0
+            if SecRandomCopyBytes(kSecRandomDefault, 1, &byte) != errSecSuccess {
+                byte = UInt8.random(in: 0...255)
+            }
+            if Int(byte) < charset.count {
+                result.append(charset[Int(byte)])
+                remaining -= 1
+            }
+        }
+        return result
+    }
+
+    private static func sha256(_ input: String) -> String {
+        SHA256.hash(data: Data(input.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 }
 #endif
