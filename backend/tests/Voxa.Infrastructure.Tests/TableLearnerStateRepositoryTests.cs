@@ -1,0 +1,70 @@
+using Voxa.Domain.Learners;
+using Voxa.Infrastructure.Persistence;
+
+namespace Voxa.Infrastructure.Tests;
+
+public sealed class TableLearnerStateRepositoryTests
+{
+    [Fact]
+    public async Task GetAsyncReturnsOnlyTheRequestedTenantAndUserState()
+    {
+        var table = new InMemoryLearnerStateTable();
+        var repository = new TableLearnerStateRepository(table);
+        var userId = UserId.Create("user-a");
+
+        await repository.SaveAsync(CreateState(TenantId.Create("tenant-a"), userId), null, CancellationToken.None);
+        await repository.SaveAsync(CreateState(TenantId.Create("tenant-b"), userId), null, CancellationToken.None);
+
+        var tenantAState = await repository.GetAsync(TenantId.Create("tenant-a"), userId, CancellationToken.None);
+
+        Assert.NotNull(tenantAState);
+        Assert.Equal("tenant-a", tenantAState.TenantId.Value);
+    }
+
+    [Fact]
+    public async Task SaveAsyncPersistsAJsonRoundTripForCrossDeviceResume()
+    {
+        var table = new InMemoryLearnerStateTable();
+        var repository = new TableLearnerStateRepository(table);
+        var state = CreateState(TenantId.Create("tenant-a"), UserId.Create("user-a"));
+
+        var saved = await repository.SaveAsync(state, null, CancellationToken.None);
+        var loaded = await repository.GetAsync(state.TenantId, state.UserId, CancellationToken.None);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(1, saved.Version.Value);
+        Assert.Equal(saved.TenantId, loaded.TenantId);
+        Assert.Equal(saved.UserId, loaded.UserId);
+        Assert.Equal(saved.Version, loaded.Version);
+        Assert.Equal(saved.Profile, loaded.Profile);
+        Assert.Equal(saved.ActivePlan.PlanId, loaded.ActivePlan.PlanId);
+        Assert.Equal(saved.ActivePlan.KnowledgeUnitIds, loaded.ActivePlan.KnowledgeUnitIds);
+        Assert.Equal(saved.CurrentLesson, loaded.CurrentLesson);
+        Assert.Equal(saved.ReviewQueue.Items, loaded.ReviewQueue.Items);
+        Assert.Equal(saved.RecentSessions.Items, loaded.RecentSessions.Items);
+    }
+
+    [Fact]
+    public async Task SaveAsyncRejectsStaleVersions()
+    {
+        var table = new InMemoryLearnerStateTable();
+        var repository = new TableLearnerStateRepository(table);
+        var state = CreateState(TenantId.Create("tenant-a"), UserId.Create("user-a"));
+        var saved = await repository.SaveAsync(state, null, CancellationToken.None);
+
+        await Assert.ThrowsAsync<StaleLearnerStateVersionException>(() =>
+            repository.SaveAsync(saved, LearnerStateVersion.Create(0), CancellationToken.None));
+    }
+
+    private static LearnerState CreateState(TenantId tenantId, UserId userId)
+    {
+        return LearnerState.Create(
+            tenantId,
+            userId,
+            new LearnerProfile(tenantId, userId, "fr", "en", "A1"),
+            new ActiveLearningPlan("plan-1", "Survival French", ["greetings"]),
+            new LessonCheckpoint("lesson-1", "unit-1", 3, DateTimeOffset.Parse("2026-08-29T07:00:00Z")),
+            new ReviewQueue([new ReviewQueueItem("bonjour", DateTimeOffset.Parse("2026-08-30T07:00:00Z"), 2)]),
+            new RecentSessionSummaries([new SessionSummary("session-1", DateTimeOffset.Parse("2026-08-29T07:00:00Z"), 600, "lesson-1")]));
+    }
+}

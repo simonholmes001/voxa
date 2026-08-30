@@ -21,6 +21,54 @@ This document defines the first mobile-facing backend contract surfaces for iPho
 }
 ```
 
+## App Sessions
+
+`POST /api/auth/apple`
+
+Exchanges Sign in with Apple proof for Voxa app-session tokens. Apple identity tokens and authorization codes are accepted only by the backend and are never echoed in responses.
+
+```json
+{
+  "identityToken": "apple-id-token",
+  "authorizationCode": "authorization-code",
+  "nonce": "nonce-123"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "correlationId": "corr-123",
+  "tenantId": "tenant-default",
+  "userId": "user-apple-subject",
+  "accessToken": "app-access-token",
+  "refreshToken": "app-refresh-token",
+  "expiresAt": "2026-08-29T08:15:00Z",
+  "refreshTokenExpiresAt": "2026-09-28T08:15:00Z"
+}
+```
+
+`POST /api/auth/refresh`
+
+Rotates a valid refresh token and returns a new app-session token pair. Unknown, revoked, or expired refresh tokens return `401`.
+
+```json
+{
+  "refreshToken": "app-refresh-token"
+}
+```
+
+`POST /api/auth/logout`
+
+Revokes the supplied refresh token. Access tokens naturally expire; clients must discard local session state on success.
+
+```json
+{
+  "refreshToken": "app-refresh-token"
+}
+```
+
 ## Onboarding
 
 `POST /api/onboarding`
@@ -60,23 +108,41 @@ Response `200`:
 
 `POST /api/realtime/session`
 
-Issues a short-lived client authorization payload for a Voxa realtime practice session. The response remains provider-neutral.
+Issues a short-lived client authorization payload for a Voxa Realtime practice session. The permanent OpenAI API key remains server-side only. The endpoint requires an authenticated Voxa app session.
 
 ```json
 {
-  "lessonId": "lesson-1",
-  "mode": "conversation"
+  "coachingMode": "tutor",
+  "proficiencyBand": "B1-B2",
+  "targetLanguage": "fr-FR"
 }
 ```
 
-Response `201`:
+Response `200`:
 
 ```json
 {
-  "sessionId": "session-1",
+  "correlationId": "corr-123",
   "clientSecret": "short-lived-client-token",
-  "expiresAt": "2026-08-29T07:10:00Z",
-  "correlationId": "corr-123"
+  "model": "gpt-realtime-2.1",
+  "reasoningEffort": "low",
+  "expiresAt": "2026-08-29T08:20:00Z",
+  "settings": {
+    "coachingMode": "tutor",
+    "proficiencyBand": "B1-B2",
+    "targetLanguage": "fr-FR"
+  }
+}
+```
+
+Response `401`:
+
+```json
+{
+  "code": "app_session_required",
+  "message": "An authenticated app session is required.",
+  "correlationId": "corr-123",
+  "retryable": false
 }
 ```
 
@@ -222,3 +288,15 @@ Response `404`:
   "retryable": false
 }
 ```
+
+## Durable Store Decision
+
+MVP learner state and refresh-session state use the existing Azure Storage account through a Table-style persistence boundary. This keeps the Azure footprint minimal and avoids introducing Cosmos DB Serverless until query needs justify the extra service.
+
+The backend persists:
+
+- learner resume state by tenant and user,
+- optimistic learner-state versions for cross-device concurrency,
+- refresh-session records with expiry and revocation support.
+
+Learner-state storage must keep tenant/user scope explicit in partition and row keys. Refresh-session storage must avoid raw-token keys. Tests must prove tenant isolation, JSON round-trip compatibility, stale-version rejection, refresh-token rotation, expiry, and revocation.
