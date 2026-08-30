@@ -4,16 +4,23 @@ import VoxaAppShell
 import VoxaAuth
 import VoxaNetworking
 import VoxaOnboarding
+import VoxaRealtime
 
 /// Composition root for the Voxa app target.
 ///
-/// Wires the app-level dependencies (auth service, session store, onboarding)
-/// and hands the assembled `RootView` to the `@main` entry point. Keeping this
-/// here means the `App` struct stays trivial and the wiring is testable.
+/// Wires the app-level dependencies (auth service, session store, onboarding,
+/// Talk-screen Realtime) and hands the assembled `RootView` to the `@main`
+/// entry point. Keeping this here means the `App` struct stays trivial and the
+/// wiring is testable.
 enum AppComposition {
     @MainActor
     static func makeRootView() -> RootView {
-        RootView(authModel: makeAuthModel(), onboardingModel: makeOnboardingModel())
+        let authModel = makeAuthModel()
+        return RootView(
+            authModel: authModel,
+            onboardingModel: makeOnboardingModel(),
+            talkModel: makeTalkModel(authModel: authModel)
+        )
     }
 
     @MainActor
@@ -28,6 +35,20 @@ enum AppComposition {
         OnboardingViewModel(store: InMemoryOnboardingDraftStore())
     }
 
+    /// Builds the Talk-screen session model. The Realtime session credential is
+    /// fetched from the backend using the current app-session access token; the
+    /// WebRTC media transport is a placeholder until libwebrtc is integrated.
+    @MainActor
+    static func makeTalkModel(authModel: AuthViewModel) -> TalkSessionViewModel {
+        TalkSessionViewModel(
+            settings: RealtimeCoachingSettings(proficiencyBand: "A1-A2", targetLanguage: "fr-FR"),
+            permission: SystemMicrophonePermission(),
+            service: makeRealtimeSessionService(),
+            transport: UnavailableRealtimeTransport(),
+            accessTokenProvider: { [weak authModel] in authModel?.state.session?.accessToken }
+        )
+    }
+
     /// Builds the auth service against the configured backend, or a
     /// clearly-failing fallback when the base URL is missing, so a
     /// misconfigured build fails loudly at sign-in rather than silently.
@@ -36,6 +57,15 @@ enum AppComposition {
             return NotConfiguredAuthenticationService()
         }
         return VoxaBackendAuthenticationService(baseURL: baseURL)
+    }
+
+    /// Builds the Realtime session service, or a clearly-failing fallback when
+    /// the base URL is missing.
+    static func makeRealtimeSessionService() -> any RealtimeSessionService {
+        guard let baseURL = backendBaseURL() else {
+            return NotConfiguredRealtimeSessionService()
+        }
+        return VoxaBackendRealtimeSessionService(baseURL: baseURL)
     }
 
     /// Resolves the backend base URL from the app's Info.plist

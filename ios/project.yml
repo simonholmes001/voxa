@@ -48,6 +48,8 @@ targets:
         product: VoxaNetworking
       - package: VoxaApp
         product: VoxaOnboarding
+      - package: VoxaApp
+        product: VoxaRealtime
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.voxa.app

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		41B75AA47BC36DEEECD0D29F /* VoxaRealtime in Frameworks */ = {isa = PBXBuildFile; productRef = B7642F2D9B58B87218A6FB4D /* VoxaRealtime */; };
 		512781FC334E4F584CE9B68F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 02101B695C2D9996A1930DC7 /* PrivacyInfo.xcprivacy */; };
 		53EC3352C6F51B85062077E1 /* VoxaNetworking in Frameworks */ = {isa = PBXBuildFile; productRef = EBF5BFC12BD3B9391534476E /* VoxaNetworking */; };
 		59F5F52AA86A3D297D949065 /* VoxaAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 99E9556609810287793F6F44 /* VoxaAuth */; };
@@ -48,6 +49,7 @@
 				59F5F52AA86A3D297D949065 /* VoxaAuth in Frameworks */,
 				53EC3352C6F51B85062077E1 /* VoxaNetworking in Frameworks */,
 				B9F7A8AC082C7109A89564D6 /* VoxaOnboarding in Frameworks */,
+				41B75AA47BC36DEEECD0D29F /* VoxaRealtime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -148,6 +150,7 @@
 				99E9556609810287793F6F44 /* VoxaAuth */,
 				EBF5BFC12BD3B9391534476E /* VoxaNetworking */,
 				737743FD285FE9CDB5765342 /* VoxaOnboarding */,
+				B7642F2D9B58B87218A6FB4D /* VoxaRealtime */,
 			);
 			productName = Voxa;
 			productReference = C19EC1FC8BBC2C5090B92A07 /* Voxa.app */;
@@ -483,6 +486,10 @@
 		99E9556609810287793F6F44 /* VoxaAuth */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = VoxaAuth;
+		};
+		B7642F2D9B58B87218A6FB4D /* VoxaRealtime */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoxaRealtime;
 		};
 		EBF5BFC12BD3B9391534476E /* VoxaNetworking */ = {
 			isa = XCSwiftPackageProductDependency;

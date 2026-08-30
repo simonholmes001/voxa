@@ -49,6 +49,7 @@ macOS CI host via `swift test`; there is no macOS product.
 | `VoxaAppShell` | Adaptive navigation shell (`RootView`, routes, layout resolver), auth- and onboarding-gated. |
 | `VoxaAuth` | Sign in with Apple UI, session lifecycle, and secure Keychain token storage. |
 | `VoxaOnboarding` | First-run onboarding flow, CEFR placement estimate, and resumable draft. |
+| `VoxaRealtime` | Talk-screen Realtime voice session: mic permission, connection state machine, session/transport seams, and `TalkView`. |
 | `VoxaDomain` | Domain models (contracts defined in issue #14). |
 | `VoxaNetworking` | Backend HTTP clients (e.g. `VoxaBackendAuthenticationService` for `/api/auth/*`). Clients call the Voxa backend only, never OpenAI directly. |
 | `VoxaPersistence` | On-device learner-state persistence boundary (strategy in #21/#22). |
@@ -96,6 +97,29 @@ for tests/previews), so an interrupted onboarding resumes on the same device.
 "can-do" self-assessment ladder. Onboarding **completes locally** by default
 (`LocalOnboardingService`); wiring the `POST /api/onboarding` backend client and
 cross-device resume is tracked as a separate follow-up issue.
+
+### Talk screen (Realtime voice session)
+
+The Talk route hosts `TalkView`, driven by `TalkSessionViewModel`
+(`VoxaRealtime`). Starting a session runs an explicit lifecycle:
+
+`idle → requestingSession → connecting → connected` (and `failed(reason)` /
+`ended`).
+
+The flow: request **microphone permission** (`MicrophonePermission`; the app
+uses `SystemMicrophonePermission` backed by `AVAudioApplication`), then request
+a short-lived credential from `POST /api/realtime/session`
+(`VoxaBackendRealtimeSessionService`, authenticated with the app-session access
+token), then hand the credential to a `RealtimeTransport` to establish the
+direct WebRTC connection to OpenAI Realtime. The permanent OpenAI key stays
+server-side.
+
+**Not yet integrated — dependency decision required:** the concrete WebRTC media
+transport needs a libwebrtc dependency, which is a deliberate
+architecture/dependency choice. Until it is approved, the app injects
+`UnavailableRealtimeTransport`, so the whole Talk path is wired and tested up to
+(but not including) live audio. Audio route/interruption/reconnect handling and
+transcript capture ship with the concrete transport as follow-ups.
 
 ### Adaptive navigation
 

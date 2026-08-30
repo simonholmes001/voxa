@@ -1,16 +1,25 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import VoxaRealtime
 
-/// Placeholder destination for a top-level route.
+/// Destination for a top-level route.
 ///
-/// Each MVP screen (Home, Talk, Learn, Review, Progress, Settings) will be
-/// implemented in its own issue. This view establishes that the route exists
-/// and renders with Dynamic Type-friendly system fonts so navigation and
-/// layout remain intact across text sizes and orientations.
+/// The Talk route hosts the Realtime voice session (`TalkView`) when a session
+/// view model is provided; other routes render a Dynamic Type-friendly
+/// placeholder until their own issues land.
 struct RouteDestinationView: View {
     let route: AppRoute
+    var talkModel: TalkSessionViewModel?
 
     var body: some View {
+        if route == .talk, let talkModel {
+            TalkView(model: talkModel)
+        } else {
+            placeholder
+        }
+    }
+
+    private var placeholder: some View {
         VStack(spacing: 12) {
             Image(systemName: route.systemImageName)
                 .font(.largeTitle)
