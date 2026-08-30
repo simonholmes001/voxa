@@ -1,0 +1,494 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		512781FC334E4F584CE9B68F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 02101B695C2D9996A1930DC7 /* PrivacyInfo.xcprivacy */; };
+		53EC3352C6F51B85062077E1 /* VoxaNetworking in Frameworks */ = {isa = PBXBuildFile; productRef = EBF5BFC12BD3B9391534476E /* VoxaNetworking */; };
+		59F5F52AA86A3D297D949065 /* VoxaAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 99E9556609810287793F6F44 /* VoxaAuth */; };
+		7E0313AE3DFD63B8A32DC5FF /* VoxaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E8F971582777A3E0EADED22 /* VoxaApp.swift */; };
+		B9F7A8AC082C7109A89564D6 /* VoxaOnboarding in Frameworks */ = {isa = PBXBuildFile; productRef = 737743FD285FE9CDB5765342 /* VoxaOnboarding */; };
+		C01B32B85F5C36582E9B2247 /* AppCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F2A05CCFE2E2214A4310FC /* AppCompositionTests.swift */; };
+		C0FBFF9FB00D764D693257CD /* VoxaAppShell in Frameworks */ = {isa = PBXBuildFile; productRef = 0A8786B30163D7CAC5F871C7 /* VoxaAppShell */; };
+		E6B9EE845402DE06675ECFBA /* AppComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = B51017412D55A184C39B1444 /* AppComposition.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		7D505AFD060A6A3F8CCBE73F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 651310AD574A8568847D3933 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B62AF9BEC07F62865F6884DF;
+			remoteInfo = Voxa;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		02101B695C2D9996A1930DC7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		36DF9CAB0B3F9064BD39886D /* VoxaApp */ = {isa = PBXFileReference; lastKnownFileType = folder; name = VoxaApp; path = VoxaApp; sourceTree = SOURCE_ROOT; };
+		5A5E00DCF6BB580377C78446 /* VoxaTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = VoxaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9E8F971582777A3E0EADED22 /* VoxaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoxaApp.swift; sourceTree = "<group>"; };
+		B28A7372282125867EC6D720 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B51017412D55A184C39B1444 /* AppComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppComposition.swift; sourceTree = "<group>"; };
+		B99402AD2F3FBC19978C0D27 /* Voxa.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Voxa.entitlements; sourceTree = "<group>"; };
+		C19EC1FC8BBC2C5090B92A07 /* Voxa.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Voxa.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C4F2A05CCFE2E2214A4310FC /* AppCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCompositionTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		05439EE1F74DD00A7F3918CF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C0FBFF9FB00D764D693257CD /* VoxaAppShell in Frameworks */,
+				59F5F52AA86A3D297D949065 /* VoxaAuth in Frameworks */,
+				53EC3352C6F51B85062077E1 /* VoxaNetworking in Frameworks */,
+				B9F7A8AC082C7109A89564D6 /* VoxaOnboarding in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		086085895974EBA5B9E7C77A /* VoxaApp */ = {
+			isa = PBXGroup;
+			children = (
+				02101B695C2D9996A1930DC7 /* PrivacyInfo.xcprivacy */,
+			);
+			path = VoxaApp;
+			sourceTree = "<group>";
+		};
+		1D21D1D46F5ACBE89EA488D3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C19EC1FC8BBC2C5090B92A07 /* Voxa.app */,
+				5A5E00DCF6BB580377C78446 /* VoxaTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		3A8870AC1ED72B5E9FB84377 /* VoxaTests */ = {
+			isa = PBXGroup;
+			children = (
+				C4F2A05CCFE2E2214A4310FC /* AppCompositionTests.swift */,
+			);
+			path = VoxaTests;
+			sourceTree = "<group>";
+		};
+		9249E884094B66284B6A2609 = {
+			isa = PBXGroup;
+			children = (
+				C7070861BC4B30B768C927EF /* Packages */,
+				B400D1AF80996024A55C9E00 /* Voxa */,
+				086085895974EBA5B9E7C77A /* VoxaApp */,
+				3A8870AC1ED72B5E9FB84377 /* VoxaTests */,
+				1D21D1D46F5ACBE89EA488D3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B400D1AF80996024A55C9E00 /* Voxa */ = {
+			isa = PBXGroup;
+			children = (
+				B51017412D55A184C39B1444 /* AppComposition.swift */,
+				B28A7372282125867EC6D720 /* Info.plist */,
+				B99402AD2F3FBC19978C0D27 /* Voxa.entitlements */,
+				9E8F971582777A3E0EADED22 /* VoxaApp.swift */,
+			);
+			path = Voxa;
+			sourceTree = "<group>";
+		};
+		C7070861BC4B30B768C927EF /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				36DF9CAB0B3F9064BD39886D /* VoxaApp */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		22548AABD182587840348A2A /* VoxaTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EB7DB8F5A82DB49E86BABCA4 /* Build configuration list for PBXNativeTarget "VoxaTests" */;
+			buildPhases = (
+				35202565014F7FCA1F3644A3 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B342D47796FAB56DCD0F0C7B /* PBXTargetDependency */,
+			);
+			name = VoxaTests;
+			packageProductDependencies = (
+			);
+			productName = VoxaTests;
+			productReference = 5A5E00DCF6BB580377C78446 /* VoxaTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B62AF9BEC07F62865F6884DF /* Voxa */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 421E37603AAF990BD2F23C6E /* Build configuration list for PBXNativeTarget "Voxa" */;
+			buildPhases = (
+				D0F4E56FAB7461C1DD85A0BE /* Sources */,
+				1C65F4ED2DF173BBE6FC13F5 /* Resources */,
+				05439EE1F74DD00A7F3918CF /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Voxa;
+			packageProductDependencies = (
+				0A8786B30163D7CAC5F871C7 /* VoxaAppShell */,
+				99E9556609810287793F6F44 /* VoxaAuth */,
+				EBF5BFC12BD3B9391534476E /* VoxaNetworking */,
+				737743FD285FE9CDB5765342 /* VoxaOnboarding */,
+			);
+			productName = Voxa;
+			productReference = C19EC1FC8BBC2C5090B92A07 /* Voxa.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		651310AD574A8568847D3933 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					22548AABD182587840348A2A = {
+						ProvisioningStyle = Automatic;
+					};
+					B62AF9BEC07F62865F6884DF = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 4757A76DB3684EC9611C59EF /* Build configuration list for PBXProject "Voxa" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 9249E884094B66284B6A2609;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D4B44B8477416EFC5106D497 /* XCLocalSwiftPackageReference "VoxaApp" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 1D21D1D46F5ACBE89EA488D3 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B62AF9BEC07F62865F6884DF /* Voxa */,
+				22548AABD182587840348A2A /* VoxaTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1C65F4ED2DF173BBE6FC13F5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				512781FC334E4F584CE9B68F /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		35202565014F7FCA1F3644A3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C01B32B85F5C36582E9B2247 /* AppCompositionTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D0F4E56FAB7461C1DD85A0BE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E6B9EE845402DE06675ECFBA /* AppComposition.swift in Sources */,
+				7E0313AE3DFD63B8A32DC5FF /* VoxaApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B342D47796FAB56DCD0F0C7B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B62AF9BEC07F62865F6884DF /* Voxa */;
+			targetProxy = 7D505AFD060A6A3F8CCBE73F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0C6596031AC1056098B5062B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				VOXA_API_BASE_URL = "";
+			};
+			name = Debug;
+		};
+		39716133858053DFE5A08882 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Voxa/Voxa.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Voxa/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.voxa.app;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4C47C3D2C2C126B779A007B9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.voxa.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Voxa.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Voxa";
+			};
+			name = Debug;
+		};
+		6C05EA359074A0A0B85D5A54 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.voxa.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Voxa.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Voxa";
+			};
+			name = Release;
+		};
+		8694459D4CD17EF12CAF9BB4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VOXA_API_BASE_URL = "";
+			};
+			name = Release;
+		};
+		A5ADB25AF5F15BFBF8D5AEA7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Voxa/Voxa.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Voxa/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.voxa.app;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		421E37603AAF990BD2F23C6E /* Build configuration list for PBXNativeTarget "Voxa" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				39716133858053DFE5A08882 /* Debug */,
+				A5ADB25AF5F15BFBF8D5AEA7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4757A76DB3684EC9611C59EF /* Build configuration list for PBXProject "Voxa" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0C6596031AC1056098B5062B /* Debug */,
+				8694459D4CD17EF12CAF9BB4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EB7DB8F5A82DB49E86BABCA4 /* Build configuration list for PBXNativeTarget "VoxaTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4C47C3D2C2C126B779A007B9 /* Debug */,
+				6C05EA359074A0A0B85D5A54 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D4B44B8477416EFC5106D497 /* XCLocalSwiftPackageReference "VoxaApp" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = VoxaApp;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0A8786B30163D7CAC5F871C7 /* VoxaAppShell */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoxaAppShell;
+		};
+		737743FD285FE9CDB5765342 /* VoxaOnboarding */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoxaOnboarding;
+		};
+		99E9556609810287793F6F44 /* VoxaAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoxaAuth;
+		};
+		EBF5BFC12BD3B9391534476E /* VoxaNetworking */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoxaNetworking;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 651310AD574A8568847D3933 /* Project object */;
+}

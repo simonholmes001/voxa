@@ -143,3 +143,62 @@ jobs:
       - name: Run Swift package tests
         if: steps.detect.outputs.exists == 'true'
         run: swift test --package-path ios/VoxaApp
+
+  ios-app-simulator-tests:
+    name: iPhone/iPad App Simulator Tests
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device_family: iPhone
+            name_pattern: "^iPhone"
+          - device_family: iPad
+            name_pattern: "^iPad"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Detect installable iOS app target
+        id: detect
+        shell: bash
+        run: |
+          if [ -d "ios/Voxa.xcodeproj" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No Voxa Xcode project found; skipping app simulator tests."
+          fi
+
+      - name: Pick a ${{ matrix.device_family }} simulator device
+        if: steps.detect.outputs.exists == 'true'
+        id: pick
+        shell: bash
+        run: |
+          udid="$(
+            xcrun simctl list devices available -j \
+              | jq -r --arg pat '${{ matrix.name_pattern }}' \
+                  '.devices | to_entries[] | .value[]
+                   | select(.name | test($pat))
+                   | .udid' \
+              | head -n1
+          )"
+          if [ -z "${udid}" ]; then
+            echo "::error::No available ${{ matrix.device_family }} simulator on this runner image."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "udid=${udid}" >> "$GITHUB_OUTPUT"
+
+      - name: Run app target tests on ${{ matrix.device_family }} Simulator
+        if: steps.detect.outputs.exists == 'true'
+        shell: bash
+        run: |
+          xcodebuild test \
+            -project ios/Voxa.xcodeproj \
+            -scheme Voxa \
+            -destination "id=${{ steps.pick.outputs.udid }}" \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
