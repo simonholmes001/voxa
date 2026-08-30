@@ -5,10 +5,12 @@
 /// implementation fails until a real client is injected.
 public protocol OnboardingService: Sendable {
     func submit(_ profile: OnboardingProfile) async throws
+    func resume() async throws -> OnboardingProfile?
 }
 
 public enum OnboardingServiceError: Error, Equatable {
     case unavailable
+    case notFound
 }
 
 /// Default service until the backend `/api/onboarding` client is wired
@@ -18,6 +20,10 @@ public struct LocalOnboardingService: OnboardingService {
     public init() {}
 
     public func submit(_ profile: OnboardingProfile) async throws {}
+    
+    public func resume() async throws -> OnboardingProfile? {
+        return nil
+    }
 }
 
 /// Service that always fails, useful for tests that assert failure handling.
@@ -25,6 +31,10 @@ public struct UnavailableOnboardingService: OnboardingService {
     public init() {}
 
     public func submit(_ profile: OnboardingProfile) async throws {
+        throw OnboardingServiceError.unavailable
+    }
+    
+    public func resume() async throws -> OnboardingProfile? {
         throw OnboardingServiceError.unavailable
     }
 }

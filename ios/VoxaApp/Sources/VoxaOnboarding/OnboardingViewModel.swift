@@ -46,6 +46,29 @@ public final class OnboardingViewModel {
         draft = (try? store.load()) ?? OnboardingDraft()
         phase = draft.isCompleted ? .completed : .inProgress
         currentScope = nextScope
+        
+        // Try to resume from backend if local draft is not completed
+        if !draft.isCompleted {
+            Task { await tryResumeFromBackend() }
+        }
+    }
+    
+    private func tryResumeFromBackend() async {
+        do {
+            if let profile = try await service.resume() {
+                // Backend has a profile, so onboarding was completed on another device
+                // Update local draft to reflect completion
+                draft.targetLanguage = profile.targetLanguage
+                draft.nativeLanguage = profile.nativeLanguage
+                draft.goal = profile.goal
+                draft.minutesPerDay = profile.minutesPerDay
+                draft.isCompleted = true
+                try? store.save(draft)
+                phase = .completed
+            }
+        } catch {
+            // Resume failed or no profile exists - continue with local draft
+        }
     }
 
     // MARK: - Derived state

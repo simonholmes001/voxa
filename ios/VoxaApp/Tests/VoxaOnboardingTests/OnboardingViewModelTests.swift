@@ -4,7 +4,7 @@ import XCTest
 private final class FakeOnboardingService: OnboardingService, @unchecked Sendable {
     var result: Result<Void, Error>
     private(set) var submitted: [OnboardingProfile] = []
-
+    
     init(result: Result<Void, Error> = .success(())) {
         self.result = result
     }
@@ -12,6 +12,10 @@ private final class FakeOnboardingService: OnboardingService, @unchecked Sendabl
     func submit(_ profile: OnboardingProfile) async throws {
         submitted.append(profile)
         try result.get()
+    }
+    
+    func resume() async throws -> OnboardingProfile? {
+        return nil
     }
 }
 

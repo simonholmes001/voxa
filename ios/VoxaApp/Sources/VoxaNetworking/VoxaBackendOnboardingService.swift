@@ -44,6 +44,33 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         let _: OnboardingSubmitResponseDTO = try await post("api/onboarding", body: body, accessToken: accessToken)
     }
 
+    public func resume() async throws -> OnboardingProfile? {
+        guard let accessToken = accessTokenProvider() else {
+            throw OnboardingServiceError.unavailable
+        }
+
+        do {
+            let response: ResumeCheckpointResponseDTO = try await get("api/session/resume", accessToken: accessToken)
+            
+            // Map the DTO to OnboardingProfile
+            // We need to infer the goal and minutesPerDay since they're not in the resume response
+            // For MVP, use defaults when resuming
+            guard let cefrLevel = CEFRLevel(rawValue: response.profile.proficiencyLevel) else {
+                throw OnboardingServiceError.unavailable
+            }
+            
+            return OnboardingProfile(
+                targetLanguage: response.profile.targetLanguage,
+                nativeLanguage: response.profile.nativeLanguage,
+                goal: .general, // Default goal when resuming
+                minutesPerDay: 15, // Default minutes when resuming
+                placementLevel: cefrLevel
+            )
+        } catch OnboardingServiceError.notFound {
+            return nil
+        }
+    }
+
     private func post<Body: Encodable, Response: Decodable>(
         _ path: String,
         body: Body,
@@ -77,12 +104,45 @@ public struct VoxaBackendOnboardingService: OnboardingService {
             throw OnboardingServiceError.unavailable
         }
     }
+    
+    private func get<Response: Decodable>(
+        _ path: String,
+        accessToken: String
+    ) async throws -> Response {
+        var request = URLRequest(url: baseURL.appendingPathComponent(path))
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(correlationIDProvider(), forHTTPHeaderField: "X-Correlation-Id")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw OnboardingServiceError.unavailable
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw OnboardingServiceError.unavailable
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw Self.mapError(status: http.statusCode, data: data)
+        }
+        do {
+            return try JSONDecoder().decode(Response.self, from: data)
+        } catch {
+            throw OnboardingServiceError.unavailable
+        }
+    }
 
     private static func mapError(status: Int, data: Data) -> OnboardingServiceError {
         switch status {
+        case 404:
+            return .notFound
         case 401, 403:
             return .unavailable
-        case 400, 404, 422:
+        case 400, 422:
             return .unavailable
         default:
             return .unavailable

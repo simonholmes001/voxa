@@ -31,3 +31,10 @@ struct OnboardingSubmitResponseDTO: Decodable {
     let version: Int
     let correlationId: String
 }
+
+struct ResumeCheckpointResponseDTO: Decodable {
+    let correlationId: String
+    let version: Int
+    let profile: OnboardingProfileDTO
+    let activePlan: OnboardingActivePlanDTO
+}
