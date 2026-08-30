@@ -17,19 +17,35 @@ public final class OnboardingViewModel {
     public private(set) var draft: OnboardingDraft
     public private(set) var phase: Phase = .inProgress
 
-    private let store: any OnboardingDraftStore
+    private var store: any OnboardingDraftStore
     private let service: any OnboardingService
+    private let scopedStoreFactory: (_ tenantId: String, _ userId: String) -> any OnboardingDraftStore
+    private var currentScope: String?
 
     public init(
         store: any OnboardingDraftStore = UserDefaultsOnboardingDraftStore(),
-        service: any OnboardingService = LocalOnboardingService()
+        service: any OnboardingService = LocalOnboardingService(),
+        scopedStoreFactory: @escaping (_ tenantId: String, _ userId: String) -> any OnboardingDraftStore = {
+            UserDefaultsOnboardingDraftStore.scoped(tenantId: $0, userId: $1)
+        }
     ) {
         self.store = store
         self.service = service
+        self.scopedStoreFactory = scopedStoreFactory
         self.draft = (try? store.load()) ?? OnboardingDraft()
         if self.draft.isCompleted {
             phase = .completed
         }
+    }
+
+    public func scope(toTenantId tenantId: String, userId: String) {
+        let nextScope = "\(tenantId)|\(userId)"
+        guard nextScope != currentScope else { return }
+
+        store = scopedStoreFactory(tenantId, userId)
+        draft = (try? store.load()) ?? OnboardingDraft()
+        phase = draft.isCompleted ? .completed : .inProgress
+        currentScope = nextScope
     }
 
     // MARK: - Derived state

@@ -28,6 +28,15 @@ public struct RootView: View {
             }
         }
         .task { await authModel.restore() }
+        .task(id: authenticatedUserScope) {
+            guard let session = authModel.state.session else { return }
+            onboardingModel.scope(toTenantId: session.tenantId, userId: session.userId)
+        }
+    }
+
+    private var authenticatedUserScope: String? {
+        guard let session = authModel.state.session else { return nil }
+        return "\(session.tenantId)|\(session.userId)"
     }
 }
 

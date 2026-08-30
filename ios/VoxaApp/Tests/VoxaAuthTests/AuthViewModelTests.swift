@@ -105,8 +105,9 @@ final class AuthViewModelTests: XCTestCase {
 
     func testRestoreWithExpiredAccessAndFailedRefreshSignsOut() async {
         let expired = session(expiresAt: 100)
+        let store = EphemeralSessionStore(session: expired)
         let model = AuthViewModel(
-            store: EphemeralSessionStore(session: expired),
+            store: store,
             service: FakeAuthenticationService(refresh: .failure(AuthenticationServiceError.sessionExpired)),
             now: { Date(timeIntervalSince1970: 500) }
         )
@@ -114,6 +115,7 @@ final class AuthViewModelTests: XCTestCase {
         await model.restore()
 
         XCTAssertEqual(model.state, .signedOut)
+        XCTAssertNil(try store.load())
     }
 
     func testRestoreWithDeadRefreshTokenSignsOutWithoutCallingRefresh() async throws {

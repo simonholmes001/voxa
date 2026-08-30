@@ -23,9 +23,9 @@ enum AppComposition {
 
     @MainActor
     static func makeOnboardingModel() -> OnboardingViewModel {
-        // UserDefaults-backed draft store + local completion until the
-        // /api/onboarding client is wired (tracked as a follow-up issue).
-        OnboardingViewModel()
+        // Start unscoped; RootView loads the user-specific draft after the
+        // authenticated tenant/user is known.
+        OnboardingViewModel(store: InMemoryOnboardingDraftStore())
     }
 
     /// Builds the auth service against the configured backend, or a

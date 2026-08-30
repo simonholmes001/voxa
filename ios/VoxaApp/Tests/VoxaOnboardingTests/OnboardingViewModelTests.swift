@@ -126,6 +126,28 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(model.phase, .completed)
     }
 
+    func testChangingAuthenticatedUserLoadsThatUsersOnboardingDraft() throws {
+        var completed = completeDraft()
+        completed.isCompleted = true
+        let userAStore = InMemoryOnboardingDraftStore(draft: completed)
+        let userBStore = InMemoryOnboardingDraftStore()
+        let model = OnboardingViewModel(
+            store: userAStore,
+            scopedStoreFactory: { _, userId in
+                userId == "user-a" ? userAStore : userBStore
+            }
+        )
+
+        model.scope(toTenantId: "tenant", userId: "user-a")
+        XCTAssertTrue(model.isComplete)
+
+        model.scope(toTenantId: "tenant", userId: "user-b")
+
+        XCTAssertFalse(model.isComplete)
+        XCTAssertEqual(model.currentStep, .welcome)
+        XCTAssertNil(try userBStore.load())
+    }
+
     func testFinishCompletesLocallyWithDefaultLocalService() async {
         let model = OnboardingViewModel(
             store: InMemoryOnboardingDraftStore(draft: completeDraft()),

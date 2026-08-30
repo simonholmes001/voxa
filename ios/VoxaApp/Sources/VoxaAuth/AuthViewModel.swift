@@ -43,6 +43,7 @@ public final class AuthViewModel {
                 state = .signedIn(stored)
             }
         } catch {
+            try? store.clear()
             state = .signedOut
         }
     }
