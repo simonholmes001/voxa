@@ -7,9 +7,9 @@ public protocol LearnerProfileProviding: Sendable {
 /// A closure-backed provider whose loader runs on the main actor, so it can
 /// safely read main-actor app state (view models) during composition.
 public struct MainActorProfileProvider: LearnerProfileProviding {
-    private let loader: @MainActor () async throws -> LearnerProfileSummary?
+    private let loader: @MainActor @Sendable () async throws -> LearnerProfileSummary?
 
-    public init(_ loader: @escaping @MainActor () async throws -> LearnerProfileSummary?) {
+    public init(_ loader: @escaping @MainActor @Sendable () async throws -> LearnerProfileSummary?) {
         self.loader = loader
     }
 
@@ -18,23 +18,31 @@ public struct MainActorProfileProvider: LearnerProfileProviding {
     }
 }
 
-/// Treats `primary` as the source of truth (e.g. server learner state) and only
-/// falls back to `fallback` (e.g. the locally captured onboarding profile) when
-/// `primary` throws — for example when the device is offline. If `primary`
-/// succeeds with `nil` (no profile), that new-user result is returned as-is.
+/// Treats `primary` as the source of truth (e.g. server learner state). Fallback
+/// is allowed only when the caller explicitly classifies the thrown error as
+/// eligible, such as an offline transport failure.
 public struct FallbackProfileProvider: LearnerProfileProviding {
     private let primary: any LearnerProfileProviding
     private let fallback: any LearnerProfileProviding
+    private let shouldFallback: @Sendable (Error) -> Bool
 
-    public init(primary: any LearnerProfileProviding, fallback: any LearnerProfileProviding) {
+    public init(
+        primary: any LearnerProfileProviding,
+        fallback: any LearnerProfileProviding,
+        shouldFallback: @escaping @Sendable (Error) -> Bool
+    ) {
         self.primary = primary
         self.fallback = fallback
+        self.shouldFallback = shouldFallback
     }
 
     public func load() async throws -> LearnerProfileSummary? {
         do {
             return try await primary.load()
         } catch {
+            guard shouldFallback(error) else {
+                throw error
+            }
             return try await fallback.load()
         }
     }

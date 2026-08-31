@@ -58,7 +58,8 @@ final class FallbackProfileProviderTests: XCTestCase {
     func testUsesPrimaryWhenItSucceeds() async throws {
         let provider = FallbackProfileProvider(
             primary: StubProvider(result: .success(server)),
-            fallback: StubProvider(result: .success(local))
+            fallback: StubProvider(result: .success(local)),
+            shouldFallback: { _ in true }
         )
         let result = try await provider.load()
         XCTAssertEqual(result, server)
@@ -67,16 +68,33 @@ final class FallbackProfileProviderTests: XCTestCase {
     func testFallsBackWhenPrimaryThrows() async throws {
         let provider = FallbackProfileProvider(
             primary: StubProvider(result: .failure(BoomError())),
-            fallback: StubProvider(result: .success(local))
+            fallback: StubProvider(result: .success(local)),
+            shouldFallback: { _ in true }
         )
         let result = try await provider.load()
         XCTAssertEqual(result, local)
     }
 
+    func testDoesNotFallBackWhenPrimaryErrorIsNotEligible() async {
+        let provider = FallbackProfileProvider(
+            primary: StubProvider(result: .failure(BoomError())),
+            fallback: StubProvider(result: .success(local)),
+            shouldFallback: { _ in false }
+        )
+
+        do {
+            _ = try await provider.load()
+            XCTFail("expected primary error to be rethrown")
+        } catch {
+            XCTAssertTrue(error is BoomError)
+        }
+    }
+
     func testPrimaryNilIsReturnedWithoutFallback() async throws {
         let provider = FallbackProfileProvider(
             primary: StubProvider(result: .success(nil)),
-            fallback: StubProvider(result: .success(local))
+            fallback: StubProvider(result: .success(local)),
+            shouldFallback: { _ in true }
         )
         let result = try await provider.load()
         XCTAssertNil(result)
@@ -85,7 +103,8 @@ final class FallbackProfileProviderTests: XCTestCase {
     func testPropagatesWhenBothThrow() async {
         let provider = FallbackProfileProvider(
             primary: StubProvider(result: .failure(BoomError())),
-            fallback: StubProvider(result: .failure(BoomError()))
+            fallback: StubProvider(result: .failure(BoomError())),
+            shouldFallback: { _ in true }
         )
         do {
             _ = try await provider.load()

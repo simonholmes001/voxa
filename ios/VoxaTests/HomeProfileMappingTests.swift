@@ -28,4 +28,11 @@ final class HomeProfileMappingTests: XCTestCase {
     func testNilProfileMapsToNil() {
         XCTAssertNil(AppComposition.learnerSummary(from: nil))
     }
+
+    func testHomeProfileFallbackOnlyAllowsTransportUnavailable() {
+        XCTAssertTrue(AppComposition.isHomeProfileFallbackEligible(OnboardingServiceError.transportUnavailable))
+        XCTAssertFalse(AppComposition.isHomeProfileFallbackEligible(OnboardingServiceError.authenticationRequired))
+        XCTAssertFalse(AppComposition.isHomeProfileFallbackEligible(OnboardingServiceError.invalidResponse))
+        XCTAssertFalse(AppComposition.isHomeProfileFallbackEligible(OnboardingServiceError.serverUnavailable))
+    }
 }

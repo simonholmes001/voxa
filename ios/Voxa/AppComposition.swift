@@ -56,7 +56,11 @@ enum AppComposition {
         let local = MainActorProfileProvider { [weak onboardingModel] in
             learnerSummary(from: onboardingModel?.makeProfile())
         }
-        return HomeViewModel(provider: FallbackProfileProvider(primary: server, fallback: local))
+        return HomeViewModel(provider: FallbackProfileProvider(
+            primary: server,
+            fallback: local,
+            shouldFallback: isHomeProfileFallbackEligible
+        ))
     }
 
     /// Maps an onboarding profile into the display-ready Home summary.
@@ -68,6 +72,13 @@ enum AppComposition {
             goalName: profile.goal.title,
             dailyMinutes: profile.minutesPerDay
         )
+    }
+
+    static func isHomeProfileFallbackEligible(_ error: Error) -> Bool {
+        guard let onboardingError = error as? OnboardingServiceError else {
+            return false
+        }
+        return onboardingError == .transportUnavailable
     }
 
     /// Builds the onboarding service against the configured backend, or a
