@@ -139,16 +139,22 @@ public sealed class AzureRefreshSessionTable(TableClient tableClient) : IRefresh
             cancellationToken);
     }
 
-    public Task DeleteAsync(
+    public async Task DeleteAsync(
         string partitionKey,
         string rowKey,
         CancellationToken cancellationToken)
     {
-        return tableClient.DeleteEntityAsync(
-            partitionKey,
-            rowKey,
-            ETag.All,
-            cancellationToken);
+        try
+        {
+            await tableClient.DeleteEntityAsync(
+                partitionKey,
+                rowKey,
+                ETag.All,
+                cancellationToken);
+        }
+        catch (RequestFailedException exception) when (exception.Status == 404)
+        {
+        }
     }
 }
 
