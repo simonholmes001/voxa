@@ -72,6 +72,45 @@ final class VoxaBackendOnboardingServiceTests: XCTestCase {
         XCTAssertEqual(profile?.placementLevel, .b1)
     }
 
+    func testResumeTransportFailureMapsToTransportUnavailable() async {
+        StubURLProtocol.handler = { _, _ in throw URLError(.notConnectedToInternet) }
+
+        do {
+            _ = try await service.resume()
+            XCTFail("expected transport failure")
+        } catch {
+            XCTAssertEqual(error as? OnboardingServiceError, .transportUnavailable)
+        }
+    }
+
+    func testResumeUnauthorizedDoesNotMapToTransportUnavailable() async {
+        StubURLProtocol.handler = { request, _ in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        do {
+            _ = try await service.resume()
+            XCTFail("expected auth failure")
+        } catch {
+            XCTAssertEqual(error as? OnboardingServiceError, .authenticationRequired)
+        }
+    }
+
+    func testResumeInvalidPayloadDoesNotMapToTransportUnavailable() async {
+        StubURLProtocol.handler = { request, _ in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"not":"the contract"}"#.utf8))
+        }
+
+        do {
+            _ = try await service.resume()
+            XCTFail("expected invalid response")
+        } catch {
+            XCTAssertEqual(error as? OnboardingServiceError, .invalidResponse)
+        }
+    }
+
     private static let submitResponseJSON = """
     {
       "correlationId": "corr-test",

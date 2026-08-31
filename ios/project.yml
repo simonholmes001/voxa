@@ -52,6 +52,8 @@ targets:
         product: VoxaOnboarding
       - package: VoxaApp
         product: VoxaRealtime
+      - package: VoxaApp
+        product: VoxaHome
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.simonholmes.voxa
@@ -71,6 +73,8 @@ targets:
         product: VoxaOnboarding
       - package: VoxaApp
         product: VoxaRealtime
+      - package: VoxaApp
+        product: VoxaHome
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.simonholmes.voxa.tests

@@ -30,7 +30,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
 
     public func submit(_ profile: OnboardingProfile) async throws {
         guard let accessToken = accessTokenProvider() else {
-            throw OnboardingServiceError.unavailable
+            throw OnboardingServiceError.authenticationRequired
         }
 
         let body = OnboardingSubmitRequestDTO(
@@ -46,14 +46,14 @@ public struct VoxaBackendOnboardingService: OnboardingService {
 
     public func resume() async throws -> OnboardingProfile? {
         guard let accessToken = accessTokenProvider() else {
-            throw OnboardingServiceError.unavailable
+            throw OnboardingServiceError.authenticationRequired
         }
 
         do {
             let response: ResumeCheckpointResponseDTO = try await get("api/session/resume", accessToken: accessToken)
 
             guard let cefrLevel = CEFRLevel(rawValue: response.profile.proficiencyLevel.lowercased()) else {
-                throw OnboardingServiceError.unavailable
+                throw OnboardingServiceError.invalidResponse
             }
 
             // Map goals array to LearningGoal enum (use first goal or default to .general)
@@ -93,12 +93,14 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch let error as URLError {
+            throw Self.mapTransportError(error)
         } catch {
-            throw OnboardingServiceError.unavailable
+            throw OnboardingServiceError.transportUnavailable
         }
 
         guard let http = response as? HTTPURLResponse else {
-            throw OnboardingServiceError.unavailable
+            throw OnboardingServiceError.invalidResponse
         }
         guard (200..<300).contains(http.statusCode) else {
             throw Self.mapError(status: http.statusCode, data: data)
@@ -106,7 +108,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         do {
             return try JSONDecoder().decode(Response.self, from: data)
         } catch {
-            throw OnboardingServiceError.unavailable
+            throw OnboardingServiceError.invalidResponse
         }
     }
 
@@ -124,12 +126,14 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch let error as URLError {
+            throw Self.mapTransportError(error)
         } catch {
-            throw OnboardingServiceError.unavailable
+            throw OnboardingServiceError.transportUnavailable
         }
 
         guard let http = response as? HTTPURLResponse else {
-            throw OnboardingServiceError.unavailable
+            throw OnboardingServiceError.invalidResponse
         }
         guard (200..<300).contains(http.statusCode) else {
             throw Self.mapError(status: http.statusCode, data: data)
@@ -137,7 +141,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         do {
             return try JSONDecoder().decode(Response.self, from: data)
         } catch {
-            throw OnboardingServiceError.unavailable
+            throw OnboardingServiceError.invalidResponse
         }
     }
 
@@ -146,9 +150,23 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         case 404:
             return .notFound
         case 401, 403:
-            return .unavailable
+            return .authenticationRequired
         case 400, 422:
             return .unavailable
+        default:
+            return status >= 500 ? .serverUnavailable : .unavailable
+        }
+    }
+
+    private static func mapTransportError(_ error: URLError) -> OnboardingServiceError {
+        switch error.code {
+        case .notConnectedToInternet,
+             .networkConnectionLost,
+             .cannotFindHost,
+             .cannotConnectToHost,
+             .dnsLookupFailed,
+             .timedOut:
+            return .transportUnavailable
         default:
             return .unavailable
         }
