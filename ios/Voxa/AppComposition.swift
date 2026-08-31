@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import VoxaAppShell
 import VoxaAuth
+import VoxaHome
 import VoxaNetworking
 import VoxaOnboarding
 import VoxaRealtime
@@ -16,10 +17,12 @@ enum AppComposition {
     @MainActor
     static func makeRootView() -> RootView {
         let authModel = makeAuthModel()
-        let onboardingModel = makeOnboardingModel(authModel: authModel)
+        let onboardingService = makeOnboardingService(authModel: authModel)
+        let onboardingModel = makeOnboardingModel(service: onboardingService)
         return RootView(
             authModel: authModel,
             onboardingModel: onboardingModel,
+            homeModel: makeHomeModel(onboardingService: onboardingService, onboardingModel: onboardingModel),
             talkModel: makeTalkModel(authModel: authModel, onboardingModel: onboardingModel)
         )
     }
@@ -30,12 +33,40 @@ enum AppComposition {
     }
 
     @MainActor
-    static func makeOnboardingModel(authModel: AuthViewModel) -> OnboardingViewModel {
+    static func makeOnboardingModel(service: any OnboardingService) -> OnboardingViewModel {
         // Start unscoped; RootView loads the user-specific draft after the
         // authenticated tenant/user is known.
         OnboardingViewModel(
             store: InMemoryOnboardingDraftStore(),
-            service: makeOnboardingService(authModel: authModel)
+            service: service
+        )
+    }
+
+    /// Builds the Home/Today model. The learner profile comes from server
+    /// learner state (`resume()`), falling back to the locally captured
+    /// onboarding profile when the server is unreachable (offline).
+    @MainActor
+    static func makeHomeModel(
+        onboardingService: any OnboardingService,
+        onboardingModel: OnboardingViewModel
+    ) -> HomeViewModel {
+        let server = MainActorProfileProvider {
+            learnerSummary(from: try await onboardingService.resume())
+        }
+        let local = MainActorProfileProvider { [weak onboardingModel] in
+            learnerSummary(from: onboardingModel?.makeProfile())
+        }
+        return HomeViewModel(provider: FallbackProfileProvider(primary: server, fallback: local))
+    }
+
+    /// Maps an onboarding profile into the display-ready Home summary.
+    static func learnerSummary(from profile: OnboardingProfile?) -> LearnerProfileSummary? {
+        guard let profile else { return nil }
+        return LearnerProfileSummary(
+            languageName: profile.targetLanguage,
+            levelName: profile.placementLevel.displayName,
+            goalName: profile.goal.title,
+            dailyMinutes: profile.minutesPerDay
         )
     }
 

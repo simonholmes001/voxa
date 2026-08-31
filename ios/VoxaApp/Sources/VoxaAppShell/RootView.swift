@@ -1,6 +1,7 @@
 #if canImport(SwiftUI)
 import SwiftUI
 import VoxaAuth
+import VoxaHome
 import VoxaOnboarding
 import VoxaRealtime
 
@@ -11,24 +12,27 @@ public struct RootView: View {
     @State private var navigationModel: AppNavigationModel
     @State private var authModel: AuthViewModel
     @State private var onboardingModel: OnboardingViewModel
+    private let homeModel: HomeViewModel?
     private let talkModel: TalkSessionViewModel?
 
     public init(
         navigationModel: AppNavigationModel = AppNavigationModel(),
         authModel: AuthViewModel? = nil,
         onboardingModel: OnboardingViewModel? = nil,
+        homeModel: HomeViewModel? = nil,
         talkModel: TalkSessionViewModel? = nil
     ) {
         _navigationModel = State(initialValue: navigationModel)
         _authModel = State(initialValue: authModel ?? AuthViewModel())
         _onboardingModel = State(initialValue: onboardingModel ?? OnboardingViewModel())
+        self.homeModel = homeModel
         self.talkModel = talkModel
     }
 
     public var body: some View {
         AuthGate(model: authModel) {
             OnboardingGate(model: onboardingModel) {
-                MainShellView(model: navigationModel, talkModel: talkModel)
+                MainShellView(model: navigationModel, homeModel: homeModel, talkModel: talkModel)
             }
         }
         .task { await authModel.restore() }
@@ -53,6 +57,7 @@ public struct RootView: View {
 /// multitasking size changes.
 struct MainShellView: View {
     var model: AppNavigationModel
+    var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
 
     #if os(iOS)
@@ -62,9 +67,9 @@ struct MainShellView: View {
     var body: some View {
         switch AdaptiveLayoutResolver.layout(for: resolvedSizeClass) {
         case .tabBar:
-            TabLayout(model: model, talkModel: talkModel)
+            TabLayout(model: model, homeModel: homeModel, talkModel: talkModel)
         case .splitView:
-            SplitLayout(model: model, talkModel: talkModel)
+            SplitLayout(model: model, homeModel: homeModel, talkModel: talkModel)
         }
     }
 
@@ -84,13 +89,19 @@ struct MainShellView: View {
 /// Compact-width layout: a bottom tab bar over the primary routes.
 private struct TabLayout: View {
     @Bindable var model: AppNavigationModel
+    var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
 
     var body: some View {
         TabView(selection: $model.selectedRoute) {
             ForEach(AppRoute.allCases) { route in
                 NavigationStack {
-                    RouteDestinationView(route: route, talkModel: talkModel)
+                    RouteDestinationView(
+                        route: route,
+                        homeModel: homeModel,
+                        talkModel: talkModel,
+                        onStartTalk: { model.selectedRoute = .talk }
+                    )
                 }
                 .tabItem {
                     Label(route.title, systemImage: route.systemImageName)
@@ -104,6 +115,7 @@ private struct TabLayout: View {
 /// Regular-width layout: a sidebar of routes with a detail column.
 private struct SplitLayout: View {
     @Bindable var model: AppNavigationModel
+    var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
 
     var body: some View {
@@ -115,7 +127,12 @@ private struct SplitLayout: View {
             .navigationTitle("Voxa")
         } detail: {
             NavigationStack {
-                RouteDestinationView(route: model.selectedRoute, talkModel: talkModel)
+                RouteDestinationView(
+                    route: model.selectedRoute,
+                    homeModel: homeModel,
+                    talkModel: talkModel,
+                    onStartTalk: { model.selectedRoute = .talk }
+                )
             }
         }
     }

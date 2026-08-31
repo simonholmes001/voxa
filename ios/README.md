@@ -50,6 +50,7 @@ macOS CI host via `swift test`; there is no macOS product.
 | `VoxaAuth` | Sign in with Apple UI, session lifecycle, and secure Keychain token storage. |
 | `VoxaOnboarding` | First-run onboarding flow, CEFR placement estimate, and resumable draft. |
 | `VoxaRealtime` | Talk-screen Realtime voice session: mic permission, connection state machine, session/transport seams, and `TalkView`. |
+| `VoxaHome` | Home/Today post-onboarding surface: profile summary, today/start card, and route into Talk. |
 | `VoxaDomain` | Domain models (contracts defined in issue #14). |
 | `VoxaNetworking` | Backend HTTP clients (e.g. `VoxaBackendAuthenticationService` for `/api/auth/*`). Clients call the Voxa backend only, never OpenAI directly. |
 | `VoxaPersistence` | On-device learner-state persistence boundary (strategy in #21/#22). |
@@ -132,6 +133,24 @@ architecture/dependency choice reviewed separately. Until it is approved, the
 app injects `UnavailableRealtimeTransport`, so the whole Talk path is wired and
 tested up to (but not including) live audio. Audio route/interruption/reconnect
 handling and transcript capture ship with the concrete transport as follow-ups.
+
+### Home / Today (post-onboarding surface)
+
+The Home route hosts `HomeView` (`VoxaHome`), driven by `HomeViewModel`. It shows
+a **profile summary** (language, level, goal, daily minutes) and a **Today card**
+whose primary action routes into the **Talk** screen (the shell switches the
+selected route to `.talk`). The layout is a centered, width-capped stack so it
+reads well on both iPhone (quick practice) and iPad (roomier, in the split
+view's detail column).
+
+The profile comes from **server learner state** via `OnboardingService.resume()`
+(`GET /api/session/resume`), falling back to the locally captured onboarding
+profile when the server is unreachable (`FallbackProfileProvider`). States
+handled in this minimum pass: loading, ready, new-user (no profile), and
+error/offline with retry. Richer Home content — next lesson, due review, and
+recent progress — is deferred to the broader #28 (and depends on lesson
+generation #23, review #27, and progress #30). This surface is intentionally
+**profile-derived** and does not fabricate lessons, streaks, or progress.
 
 ### Adaptive navigation
 
