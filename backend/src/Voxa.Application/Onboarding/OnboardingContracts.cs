@@ -21,7 +21,9 @@ public sealed record OnboardingSubmitResponse(
 public sealed record OnboardingLearnerProfileContract(
     string TargetLanguage,
     string NativeLanguage,
-    string ProficiencyLevel);
+    string ProficiencyLevel,
+    IReadOnlyList<string> Goals,
+    int DailyMinutes);
 
 public sealed record ActiveLearningPlanContract(
     string PlanId,

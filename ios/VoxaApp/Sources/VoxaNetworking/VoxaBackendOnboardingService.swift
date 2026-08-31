@@ -36,7 +36,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         let body = OnboardingSubmitRequestDTO(
             targetLanguage: profile.targetLanguage,
             nativeLanguage: profile.nativeLanguage,
-            proficiencyLevel: profile.placementLevel.rawValue,
+            proficiencyLevel: profile.placementLevel.displayName,
             goals: [profile.goal.rawValue],
             dailyMinutes: profile.minutesPerDay
         )
@@ -52,7 +52,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         do {
             let response: ResumeCheckpointResponseDTO = try await get("api/session/resume", accessToken: accessToken)
 
-            guard let cefrLevel = CEFRLevel(rawValue: response.profile.proficiencyLevel) else {
+            guard let cefrLevel = CEFRLevel(rawValue: response.profile.proficiencyLevel.lowercased()) else {
                 throw OnboardingServiceError.unavailable
             }
 

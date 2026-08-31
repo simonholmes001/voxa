@@ -11,6 +11,7 @@ public sealed class FunctionRouteContractTests
     [InlineData(nameof(VoxaHttpFunctions.SignInWithAppleAsync), "auth/apple", "post")]
     [InlineData(nameof(VoxaHttpFunctions.RefreshSessionAsync), "auth/refresh", "post")]
     [InlineData(nameof(VoxaHttpFunctions.LogoutAsync), "auth/logout", "post")]
+    [InlineData(nameof(VoxaHttpFunctions.SubmitOnboardingAsync), "onboarding", "post")]
     [InlineData(nameof(VoxaHttpFunctions.IssueRealtimeSessionAsync), "realtime/session", "post")]
     [InlineData(nameof(VoxaHttpFunctions.ResumeSessionAsync), "session/resume", "get")]
     [InlineData(nameof(VoxaHttpFunctions.DeploymentHealthAsync), "health/deployment", "get")]

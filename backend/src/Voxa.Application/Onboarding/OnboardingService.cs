@@ -30,7 +30,9 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
                 new OnboardingLearnerProfileContract(
                     updated.Profile.TargetLanguage,
                     updated.Profile.NativeLanguage,
-                    updated.Profile.ProficiencyLevel),
+                    updated.Profile.ProficiencyLevel,
+                    updated.Profile.Goals,
+                    updated.Profile.DailyMinutes),
                 new ActiveLearningPlanContract(
                     updated.ActivePlan.PlanId,
                     updated.ActivePlan.Title,
@@ -67,7 +69,9 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
             new OnboardingLearnerProfileContract(
                 saved.Profile.TargetLanguage,
                 saved.Profile.NativeLanguage,
-                saved.Profile.ProficiencyLevel),
+                saved.Profile.ProficiencyLevel,
+                saved.Profile.Goals,
+                saved.Profile.DailyMinutes),
             new ActiveLearningPlanContract(
                 saved.ActivePlan.PlanId,
                 saved.ActivePlan.Title,

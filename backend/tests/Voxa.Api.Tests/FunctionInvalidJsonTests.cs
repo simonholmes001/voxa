@@ -82,17 +82,26 @@ public sealed class FunctionInvalidJsonTests
     [InlineData("auth/apple")]
     [InlineData("auth/refresh")]
     [InlineData("auth/logout")]
+    [InlineData("onboarding")]
     [InlineData("realtime/session")]
     public async Task PostFunctionsReturnInvalidJsonForMalformedBodies(string route)
     {
-        var functions = CreateFunctions();
+        var tokenIssuer = CreateTokenIssuer();
+        var functions = CreateFunctions(tokenIssuer);
         var request = new TestHttpRequestData("{not-json", method: "POST", route);
+        if (route == "onboarding")
+        {
+            request.Headers.Add(
+                "Authorization",
+                $"Bearer {ValidAccessToken(tokenIssuer, TenantId.Create("tenant-default"), UserId.Create("user-a"))}");
+        }
 
         var response = route switch
         {
             "auth/apple" => await functions.SignInWithAppleAsync(request, CancellationToken.None),
             "auth/refresh" => await functions.RefreshSessionAsync(request, CancellationToken.None),
             "auth/logout" => await functions.LogoutAsync(request, CancellationToken.None),
+            "onboarding" => await functions.SubmitOnboardingAsync(request, CancellationToken.None),
             "realtime/session" => await functions.IssueRealtimeSessionAsync(request, CancellationToken.None),
             _ => throw new ArgumentOutOfRangeException(nameof(route), route, null)
         };
@@ -106,13 +115,11 @@ public sealed class FunctionInvalidJsonTests
 
     private static VoxaHttpFunctions CreateFunctions()
     {
-        var tokenIssuer = new HmacAppSessionTokenIssuer(
-            new AppSessionTokenOptions(
-                "test-signing-key-that-is-long-enough-for-hmac",
-                TimeSpan.FromMinutes(15),
-                TimeSpan.FromDays(30)),
-            new FixedClock(DateTimeOffset.Parse("2026-08-31T08:00:00Z")));
+        return CreateFunctions(CreateTokenIssuer());
+    }
 
+    private static VoxaHttpFunctions CreateFunctions(HmacAppSessionTokenIssuer tokenIssuer)
+    {
         return new VoxaHttpFunctions(
             new SignInWithAppleEndpoint(new StubAppSessionService()),
             new RefreshAppSessionEndpoint(new StubAppSessionService()),
@@ -122,6 +129,23 @@ public sealed class FunctionInvalidJsonTests
             new OnboardingSubmitEndpoint(new OnboardingService(new StubLearnerStateRepository())),
             tokenIssuer,
             new FixedClock(DateTimeOffset.Parse("2026-08-31T08:00:00Z")));
+    }
+
+    private static HmacAppSessionTokenIssuer CreateTokenIssuer()
+    {
+        return new HmacAppSessionTokenIssuer(
+            new AppSessionTokenOptions(
+                "test-signing-key-that-is-long-enough-for-hmac",
+                TimeSpan.FromMinutes(15),
+                TimeSpan.FromDays(30)),
+            new FixedClock(DateTimeOffset.Parse("2026-08-31T08:00:00Z")));
+    }
+
+    private static string ValidAccessToken(HmacAppSessionTokenIssuer tokenIssuer, TenantId tenantId, UserId userId)
+    {
+        return tokenIssuer.IssueTokenPair(
+            new VerifiedAppSessionSubject(tenantId, userId),
+            CorrelationId.Create("corr-123")).AccessToken;
     }
 
     private sealed class TestHttpRequestData : HttpRequestData

@@ -84,7 +84,9 @@ public sealed record OnboardingSubmitHttpResponse(
             new OnboardingProfileHttpResponse(
                 response.Profile.TargetLanguage,
                 response.Profile.NativeLanguage,
-                response.Profile.ProficiencyLevel),
+                response.Profile.ProficiencyLevel,
+                response.Profile.Goals,
+                response.Profile.DailyMinutes),
             new OnboardingActivePlanHttpResponse(
                 response.ActivePlan.PlanId,
                 response.ActivePlan.Title,
@@ -96,7 +98,9 @@ public sealed record OnboardingSubmitHttpResponse(
 public sealed record OnboardingProfileHttpResponse(
     string TargetLanguage,
     string NativeLanguage,
-    string ProficiencyLevel);
+    string ProficiencyLevel,
+    IReadOnlyList<string> Goals,
+    int DailyMinutes);
 
 public sealed record OnboardingActivePlanHttpResponse(
     string PlanId,
