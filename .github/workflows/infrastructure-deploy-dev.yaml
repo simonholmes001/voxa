@@ -81,6 +81,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Setup .NET
+        if: steps.detect.outputs.exists == 'true'
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
       - name: Deploy infrastructure
         if: steps.detect.outputs.exists == 'true'
         shell: bash
@@ -97,12 +103,6 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "No backend/src/Voxa.Api project exists yet; infrastructure-only deployment completed."
           fi
-
-      - name: Setup .NET
-        if: steps.detect.outputs.exists == 'true' && steps.function-code.outputs.exists == 'true'
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 10.0.x
 
       - name: Publish Function code
         if: steps.detect.outputs.exists == 'true' && steps.function-code.outputs.exists == 'true'

@@ -65,5 +65,11 @@ if grep -q "az deployment group create" "$DEPLOY_WORKFLOW_FILE"; then
   echo "Deploy workflow must not duplicate inline az deployment group create commands." >&2
   exit 1
 fi
+dotnet_setup_line="$(grep -n "uses: actions/setup-dotnet@v5" "$DEPLOY_WORKFLOW_FILE" | head -n 1 | cut -d: -f1)"
+deploy_script_line="$(grep -n "run: bash ./infrastructure/scripts/deploy.sh dev" "$DEPLOY_WORKFLOW_FILE" | head -n 1 | cut -d: -f1)"
+if [ -z "$dotnet_setup_line" ] || [ -z "$deploy_script_line" ] || [ "$dotnet_setup_line" -ge "$deploy_script_line" ]; then
+  echo "Deploy workflow must install .NET before running the shared deploy script." >&2
+  exit 1
+fi
 
 echo "Infrastructure guard tests passed."
