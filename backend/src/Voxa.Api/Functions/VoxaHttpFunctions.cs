@@ -128,8 +128,42 @@ public sealed class VoxaHttpFunctions(
                 principal.TenantId.Value,
                 principal.UserId.Value,
                 CorrelationId(request),
-                cancellationToken),
+            cancellationToken),
             cancellationToken);
+    }
+
+    [Function("health-deployment")]
+    public async Task<HttpResponseData> DeploymentHealthAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "health/deployment")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var markerPath = Environment.GetEnvironmentVariable("VOXA_DEPLOYMENT_MARKER_PATH")
+            ?? Path.Combine(AppContext.BaseDirectory, "deployment-marker.json");
+
+        if (!File.Exists(markerPath))
+        {
+            var response = request.CreateResponse(HttpStatusCode.ServiceUnavailable);
+            await JsonSerializer.SerializeAsync(
+                response.Body,
+                new DeploymentMarkerResponse(null, null, null, "deployment_marker_missing"),
+                JsonOptions,
+                cancellationToken);
+            return response;
+        }
+
+        await using var markerStream = File.OpenRead(markerPath);
+        var marker = await JsonSerializer.DeserializeAsync<DeploymentMarkerResponse>(
+            markerStream,
+            JsonOptions,
+            cancellationToken);
+
+        var ok = request.CreateResponse(HttpStatusCode.OK);
+        await JsonSerializer.SerializeAsync(
+            ok.Body,
+            marker ?? new DeploymentMarkerResponse(null, null, null, "deployment_marker_invalid"),
+            JsonOptions,
+            cancellationToken);
+        return ok;
     }
 
     private AppSessionPrincipal? Principal(HttpRequestData request)
@@ -209,4 +243,10 @@ public sealed class VoxaHttpFunctions(
 
         public static JsonReadResult<T> Invalid() => new(default, true);
     }
+
+    private sealed record DeploymentMarkerResponse(
+        string? Sha,
+        string? RunId,
+        string? RunAttempt,
+        string? Error);
 }

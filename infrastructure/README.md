@@ -3,7 +3,8 @@
 Voxa starts with a deliberately small Azure footprint:
 
 - Azure Functions Flex Consumption for the backend API and OpenAI Realtime client-secret issuance.
-- Azure Storage for Function runtime and deployment package storage, reached privately by the backend.
+- Azure Storage for Function runtime state, reached privately by the backend.
+- A separate minimal deployment artifact storage account for Flex Consumption Function packages. It has public network reachability for GitHub-hosted deployment tooling, but disables blob public access and shared keys.
 - Azure Key Vault with RBAC for server-side secrets, reached privately by the backend.
 - One small virtual network with separate subnets for Function outbound integration and private endpoints, deployed to a dedicated network resource group.
 - Private DNS zones, private endpoints, and generated private endpoint NICs in the network resource group.
@@ -13,6 +14,8 @@ Voxa starts with a deliberately small Azure footprint:
 Container Apps and Azure Container Registry are intentionally not part of the MVP baseline. Add them only if the PRD upgrade triggers are met.
 
 The Function App keeps public HTTPS ingress enabled for the mobile MVP so iPhone and iPad clients can reach the backend without adding a paid public edge. Data-plane resources default to public network access disabled. If Function ingress must also become private, set `enablePrivateFunctionIngress=true` and add an explicit public access pattern such as Front Door, API Management, App Gateway, or VPN.
+
+Flex Consumption code packages are stored separately from runtime data because GitHub-hosted deployment tooling cannot reach a storage account that is fully locked behind private endpoints. The deployment artifact account stores only Function release packages; learner/session runtime data remains in the private runtime storage account. The deployment artifact account still uses managed identity/RBAC, disables shared key access, and disables anonymous blob access.
 
 ## One-Time Azure Bootstrap
 

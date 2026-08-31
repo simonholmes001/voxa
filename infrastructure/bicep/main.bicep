@@ -114,8 +114,33 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
   name: 'default'
 }
 
+resource deploymentStorageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
+  name: take('azdep${resourceToken}', 24)
+  location: location
+  tags: union(tags, {
+    workloadBoundary: 'deployment-artifact'
+  })
+  sku: {
+    name: 'Standard_LRS'
+  }
+  kind: 'StorageV2'
+  properties: {
+    allowBlobPublicAccess: false
+    allowSharedKeyAccess: false
+    defaultToOAuthAuthentication: true
+    minimumTlsVersion: 'TLS1_2'
+    supportsHttpsTrafficOnly: true
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+resource deploymentBlobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
+  parent: deploymentStorageAccount
+  name: 'default'
+}
+
 resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
-  parent: blobService
+  parent: deploymentBlobService
   name: 'function-releases'
   properties: {
     publicAccess: 'None'
@@ -297,7 +322,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
       deployment: {
         storage: {
           type: 'blobContainer'
-          value: '${storageAccount.properties.primaryEndpoints.blob}${deploymentContainer.name}'
+          value: '${deploymentStorageAccount.properties.primaryEndpoints.blob}${deploymentContainer.name}'
           authentication: {
             type: 'UserAssignedIdentity'
             userAssignedIdentityResourceId: appIdentity.id
@@ -376,6 +401,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
     appStorageBlobDataContributor
     appStorageQueueDataContributor
     appStorageTableDataContributor
+    appDeploymentStorageBlobDataOwner
     appMonitoringMetricsPublisher
     learnerStateTable
     refreshSessionsTable
@@ -419,6 +445,16 @@ resource appStorageTableDataContributor 'Microsoft.Authorization/roleAssignments
   scope: storageAccount
   properties: {
     roleDefinitionId: storageTableDataContributorRoleId
+    principalId: appIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource appDeploymentStorageBlobDataOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(deploymentStorageAccount.id, appIdentity.id, storageBlobDataOwnerRoleId)
+  scope: deploymentStorageAccount
+  properties: {
+    roleDefinitionId: storageBlobDataOwnerRoleId
     principalId: appIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
@@ -515,8 +551,10 @@ resource learnerContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/co
 
 output functionAppName string = functionApp.name
 output functionAppHostName string = functionApp.properties.defaultHostName
+output functionAppManagedIdentityResourceId string = appIdentity.id
 output keyVaultName string = keyVault.name
 output storageAccountName string = storageAccount.name
+output deploymentStorageAccountName string = deploymentStorageAccount.name
 output learnerStateTableName string = learnerStateTable.name
 output refreshSessionsTableName string = refreshSessionsTable.name
 output realtimeSessionAuditTableName string = realtimeSessionAuditTable.name

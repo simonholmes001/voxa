@@ -109,7 +109,7 @@ jobs:
         shell: bash
         run: |
           publish_dir="${RUNNER_TEMP}/voxa-api-publish"
-          package_path="${RUNNER_TEMP}/voxa-api.zip"
+          package_path="${RUNNER_TEMP}/released-package.zip"
           function_app_name="$(
             az deployment group show \
               --resource-group "$AZURE_RESOURCE_GROUP" \
@@ -117,18 +117,101 @@ jobs:
               --query "properties.outputs.functionAppName.value" \
               --output tsv
           )"
+          deployment_storage_account_name="$(
+            az deployment group show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name main \
+              --query "properties.outputs.deploymentStorageAccountName.value" \
+              --output tsv
+          )"
+          function_identity_resource_id="$(
+            az deployment group show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name main \
+              --query "properties.outputs.functionAppManagedIdentityResourceId.value" \
+              --output tsv
+          )"
+          function_app_host_name="$(
+            az deployment group show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name main \
+              --query "properties.outputs.functionAppHostName.value" \
+              --output tsv
+          )"
 
           if [ -z "$function_app_name" ]; then
             echo "::error::Function App name was not found in the main deployment outputs."
+            exit 1
+          fi
+          if [ -z "$deployment_storage_account_name" ]; then
+            echo "::error::Deployment artifact storage account name was not found in the main deployment outputs."
+            exit 1
+          fi
+          if [ -z "$function_identity_resource_id" ]; then
+            echo "::error::Function App managed identity resource ID was not found in the main deployment outputs."
+            exit 1
+          fi
+          if [ -z "$function_app_host_name" ]; then
+            echo "::error::Function App host name was not found in the main deployment outputs."
             exit 1
           fi
 
           dotnet publish backend/src/Voxa.Api/Voxa.Api.csproj \
             --configuration Release \
             --output "$publish_dir"
+          jq -n \
+            --arg sha "$GITHUB_SHA" \
+            --arg runId "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            '{sha: $sha, runId: $runId, runAttempt: $runAttempt}' \
+            > "$publish_dir/deployment-marker.json"
           (cd "$publish_dir" && zip -qr "$package_path" .)
 
-          az functionapp deployment source config-zip \
+          az functionapp deployment config set \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$function_app_name" \
-            --src "$package_path"
+            --deployment-storage-name "$deployment_storage_account_name" \
+            --deployment-storage-container-name "function-releases" \
+            --deployment-storage-auth-type UserAssignedIdentity \
+            --deployment-storage-auth-value "$function_identity_resource_id"
+
+          set +e
+          deployment_output="$(
+            az functionapp deployment source config-zip \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$function_app_name" \
+              --src "$package_path" 2>&1
+          )"
+          deployment_status="$?"
+          set -e
+          printf '%s\n' "$deployment_output"
+
+          if [ "$deployment_status" -ne 0 ]; then
+            if printf '%s\n' "$deployment_output" | grep -q "Failed to fetch host key to check for function app status"; then
+              echo "::warning::Function package upload was accepted, but Azure CLI failed its post-upload host-key health check."
+            else
+              exit "$deployment_status"
+            fi
+          fi
+
+          marker_url="https://${function_app_host_name}/api/health/deployment"
+          deployed_sha=""
+          for attempt in {1..12}; do
+            deployed_sha="$(
+              curl --fail --silent --show-error "$marker_url" \
+                | jq -r '.sha // empty'
+            )" && [ "$deployed_sha" = "$GITHUB_SHA" ] && break
+            echo "::notice::Waiting for deployed marker to report this commit SHA; attempt ${attempt}/12."
+            sleep 10
+          done
+          if [ "$deployed_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::Function deployment marker did not match this workflow commit."
+            echo "::error::Expected $GITHUB_SHA but got ${deployed_sha:-<empty>} from $marker_url."
+            exit 1
+          fi
+
+          az functionapp function list \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$function_app_name" \
+            --query "[].name" \
+            --output table

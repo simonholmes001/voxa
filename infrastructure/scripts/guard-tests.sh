@@ -18,6 +18,12 @@ grep -q "FlexConsumption" "$BICEP_FILE" || { echo "Function plan must use Flex C
 grep -q "UserAssigned" "$BICEP_FILE" || { echo "Function app must use user-assigned managed identity." >&2; exit 1; }
 grep -q "allowSharedKeyAccess: false" "$BICEP_FILE" || { echo "Storage local auth must be disabled." >&2; exit 1; }
 grep -q "allowBlobPublicAccess: false" "$BICEP_FILE" || { echo "Storage blob public access must be disabled." >&2; exit 1; }
+grep -q "resource deploymentStorageAccount" "$BICEP_FILE" || { echo "Function deployment packages must use dedicated deployment artifact storage." >&2; exit 1; }
+grep -q "name: take('azdep\${resourceToken}', 24)" "$BICEP_FILE" || { echo "Deployment artifact storage naming must be deterministic and separate from runtime storage." >&2; exit 1; }
+grep -q "publicNetworkAccess: 'Enabled'" "$BICEP_FILE" || { echo "Deployment artifact storage must be reachable by GitHub-hosted deployment tooling." >&2; exit 1; }
+grep -q "value: '\${deploymentStorageAccount.properties.primaryEndpoints.blob}\${deploymentContainer.name}'" "$BICEP_FILE" || { echo "Function deployment storage must point at deployment artifact storage, not private runtime storage." >&2; exit 1; }
+grep -q "AzureWebJobsStorage__accountName" "$BICEP_FILE" || { echo "Function runtime storage account setting must be present." >&2; exit 1; }
+grep -q "value: storageAccount.name" "$BICEP_FILE" || { echo "Function runtime storage must remain on the private runtime storage account." >&2; exit 1; }
 grep -q "enableRbacAuthorization: true" "$BICEP_FILE" || { echo "Key Vault must use RBAC authorization." >&2; exit 1; }
 grep -q "param enablePrivateNetworking bool = true" "$BICEP_FILE" || { echo "Private networking must be enabled by default." >&2; exit 1; }
 grep -q "param allowPublicNetworkAccessForDev bool = false" "$BICEP_FILE" || { echo "Public network access escape hatch must default to false." >&2; exit 1; }
@@ -61,6 +67,23 @@ grep -R -q "param federatedCredentialName string" "$ROOT_DIR/infrastructure/boot
 grep -R -q "repo:\${githubOrgSubject}/\${githubRepoSubject}:ref:\${githubRef}" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Federated credential must use GitHub immutable OIDC subject format." >&2; exit 1; }
 grep -R -q "Microsoft.Authorization/roleAssignments" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must assign target resource group RBAC." >&2; exit 1; }
 grep -q "bash ./infrastructure/scripts/deploy.sh dev" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the shared deploy script." >&2; exit 1; }
+grep -q "az functionapp deployment config set" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must reconcile Flex deployment storage before publishing code." >&2; exit 1; }
+grep -q "deploymentStorageAccountName.value" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must read deployment artifact storage from Bicep outputs." >&2; exit 1; }
+grep -q "functionAppManagedIdentityResourceId.value" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the Function App managed identity for deployment storage auth." >&2; exit 1; }
+grep -q -- "--deployment-storage-auth-type UserAssignedIdentity" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use managed identity for deployment storage auth." >&2; exit 1; }
+grep -q "az functionapp deployment source config-zip" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the documented config-zip publish path for Flex code packages." >&2; exit 1; }
+grep -q "Failed to fetch host key to check for function app status" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must tolerate the known post-upload host-key check false negative." >&2; exit 1; }
+grep -q "deployment-marker.json" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must stamp the Function package with a deployment marker." >&2; exit 1; }
+grep -q "health/deployment" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must verify the deployed package marker after publish." >&2; exit 1; }
+grep -q "deployed_sha.*GITHUB_SHA" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must verify the deployed marker matches this commit SHA." >&2; exit 1; }
+if grep -q "function_count" "$DEPLOY_WORKFLOW_FILE"; then
+  echo "Deploy workflow must not treat existing function count as package deployment proof." >&2
+  exit 1
+fi
+if grep -Eq "^[[:space:]]*az functionapp deploy([[:space:]\\\\]|$)" "$DEPLOY_WORKFLOW_FILE"; then
+  echo "Deploy workflow must not use the preview az functionapp deploy path for this Flex app." >&2
+  exit 1
+fi
 if grep -q "az deployment group create" "$DEPLOY_WORKFLOW_FILE"; then
   echo "Deploy workflow must not duplicate inline az deployment group create commands." >&2
   exit 1
