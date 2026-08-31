@@ -1,10 +1,9 @@
 /// Abstracts the media transport that establishes the direct WebRTC connection
 /// to OpenAI Realtime using the backend-issued ephemeral credential.
 ///
-/// The concrete WebRTC implementation requires a libwebrtc dependency, which is
-/// an explicit architecture/dependency decision. Until it is integrated, the
-/// app injects `UnavailableRealtimeTransport`, so the Talk flow is fully wired
-/// and testable up to (but not including) live audio.
+/// Production builds inject the concrete WebRTC implementation when the app has
+/// a backend base URL. Previews, tests, and deliberately unconfigured builds can
+/// inject `UnavailableRealtimeTransport` to fail clearly before live audio.
 public protocol RealtimeTransport: Sendable {
     /// Establishes the media session for the given credential. Returns once the
     /// peer connection is established, or throws on failure.
@@ -20,11 +19,12 @@ public enum RealtimeTransportError: Error, Equatable {
     case connectionFailed(String)
 }
 
-/// Placeholder transport until the WebRTC (libwebrtc) integration is approved.
+/// Placeholder transport for previews, tests, and builds without Realtime
+/// configuration.
 public struct UnavailableRealtimeTransport: RealtimeTransport {
     private let reason: String
 
-    public init(reason: String = "The Realtime WebRTC transport is not yet integrated.") {
+    public init(reason: String = "The Realtime WebRTC transport is not configured.") {
         self.reason = reason
     }
 

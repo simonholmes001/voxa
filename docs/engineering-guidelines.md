@@ -16,7 +16,7 @@ These guidelines apply to all Voxa work done by Codex, Copilot, Claude, and huma
 - **Backend:** .NET 10 modular monolith, deployed initially as Azure Functions Flex Consumption.
 - **Azure infrastructure:** Bicep templates under `infrastructure/`, deployed through GitHub Actions using OIDC and a user-assigned managed identity.
 - **Cloud baseline:** minimal-cost Azure footprint with Function App, Storage, Key Vault, Application Insights, Log Analytics, VNet, private DNS, private endpoints, and optional Cosmos DB Serverless disabled by default.
-- **AI integration:** OpenAI API keys are server-side only. Mobile clients must call Voxa backend endpoints, not OpenAI directly.
+- **AI integration:** OpenAI API keys are server-side only. Mobile clients must call Voxa backend endpoints for privileged AI operations. The only direct mobile-to-OpenAI path is the PRD-approved Realtime WebRTC call using a backend-issued short-lived client secret and backend-selected session configuration.
 - **Repository automation:** Node.js 22 for workflow scripts and tests, Changesets for releasable changes, GitHub Actions for CI, infrastructure validation, Codex PR review, and future iOS delivery.
 
 ## Branch And Merge Controls

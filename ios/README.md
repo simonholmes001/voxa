@@ -58,6 +58,30 @@ macOS CI host via `swift test`; there is no macOS product.
 `VoxaDomain`, `VoxaNetworking`, and `VoxaPersistence` are intentionally thin
 module boundaries for now; their concrete types land in their owning issues.
 
+## Dependencies
+
+The iOS app has one external binary dependency: **WebRTC** for live voice tutoring.
+
+### WebRTC (stasel/WebRTC)
+
+- **Package**: https://github.com/stasel/WebRTC
+- **Version**: 151.0.0 (pinned, not floating)
+- **License**: BSD 3-Clause (permissive, compatible with commercial use)
+- **Purpose**: Enables live voice tutoring by establishing direct WebRTC peer connections to OpenAI Realtime API
+- **Size impact**: ~42MB xcframework (compressed); ~15-20MB per architecture after App Store thinning
+
+**Why this dependency:**
+- OpenAI Realtime API requires WebRTC for voice sessions (SDP offer/answer, ICE, peer connection, audio transport)
+- AVFoundation alone is insufficient — it handles audio capture but not the WebRTC protocol stack
+- `stasel/WebRTC` is a community-maintained binary distribution built directly from official Google WebRTC sources with zero modifications
+- Active maintenance (latest release: Aug 31, 2026), tracks Chromium releases, widely used in production iOS apps
+- Binary-only distribution accepted as pragmatic choice for rapid integration; source audit limited to upstream Google WebRTC
+
+**Integration boundary:**
+- Isolated behind the `RealtimeTransport` protocol seam in `VoxaRealtime` module
+- Not used outside live Talk sessions
+- Tests mock the transport boundary; WebRTC itself is not unit-tested (upstream responsibility)
+
 ### Authentication (Sign in with Apple)
 
 `RootView` gates the navigation shell behind authentication: when signed out it
@@ -106,11 +130,10 @@ cross-device resume is tracked as a separate follow-up issue.
 
 ### Talk screen (Realtime voice session)
 
-> **Scope:** this provides the **Talk UI and the Realtime session-credential
-> client only**. It does **not** implement live audio yet — there is no WebRTC
-> transport, so you cannot actually speak to the tutor on device. Live audio is
-> a separate follow-up (see below), so the app must not be treated as
-> voice-testable from this work.
+> **Scope:** this provides the **Talk UI, Realtime session-credential client,
+> and WebRTC transport** needed for the first live voice path. Advanced voice
+> reliability features such as route-change recovery, interruption recovery,
+> transcripts, and session summaries remain follow-up work.
 
 The Talk route hosts `TalkView`, driven by `TalkSessionViewModel`
 (`VoxaRealtime`). Starting a session runs an explicit lifecycle:
@@ -127,12 +150,10 @@ direct WebRTC connection to OpenAI Realtime. The permanent OpenAI key stays
 server-side. Session settings (target language, proficiency band) are derived
 from the learner's onboarding state at `start()` time, not hard-coded.
 
-**Live audio not yet integrated — dependency decision required:** the concrete
-WebRTC media transport needs a libwebrtc dependency, which is a deliberate
-architecture/dependency choice reviewed separately. Until it is approved, the
-app injects `UnavailableRealtimeTransport`, so the whole Talk path is wired and
-tested up to (but not including) live audio. Audio route/interruption/reconnect
-handling and transcript capture ship with the concrete transport as follow-ups.
+The concrete WebRTC transport (`WebRTCRealtimeTransport`) uses the
+`stasel/WebRTC` package (see Dependencies above) to establish the media session.
+Audio route/interruption/reconnect hardening, transcript capture, and session
+summaries are deferred to follow-up work.
 
 ### Home / Today (post-onboarding surface)
 

@@ -21,6 +21,12 @@ let package = Package(
         .library(name: "VoxaDomain", targets: ["VoxaDomain"]),
         .library(name: "VoxaNetworking", targets: ["VoxaNetworking"]),
         .library(name: "VoxaPersistence", targets: ["VoxaPersistence"]),
+        .library(name: "VoxaRealtimeWebRTC", targets: ["VoxaRealtimeWebRTC"]),
+    ],
+    dependencies: [
+        // WebRTC for OpenAI Realtime voice sessions. Pinned exactly for reproducible CI/device builds.
+        // See ios/README.md Dependencies section for rationale, license, and size impact.
+        .package(url: "https://github.com/stasel/WebRTC.git", exact: "151.0.0"),
     ],
     targets: [
         .target(name: "VoxaDomain"),
@@ -29,6 +35,13 @@ let package = Package(
         .target(name: "VoxaAuth", dependencies: ["VoxaDomain"]),
         .target(name: "VoxaOnboarding", dependencies: ["VoxaDomain"]),
         .target(name: "VoxaRealtime", dependencies: ["VoxaDomain"]),
+        .target(
+            name: "VoxaRealtimeWebRTC",
+            dependencies: [
+                "VoxaRealtime",
+                .product(name: "WebRTC", package: "WebRTC"),
+            ]
+        ),
         .target(name: "VoxaHome", dependencies: ["VoxaDomain"]),
         .target(
             name: "VoxaAppShell",
@@ -39,6 +52,7 @@ let package = Package(
         .testTarget(name: "VoxaNetworkingTests", dependencies: ["VoxaNetworking"]),
         .testTarget(name: "VoxaOnboardingTests", dependencies: ["VoxaOnboarding"]),
         .testTarget(name: "VoxaRealtimeTests", dependencies: ["VoxaRealtime"]),
+        .testTarget(name: "VoxaRealtimeWebRTCTests", dependencies: ["VoxaRealtimeWebRTC"]),
         .testTarget(name: "VoxaHomeTests", dependencies: ["VoxaHome"]),
         .testTarget(name: "VoxaDomainTests", dependencies: ["VoxaDomain"]),
     ],

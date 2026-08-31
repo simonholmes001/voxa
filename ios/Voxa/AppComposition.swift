@@ -6,6 +6,7 @@ import VoxaHome
 import VoxaNetworking
 import VoxaOnboarding
 import VoxaRealtime
+import VoxaRealtimeWebRTC
 
 /// Composition root for the Voxa app target.
 ///
@@ -100,7 +101,7 @@ enum AppComposition {
     /// Builds the Talk-screen session model. Session settings are evaluated at
     /// `start()` time from the learner's onboarding state, so the Realtime
     /// request reflects their chosen language and level. The WebRTC media
-    /// transport is a placeholder until libwebrtc is integrated.
+    /// transport is a placeholder when the backend is not configured.
     @MainActor
     static func makeTalkModel(
         authModel: AuthViewModel,
@@ -112,9 +113,20 @@ enum AppComposition {
             },
             permission: SystemMicrophonePermission(),
             service: makeRealtimeSessionService(),
-            transport: UnavailableRealtimeTransport(),
+            transport: makeRealtimeTransport(),
             accessTokenProvider: { [weak authModel] in authModel?.state.session?.accessToken }
         )
+    }
+
+    /// Creates the appropriate Realtime transport based on configuration.
+    /// When VOXA_API_BASE_URL is configured, use real WebRTC transport.
+    /// Otherwise, use placeholder that fails with clear message.
+    static func makeRealtimeTransport() -> any RealtimeTransport {
+        if backendBaseURL() == nil {
+            return UnavailableRealtimeTransport(reason: "Voice sessions aren't configured for this build yet.")
+        } else {
+            return WebRTCRealtimeTransport()
+        }
     }
 
     /// Derives Realtime coaching settings from the learner's onboarding state.

@@ -21,7 +21,8 @@
 		C01B32B85F5C36582E9B2247 /* AppCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F2A05CCFE2E2214A4310FC /* AppCompositionTests.swift */; };
 		C0FBFF9FB00D764D693257CD /* VoxaAppShell in Frameworks */ = {isa = PBXBuildFile; productRef = 0A8786B30163D7CAC5F871C7 /* VoxaAppShell */; };
 		CDC58657A520D163C915DD93 /* VoxaHome in Frameworks */ = {isa = PBXBuildFile; productRef = 5F0432BF6BDE9A8DCBC0C85E /* VoxaHome */; };
-		DDFF784F5C425EC84A136170 /* VoxaHome in Frameworks */ = {isa = PBXBuildFile; productRef = 16FA577B6B64382B92E00620 /* VoxaHome */; };
+		D79EA145BD6230D344B59301 /* VoxaHome in Frameworks */ = {isa = PBXBuildFile; productRef = 16FA577B6B64382B92E00620 /* VoxaHome */; };
+		DDFF784F5C425EC84A136170 /* VoxaRealtimeWebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = 0F8552691CF58B2C069AA76C /* VoxaRealtimeWebRTC */; };
 		E6B9EE845402DE06675ECFBA /* AppComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = B51017412D55A184C39B1444 /* AppComposition.swift */; };
 /* End PBXBuildFile section */
 
@@ -61,7 +62,8 @@
 				53EC3352C6F51B85062077E1 /* VoxaNetworking in Frameworks */,
 				B9F7A8AC082C7109A89564D6 /* VoxaOnboarding in Frameworks */,
 				41B75AA47BC36DEEECD0D29F /* VoxaRealtime in Frameworks */,
-				DDFF784F5C425EC84A136170 /* VoxaHome in Frameworks */,
+				DDFF784F5C425EC84A136170 /* VoxaRealtimeWebRTC in Frameworks */,
+				D79EA145BD6230D344B59301 /* VoxaHome in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -189,6 +191,7 @@
 				EBF5BFC12BD3B9391534476E /* VoxaNetworking */,
 				737743FD285FE9CDB5765342 /* VoxaOnboarding */,
 				B7642F2D9B58B87218A6FB4D /* VoxaRealtime */,
+				0F8552691CF58B2C069AA76C /* VoxaRealtimeWebRTC */,
 				16FA577B6B64382B92E00620 /* VoxaHome */,
 			);
 			productName = Voxa;
@@ -519,6 +522,10 @@
 		0A8786B30163D7CAC5F871C7 /* VoxaAppShell */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = VoxaAppShell;
+		};
+		0F8552691CF58B2C069AA76C /* VoxaRealtimeWebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoxaRealtimeWebRTC;
 		};
 		16FA577B6B64382B92E00620 /* VoxaHome */ = {
 			isa = XCSwiftPackageProductDependency;
