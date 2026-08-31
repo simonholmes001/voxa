@@ -23,21 +23,21 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
                 DailyMinutes = command.DailyMinutes
             };
             var updated = existing with { Profile = updatedProfile };
-            await repository.SaveAsync(updated, existing.Version, cancellationToken);
+            var savedUpdate = await repository.SaveAsync(updated, existing.Version, cancellationToken);
 
             return new OnboardingSubmitResponse(
                 command.CorrelationId.Value,
                 new OnboardingLearnerProfileContract(
-                    updated.Profile.TargetLanguage,
-                    updated.Profile.NativeLanguage,
-                    updated.Profile.ProficiencyLevel,
-                    updated.Profile.Goals,
-                    updated.Profile.DailyMinutes),
+                    savedUpdate.Profile.TargetLanguage,
+                    savedUpdate.Profile.NativeLanguage,
+                    savedUpdate.Profile.ProficiencyLevel,
+                    savedUpdate.Profile.Goals,
+                    savedUpdate.Profile.DailyMinutes),
                 new ActiveLearningPlanContract(
-                    updated.ActivePlan.PlanId,
-                    updated.ActivePlan.Title,
-                    updated.ActivePlan.KnowledgeUnitIds),
-                updated.Version.Value);
+                    savedUpdate.ActivePlan.PlanId,
+                    savedUpdate.ActivePlan.Title,
+                    savedUpdate.ActivePlan.KnowledgeUnitIds),
+                savedUpdate.Version.Value);
         }
 
         // Create new learner state
