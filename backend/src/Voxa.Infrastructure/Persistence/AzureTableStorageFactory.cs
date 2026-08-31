@@ -1,6 +1,7 @@
 using Azure;
 using Azure.Data.Tables;
 using Azure.Identity;
+using Voxa.Application.Realtime;
 
 namespace Voxa.Infrastructure.Persistence;
 
@@ -199,52 +200,85 @@ public sealed class AzureRealtimeSessionAuditTable(TableClient tableClient) : IR
 
 public interface IRealtimeSessionRateLimitTable
 {
-    Task<int> CountSinceAsync(
+    Task<bool> TryReserveAsync(
         string partitionKey,
-        DateTimeOffset since,
-        CancellationToken cancellationToken);
-
-    Task AddAsync(
-        RealtimeSessionRateLimitTableEntity entity,
+        DateTimeOffset windowStart,
+        int maxRequests,
+        DateTimeOffset requestedAt,
         CancellationToken cancellationToken);
 }
 
 public sealed record RealtimeSessionRateLimitTableEntity(
     string PartitionKey,
     string RowKey,
-    DateTimeOffset RequestedAt);
+    DateTimeOffset WindowStart,
+    DateTimeOffset LastRequestedAt,
+    int Count,
+    string ETag);
 
 public sealed class AzureRealtimeSessionRateLimitTable(TableClient tableClient) : IRealtimeSessionRateLimitTable
 {
-    public async Task<int> CountSinceAsync(
+    public async Task<bool> TryReserveAsync(
         string partitionKey,
-        DateTimeOffset since,
+        DateTimeOffset windowStart,
+        int maxRequests,
+        DateTimeOffset requestedAt,
         CancellationToken cancellationToken)
     {
-        var filter = TableClient.CreateQueryFilter<TableEntity>(
-            entity => entity.PartitionKey == partitionKey && entity.GetDateTimeOffset("RequestedAt") >= since);
-        var count = 0;
-
-        await foreach (var _ in tableClient.QueryAsync<TableEntity>(
-                           filter,
-                           select: ["PartitionKey"],
-                           cancellationToken: cancellationToken))
+        var rowKey = $"{windowStart.UtcTicks:D19}";
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            count++;
+            var response = await tableClient.GetEntityIfExistsAsync<TableEntity>(
+                partitionKey,
+                rowKey,
+                cancellationToken: cancellationToken);
+
+            if (!response.HasValue)
+            {
+                var newEntity = new TableEntity(partitionKey, rowKey)
+                {
+                    ["WindowStart"] = windowStart,
+                    ["LastRequestedAt"] = requestedAt,
+                    ["Count"] = 1
+                };
+
+                try
+                {
+                    await tableClient.AddEntityAsync(newEntity, cancellationToken);
+                    return true;
+                }
+                catch (RequestFailedException exception) when (exception.Status == 409)
+                {
+                    continue;
+                }
+            }
+
+            var entity = response.Value!;
+            var count = entity.GetInt32("Count")
+                ?? throw new InvalidOperationException("Realtime rate-limit table entity is missing Count.");
+            if (count >= maxRequests)
+            {
+                return false;
+            }
+
+            entity["Count"] = count + 1;
+            entity["LastRequestedAt"] = requestedAt;
+
+            try
+            {
+                await tableClient.UpdateEntityAsync(
+                    entity,
+                    entity.ETag,
+                    TableUpdateMode.Replace,
+                    cancellationToken);
+                return true;
+            }
+            catch (RequestFailedException exception) when (exception.Status == 412)
+            {
+                continue;
+            }
         }
 
-        return count;
-    }
-
-    public Task AddAsync(
-        RealtimeSessionRateLimitTableEntity entity,
-        CancellationToken cancellationToken)
-    {
-        var tableEntity = new TableEntity(entity.PartitionKey, entity.RowKey)
-        {
-            ["RequestedAt"] = entity.RequestedAt
-        };
-
-        return tableClient.AddEntityAsync(tableEntity, cancellationToken);
+        throw new RealtimeSessionRateLimitException("Realtime session issue limit could not be reserved.");
     }
 }

@@ -33,22 +33,23 @@ public sealed class TableRealtimeSessionRateLimiter(
     {
         var now = clock.UtcNow;
         var partitionKey = $"{tenantId.Value}:{userId.Value}";
-        var count = await rateLimitTable.CountSinceAsync(
+        var reserved = await rateLimitTable.TryReserveAsync(
             partitionKey,
-            now.Subtract(options.Window),
+            WindowStart(now, options.Window),
+            options.MaxRequests,
+            now,
             cancellationToken);
 
-        if (count >= options.MaxRequests)
+        if (!reserved)
         {
             throw new RealtimeSessionRateLimitException("Realtime session issue limit exceeded.");
         }
+    }
 
-        await rateLimitTable.AddAsync(
-            new RealtimeSessionRateLimitTableEntity(
-                partitionKey,
-                $"{now.UtcDateTime.Ticks:D19}:{Guid.NewGuid():N}",
-                now),
-            cancellationToken);
+    private static DateTimeOffset WindowStart(DateTimeOffset now, TimeSpan window)
+    {
+        var ticks = now.UtcTicks - (now.UtcTicks % window.Ticks);
+        return new DateTimeOffset(ticks, TimeSpan.Zero);
     }
 }
 
