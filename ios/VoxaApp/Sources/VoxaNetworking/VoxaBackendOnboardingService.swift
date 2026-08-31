@@ -52,18 +52,23 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         do {
             let response: ResumeCheckpointResponseDTO = try await get("api/session/resume", accessToken: accessToken)
 
-            // Map the DTO to OnboardingProfile
-            // We need to infer the goal and minutesPerDay since they're not in the resume response
-            // For MVP, use defaults when resuming
             guard let cefrLevel = CEFRLevel(rawValue: response.profile.proficiencyLevel) else {
                 throw OnboardingServiceError.unavailable
+            }
+
+            // Map goals array to LearningGoal enum (use first goal or default to .general)
+            let goal: LearningGoal
+            if let firstGoal = response.profile.goals.first {
+                goal = LearningGoal(rawValue: firstGoal) ?? .general
+            } else {
+                goal = .general
             }
 
             return OnboardingProfile(
                 targetLanguage: response.profile.targetLanguage,
                 nativeLanguage: response.profile.nativeLanguage,
-                goal: .general, // Default goal when resuming
-                minutesPerDay: 15, // Default minutes when resuming
+                goal: goal,
+                minutesPerDay: response.profile.dailyMinutes,
                 placementLevel: cefrLevel
             )
         } catch OnboardingServiceError.notFound {

@@ -35,7 +35,7 @@ public sealed class ResumeSessionEndpointTests
         var checkpoint = new ResumeCheckpointResponse(
             "corr-123",
             2,
-            new LearnerProfileContract("fr", "en", "A1"),
+            new LearnerProfileContract("fr", "en", "A1", ["travel"], 15),
             new ActiveLearningPlanContract("plan-1", "Survival French", ["greetings"]),
             new LessonCheckpointContract("lesson-1", "unit-1", 3, DateTimeOffset.Parse("2026-08-29T07:00:00Z")),
             [new ReviewQueueItemContract("bonjour", DateTimeOffset.Parse("2026-08-30T07:00:00Z"), 2)],

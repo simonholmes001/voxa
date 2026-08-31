@@ -18,14 +18,16 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
             {
                 TargetLanguage = command.TargetLanguage,
                 NativeLanguage = command.NativeLanguage,
-                ProficiencyLevel = command.ProficiencyLevel
+                ProficiencyLevel = command.ProficiencyLevel,
+                Goals = command.Goals,
+                DailyMinutes = command.DailyMinutes
             };
             var updated = existing with { Profile = updatedProfile };
             await repository.SaveAsync(updated, existing.Version, cancellationToken);
 
             return new OnboardingSubmitResponse(
                 command.CorrelationId.Value,
-                new LearnerProfileContract(
+                new OnboardingLearnerProfileContract(
                     updated.Profile.TargetLanguage,
                     updated.Profile.NativeLanguage,
                     updated.Profile.ProficiencyLevel),
@@ -42,7 +44,9 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
             command.UserId,
             command.TargetLanguage,
             command.NativeLanguage,
-            command.ProficiencyLevel);
+            command.ProficiencyLevel,
+            command.Goals,
+            command.DailyMinutes);
 
         // Generate initial learning plan based on proficiency and goals
         var activePlan = GenerateInitialPlan(command.ProficiencyLevel, command.Goals);
@@ -60,7 +64,7 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
 
         return new OnboardingSubmitResponse(
             command.CorrelationId.Value,
-            new LearnerProfileContract(
+            new OnboardingLearnerProfileContract(
                 saved.Profile.TargetLanguage,
                 saved.Profile.NativeLanguage,
                 saved.Profile.ProficiencyLevel),

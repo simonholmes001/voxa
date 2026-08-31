@@ -14,11 +14,11 @@ public sealed record OnboardingSubmitCommand(
 
 public sealed record OnboardingSubmitResponse(
     string CorrelationId,
-    LearnerProfileContract Profile,
+    OnboardingLearnerProfileContract Profile,
     ActiveLearningPlanContract ActivePlan,
     long Version);
 
-public sealed record LearnerProfileContract(
+public sealed record OnboardingLearnerProfileContract(
     string TargetLanguage,
     string NativeLanguage,
     string ProficiencyLevel);

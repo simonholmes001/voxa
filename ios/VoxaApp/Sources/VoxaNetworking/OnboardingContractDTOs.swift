@@ -17,6 +17,8 @@ struct OnboardingProfileDTO: Decodable {
     let targetLanguage: String
     let nativeLanguage: String
     let proficiencyLevel: String
+    let goals: [String]
+    let dailyMinutes: Int
 }
 
 struct OnboardingActivePlanDTO: Decodable {
