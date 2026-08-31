@@ -11,24 +11,30 @@ param location string = resourceGroup().location
 
 @secure()
 @description('OpenAI API key to store in Key Vault. Use a placeholder in validation environments if the app is not deployed yet.')
-param openAiApiKey string = ''
+@minLength(1)
+param openAiApiKey string
 
 @secure()
 @description('Signing key for Voxa app session access tokens.')
-param appSessionSigningKey string = ''
+@minLength(32)
+param appSessionSigningKey string
 
 @description('Apple client identifier used as the expected audience for Sign in with Apple identity tokens.')
-param appleClientId string = ''
+@minLength(1)
+param appleClientId string
 
 @description('Apple Developer Team ID used to validate authorization codes.')
-param appleTeamId string = ''
+@minLength(10)
+param appleTeamId string
 
 @description('Apple Sign in with Apple private key identifier.')
-param appleKeyId string = ''
+@minLength(10)
+param appleKeyId string
 
 @secure()
 @description('Apple Sign in with Apple private key PEM used to create Apple client secrets.')
-param applePrivateKey string = ''
+@minLength(32)
+param applePrivateKey string
 
 @description('Whether to deploy Cosmos DB serverless as the initial durable store candidate.')
 param deployCosmos bool = false
