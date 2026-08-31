@@ -38,13 +38,26 @@ enum AppComposition {
     /// Builds the Talk-screen session model. The Realtime session credential is
     /// fetched from the backend using the current app-session access token; the
     /// WebRTC media transport is a placeholder until libwebrtc is integrated.
+    ///
+    /// TODO: Settings are hard-coded until onboarding/profile integration (#59, #20).
+    /// When integrated, inject: targetLanguage from profile.targetLanguage,
+    /// proficiencyBand from profile.proficiencyLevel (mapped to CEFR bands).
+    ///
+    /// TODO: Transport is UnavailableRealtimeTransport until WebRTC is integrated.
+    /// The UI and backend client-secret call are fully wired, but live audio
+    /// will fail with .unavailable until a real transport is injected.
     @MainActor
     static func makeTalkModel(authModel: AuthViewModel) -> TalkSessionViewModel {
         TalkSessionViewModel(
-            settings: RealtimeCoachingSettings(proficiencyBand: "A1-A2", targetLanguage: "fr-FR"),
+            settings: RealtimeCoachingSettings(
+                proficiencyBand: "A1-A2",  // TODO: derive from profile.proficiencyLevel
+                targetLanguage: "fr-FR"    // TODO: derive from profile.targetLanguage
+            ),
             permission: SystemMicrophonePermission(),
             service: makeRealtimeSessionService(),
-            transport: UnavailableRealtimeTransport(),
+            transport: UnavailableRealtimeTransport(
+                reason: "WebRTC transport integration pending. See TalkSessionViewModel docs."
+            ),
             accessTokenProvider: { [weak authModel] in authModel?.state.session?.accessToken }
         )
     }

@@ -22,6 +22,13 @@ settings:
     # Backend base URL is injected into Info.plist. Empty by default; set per
     # configuration (e.g. a Debug xcconfig or CI/Fastlane) once a deployment URL
     # exists. The app fails clearly on network calls when this is blank.
+    #
+    # For device testing: Set this to your deployed Function App URL:
+    #   xcodebuild -project Voxa.xcodeproj -scheme Voxa \
+    #     VOXA_API_BASE_URL="https://voxa-dev.azurewebsites.net" \
+    #     -destination 'platform=iOS,id=<device-udid>' build
+    #
+    # Or add a Debug.xcconfig with VOXA_API_BASE_URL = https://...
     VOXA_API_BASE_URL: ""
     # Device/Release signing is left to Xcode automatic signing driven by
     # DEVELOPMENT_TEAM (supplied via CI/Fastlane match), so the project does not
@@ -52,7 +59,7 @@ targets:
         product: VoxaRealtime
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.voxa.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.simonholmes.voxa
         INFOPLIST_FILE: Voxa/Info.plist
         CODE_SIGN_ENTITLEMENTS: Voxa/Voxa.entitlements
         GENERATE_INFOPLIST_FILE: "NO"
@@ -67,7 +74,7 @@ targets:
       - target: Voxa
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.voxa.app.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.simonholmes.voxa.tests
         GENERATE_INFOPLIST_FILE: "YES"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Voxa.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Voxa"
         BUNDLE_LOADER: "$(TEST_HOST)"
