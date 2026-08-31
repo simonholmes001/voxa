@@ -18,6 +18,12 @@ grep -q "FlexConsumption" "$BICEP_FILE" || { echo "Function plan must use Flex C
 grep -q "UserAssigned" "$BICEP_FILE" || { echo "Function app must use user-assigned managed identity." >&2; exit 1; }
 grep -q "allowSharedKeyAccess: false" "$BICEP_FILE" || { echo "Storage local auth must be disabled." >&2; exit 1; }
 grep -q "allowBlobPublicAccess: false" "$BICEP_FILE" || { echo "Storage blob public access must be disabled." >&2; exit 1; }
+grep -q "resource deploymentStorageAccount" "$BICEP_FILE" || { echo "Function deployment packages must use dedicated deployment artifact storage." >&2; exit 1; }
+grep -q "name: take('azdep\${resourceToken}', 24)" "$BICEP_FILE" || { echo "Deployment artifact storage naming must be deterministic and separate from runtime storage." >&2; exit 1; }
+grep -q "publicNetworkAccess: 'Enabled'" "$BICEP_FILE" || { echo "Deployment artifact storage must be reachable by GitHub-hosted deployment tooling." >&2; exit 1; }
+grep -q "value: '\${deploymentStorageAccount.properties.primaryEndpoints.blob}\${deploymentContainer.name}'" "$BICEP_FILE" || { echo "Function deployment storage must point at deployment artifact storage, not private runtime storage." >&2; exit 1; }
+grep -q "AzureWebJobsStorage__accountName" "$BICEP_FILE" || { echo "Function runtime storage account setting must be present." >&2; exit 1; }
+grep -q "value: storageAccount.name" "$BICEP_FILE" || { echo "Function runtime storage must remain on the private runtime storage account." >&2; exit 1; }
 grep -q "enableRbacAuthorization: true" "$BICEP_FILE" || { echo "Key Vault must use RBAC authorization." >&2; exit 1; }
 grep -q "param enablePrivateNetworking bool = true" "$BICEP_FILE" || { echo "Private networking must be enabled by default." >&2; exit 1; }
 grep -q "param allowPublicNetworkAccessForDev bool = false" "$BICEP_FILE" || { echo "Public network access escape hatch must default to false." >&2; exit 1; }
