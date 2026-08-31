@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Voxa.Application.Ai;
 using Voxa.Application.Realtime;
 using Voxa.Domain.Learners;
 using Voxa.Infrastructure.OpenAI;
@@ -28,7 +29,13 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
         };
         var issuer = new OpenAiRealtimeClientSecretIssuer(
             client,
-            new OpenAiRealtimeOptions("server-api-key", "gpt-realtime-2.1", "low"));
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)));
 
         var credential = await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
 
@@ -52,11 +59,77 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
         };
         var issuer = new OpenAiRealtimeClientSecretIssuer(
             client,
-            new OpenAiRealtimeOptions("server-api-key", "gpt-realtime-2.1", "low"));
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)));
 
         await Assert.ThrowsAsync<RealtimeSessionIssueException>(() =>
             issuer.IssueAsync(CreateRequest(), CancellationToken.None));
     }
+
+    [Fact]
+    public async Task IssueAsyncUsesRouterResolvedRealtimeModelAndReasoningEffort()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "client_secret": {
+                "value": "client-secret-123",
+                "expires_at": 1787991600
+              },
+              "session": {
+                "model": "gpt-realtime-2.1-mini"
+              }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var router = new StubModelRouter(new ModelRoute(
+            AiCapability.RealtimeTutorModel,
+            "gpt-realtime-2.1-mini",
+            "low",
+            ModelRouteSource.EnvironmentOverride,
+            null));
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            router);
+
+        var credential = await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
+
+        Assert.Equal("gpt-realtime-2.1-mini", credential.Model);
+        Assert.Contains("gpt-realtime-2.1-mini", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"effort\":\"low\"", handler.Body, StringComparison.Ordinal);
+        Assert.Equal(AiCapability.RealtimeTutorModel, router.Requests.Single().Capability);
+        Assert.Equal(AiCallKind.RealtimeSession, router.Requests.Single().Kind);
+    }
+
+    [Fact]
+    public async Task IssueAsyncRejectsRealtimeRouteWithoutReasoningEffort()
+    {
+        var client = new HttpClient(new RecordingHttpMessageHandler("{}"))
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                null,
+                ModelRouteSource.ConfigDefault,
+                null)));
+
+        await Assert.ThrowsAsync<RealtimeSessionIssueException>(() =>
+            issuer.IssueAsync(CreateRequest(), CancellationToken.None));
+    }
+
 
     private static RealtimeSessionRequest CreateRequest()
     {
@@ -88,6 +161,17 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
             {
                 Content = new StringContent(responseBody, Encoding.UTF8, "application/json")
             };
+        }
+    }
+
+    private sealed class StubModelRouter(ModelRoute route) : IModelRouter
+    {
+        public List<ModelRouteRequest> Requests { get; } = [];
+
+        public ModelRoute Resolve(ModelRouteRequest request)
+        {
+            Requests.Add(request);
+            return route;
         }
     }
 }

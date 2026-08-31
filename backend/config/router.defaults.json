@@ -1,0 +1,22 @@
+{
+  "models": {
+    "RealtimeTutorModel": "gpt-realtime-2.1",
+    "RealtimeTutorModelLite": "gpt-realtime-2.1-mini",
+    "TutorModel": "gpt-5.6-terra",
+    "CurriculumModel": "gpt-5.6-sol",
+    "AssessmentModel": "gpt-5.6-sol",
+    "UtilityModel": "gpt-5.6-luna",
+    "LiveTranscriptionModel": "gpt-live-transcribe",
+    "TranscriptionModel": "gpt-transcribe"
+  },
+  "reasoningEfforts": {
+    "RealtimeTutorModel": "low",
+    "RealtimeTutorModelLite": "low",
+    "TutorModel": "medium",
+    "CurriculumModel": "high",
+    "AssessmentModel": "high",
+    "UtilityModel": "low",
+    "LiveTranscriptionModel": "low",
+    "TranscriptionModel": "low"
+  }
+}

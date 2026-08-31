@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Voxa.Api.Http;
+using Voxa.Application.Ai;
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
 using Voxa.Application.Onboarding;
@@ -70,11 +71,13 @@ public static class VoxaApiServiceCollectionExtensions
         services.AddSingleton<IRealtimeSessionRateLimiter, TableRealtimeSessionRateLimiter>();
         services.AddSingleton<IRealtimeSessionAuditLog, TableRealtimeSessionAuditLog>();
         services.AddSingleton<IRealtimeSessionService, RealtimeSessionService>();
+        services.AddSingleton<IModelRouter>(_ => OpenAiModelRouter.CreateDefault());
+        services.AddSingleton<IPromptRegistry>(_ => EmbeddedPromptRegistry.CreateDefault());
         services.AddHttpClient<IRealtimeClientSecretIssuer, OpenAiRealtimeClientSecretIssuer>(client =>
         {
             client.BaseAddress = new Uri("https://api.openai.com/");
         });
-        services.AddSingleton(new OpenAiRealtimeOptions(openAiApiKey, "gpt-realtime-2.1", "low"));
+        services.AddSingleton(new OpenAiRealtimeOptions(openAiApiKey));
         services.AddSingleton<SignInWithAppleEndpoint>();
         services.AddSingleton<RefreshAppSessionEndpoint>();
         services.AddSingleton<LogoutAppSessionEndpoint>();
