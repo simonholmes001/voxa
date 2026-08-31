@@ -3,15 +3,21 @@ import XCTest
 
 private final class FakeOnboardingService: OnboardingService, @unchecked Sendable {
     var result: Result<Void, Error>
+    var resumeProfile: OnboardingProfile?
     private(set) var submitted: [OnboardingProfile] = []
 
-    init(result: Result<Void, Error> = .success(())) {
+    init(result: Result<Void, Error> = .success(()), resumeProfile: OnboardingProfile? = nil) {
         self.result = result
+        self.resumeProfile = resumeProfile
     }
 
     func submit(_ profile: OnboardingProfile) async throws {
         submitted.append(profile)
         try result.get()
+    }
+
+    func resume() async throws -> OnboardingProfile? {
+        return resumeProfile
     }
 }
 
@@ -146,6 +152,34 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertFalse(model.isComplete)
         XCTAssertEqual(model.currentStep, .welcome)
         XCTAssertNil(try userBStore.load())
+    }
+
+    func testBackendResumePersistsPlacementLevelInScopedDraft() async throws {
+        let store = InMemoryOnboardingDraftStore()
+        let service = FakeOnboardingService(
+            resumeProfile: OnboardingProfile(
+                targetLanguage: "Spanish",
+                nativeLanguage: "English",
+                goal: .work,
+                minutesPerDay: 30,
+                placementLevel: .c2
+            )
+        )
+        let model = OnboardingViewModel(
+            store: InMemoryOnboardingDraftStore(),
+            service: service,
+            scopedStoreFactory: { _, _ in store }
+        )
+
+        model.scope(toTenantId: "tenant", userId: "user-a")
+        for _ in 0..<10 where model.phase != .completed {
+            await Task.yield()
+        }
+
+        let saved = try XCTUnwrap(try store.load())
+        XCTAssertEqual(saved.placementLevel, .c2)
+        XCTAssertEqual(model.placementEstimate, .c2)
+        XCTAssertEqual(model.phase, .completed)
     }
 
     func testFinishCompletesLocallyWithDefaultLocalService() async {

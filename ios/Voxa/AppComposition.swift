@@ -16,7 +16,7 @@ enum AppComposition {
     @MainActor
     static func makeRootView() -> RootView {
         let authModel = makeAuthModel()
-        let onboardingModel = makeOnboardingModel()
+        let onboardingModel = makeOnboardingModel(authModel: authModel)
         return RootView(
             authModel: authModel,
             onboardingModel: onboardingModel,
@@ -30,10 +30,29 @@ enum AppComposition {
     }
 
     @MainActor
-    static func makeOnboardingModel() -> OnboardingViewModel {
+    static func makeOnboardingModel(authModel: AuthViewModel) -> OnboardingViewModel {
         // Start unscoped; RootView loads the user-specific draft after the
         // authenticated tenant/user is known.
-        OnboardingViewModel(store: InMemoryOnboardingDraftStore())
+        OnboardingViewModel(
+            store: InMemoryOnboardingDraftStore(),
+            service: makeOnboardingService(authModel: authModel)
+        )
+    }
+
+    /// Builds the onboarding service against the configured backend, or a
+    /// clearly-failing fallback when the base URL is missing, so a
+    /// misconfigured build fails loudly at submission rather than silently.
+    @MainActor
+    static func makeOnboardingService(authModel: AuthViewModel) -> any OnboardingService {
+        guard let baseURL = backendBaseURL() else {
+            return UnavailableOnboardingService()
+        }
+        return VoxaBackendOnboardingService(
+            baseURL: baseURL,
+            accessTokenProvider: { @MainActor in
+                authModel.state.session?.accessToken
+            }
+        )
     }
 
     /// Builds the Talk-screen session model. Session settings are evaluated at

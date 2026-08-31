@@ -43,7 +43,9 @@ public sealed record LearnerProfile(
     UserId UserId,
     string TargetLanguage,
     string NativeLanguage,
-    string ProficiencyLevel);
+    string ProficiencyLevel,
+    IReadOnlyList<string> Goals,
+    int DailyMinutes);
 
 public sealed record ActiveLearningPlan(
     string PlanId,

@@ -53,6 +53,7 @@ public struct OnboardingDraft: Sendable, Equatable, Codable {
     public var nativeLanguage: String?
     public var goal: LearningGoal?
     public var minutesPerDay: Int?
+    public var placementLevel: CEFRLevel?
     public var placementAnswers: [Bool]
     public var stepIndex: Int
     public var isCompleted: Bool
@@ -62,6 +63,7 @@ public struct OnboardingDraft: Sendable, Equatable, Codable {
         nativeLanguage: String? = nil,
         goal: LearningGoal? = nil,
         minutesPerDay: Int? = nil,
+        placementLevel: CEFRLevel? = nil,
         placementAnswers: [Bool] = [],
         stepIndex: Int = 0,
         isCompleted: Bool = false
@@ -70,6 +72,7 @@ public struct OnboardingDraft: Sendable, Equatable, Codable {
         self.nativeLanguage = nativeLanguage
         self.goal = goal
         self.minutesPerDay = minutesPerDay
+        self.placementLevel = placementLevel
         self.placementAnswers = placementAnswers
         self.stepIndex = stepIndex
         self.isCompleted = isCompleted

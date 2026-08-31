@@ -36,12 +36,63 @@ public sealed class TableLearnerStateRepositoryTests
         Assert.Equal(saved.TenantId, loaded.TenantId);
         Assert.Equal(saved.UserId, loaded.UserId);
         Assert.Equal(saved.Version, loaded.Version);
-        Assert.Equal(saved.Profile, loaded.Profile);
+        Assert.Equal(saved.Profile.TargetLanguage, loaded.Profile.TargetLanguage);
+        Assert.Equal(saved.Profile.NativeLanguage, loaded.Profile.NativeLanguage);
+        Assert.Equal(saved.Profile.ProficiencyLevel, loaded.Profile.ProficiencyLevel);
+        Assert.Equal(saved.Profile.Goals, loaded.Profile.Goals);
+        Assert.Equal(saved.Profile.DailyMinutes, loaded.Profile.DailyMinutes);
         Assert.Equal(saved.ActivePlan.PlanId, loaded.ActivePlan.PlanId);
         Assert.Equal(saved.ActivePlan.KnowledgeUnitIds, loaded.ActivePlan.KnowledgeUnitIds);
         Assert.Equal(saved.CurrentLesson, loaded.CurrentLesson);
         Assert.Equal(saved.ReviewQueue.Items, loaded.ReviewQueue.Items);
         Assert.Equal(saved.RecentSessions.Items, loaded.RecentSessions.Items);
+    }
+
+    [Fact]
+    public async Task GetAsyncDefaultsMissingProfileFieldsFromLegacyDocuments()
+    {
+        var table = new InMemoryLearnerStateTable();
+        var repository = new TableLearnerStateRepository(table);
+        await table.UpsertAsync(
+            new LearnerStateTableEntity(
+                "tenant-a",
+                "user-a",
+                "etag-1",
+                4,
+                """
+                {
+                  "tenantId": "tenant-a",
+                  "userId": "user-a",
+                  "version": 4,
+                  "profile": {
+                    "targetLanguage": "fr",
+                    "nativeLanguage": "en",
+                    "proficiencyLevel": "A1"
+                  },
+                  "activePlan": {
+                    "planId": "plan-1",
+                    "title": "Survival French",
+                    "knowledgeUnitIds": ["greetings"]
+                  },
+                  "currentLesson": {
+                    "lessonId": "",
+                    "knowledgeUnitId": "",
+                    "stepIndex": 0,
+                    "updatedAt": "1970-01-01T00:00:00+00:00"
+                  },
+                  "reviewQueue": [],
+                  "recentSessions": []
+                }
+                """),
+            expectedETag: null,
+            CancellationToken.None);
+
+        var loaded = await repository.GetAsync(TenantId.Create("tenant-a"), UserId.Create("user-a"), CancellationToken.None);
+
+        Assert.NotNull(loaded);
+        Assert.Empty(loaded.Profile.Goals);
+        Assert.Equal(15, loaded.Profile.DailyMinutes);
+        Assert.Equal(4, loaded.Version.Value);
     }
 
     [Fact]
@@ -61,7 +112,7 @@ public sealed class TableLearnerStateRepositoryTests
         return LearnerState.Create(
             tenantId,
             userId,
-            new LearnerProfile(tenantId, userId, "fr", "en", "A1"),
+            new LearnerProfile(tenantId, userId, "fr", "en", "A1", ["travel"], 15),
             new ActiveLearningPlan("plan-1", "Survival French", ["greetings"]),
             new LessonCheckpoint("lesson-1", "unit-1", 3, DateTimeOffset.Parse("2026-08-29T07:00:00Z")),
             new ReviewQueue([new ReviewQueueItem("bonjour", DateTimeOffset.Parse("2026-08-30T07:00:00Z"), 2)]),

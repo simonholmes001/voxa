@@ -36,7 +36,9 @@ internal static class LearnerStateContractMapping
             new LearnerProfileContract(
                 state.Profile.TargetLanguage,
                 state.Profile.NativeLanguage,
-                state.Profile.ProficiencyLevel),
+                state.Profile.ProficiencyLevel,
+                state.Profile.Goals,
+                state.Profile.DailyMinutes),
             new ActiveLearningPlanContract(
                 state.ActivePlan.PlanId,
                 state.ActivePlan.Title,

@@ -58,7 +58,7 @@ public sealed class LearnerSessionServiceTests
         return LearnerState.Create(
             tenantId,
             userId,
-            new LearnerProfile(tenantId, userId, "fr", "en", "A1"),
+            new LearnerProfile(tenantId, userId, "fr", "en", "A1", ["travel"], 15),
             new ActiveLearningPlan("plan-1", "Survival French", ["greetings"]),
             new LessonCheckpoint("lesson-1", "unit-1", 3, DateTimeOffset.Parse("2026-08-29T07:00:00Z")),
             new ReviewQueue([new ReviewQueueItem("bonjour", DateTimeOffset.Parse("2026-08-30T07:00:00Z"), 2)]),
