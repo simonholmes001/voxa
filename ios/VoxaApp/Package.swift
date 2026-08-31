@@ -21,13 +21,24 @@ let package = Package(
         .library(name: "VoxaNetworking", targets: ["VoxaNetworking"]),
         .library(name: "VoxaPersistence", targets: ["VoxaPersistence"]),
     ],
+    dependencies: [
+        // WebRTC for OpenAI Realtime voice sessions. Pinned to 151.x (not floating to latest).
+        // See ios/README.md Dependencies section for rationale, license, and size impact.
+        .package(url: "https://github.com/stasel/WebRTC.git", from: "151.0.0"),
+    ],
     targets: [
         .target(name: "VoxaDomain"),
         .target(name: "VoxaNetworking", dependencies: ["VoxaDomain", "VoxaAuth", "VoxaOnboarding", "VoxaRealtime"]),
         .target(name: "VoxaPersistence", dependencies: ["VoxaDomain"]),
         .target(name: "VoxaAuth", dependencies: ["VoxaDomain"]),
         .target(name: "VoxaOnboarding", dependencies: ["VoxaDomain"]),
-        .target(name: "VoxaRealtime", dependencies: ["VoxaDomain"]),
+        .target(
+            name: "VoxaRealtime",
+            dependencies: [
+                "VoxaDomain",
+                .product(name: "WebRTC", package: "WebRTC"),
+            ]
+        ),
         .target(
             name: "VoxaAppShell",
             dependencies: ["VoxaDomain", "VoxaNetworking", "VoxaPersistence", "VoxaAuth", "VoxaOnboarding", "VoxaRealtime"]
