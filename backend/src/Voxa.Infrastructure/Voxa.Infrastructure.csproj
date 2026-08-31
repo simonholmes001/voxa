@@ -8,6 +8,13 @@
   <ItemGroup>
     <PackageReference Include="Azure.Data.Tables" Version="12.12.0" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\config\router.allowed-models.json" Link="config\router.allowed-models.json" />
+    <EmbeddedResource Include="..\..\config\router.defaults.json" Link="config\router.defaults.json" />
+    <EmbeddedResource Include="..\..\prompts\**\*.yaml" LinkBase="prompts" />
   </ItemGroup>
 
   <PropertyGroup>

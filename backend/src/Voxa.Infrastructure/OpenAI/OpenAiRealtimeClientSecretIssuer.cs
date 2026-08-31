@@ -1,30 +1,37 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
+using Voxa.Application.Ai;
 using Voxa.Application.Realtime;
 
 namespace Voxa.Infrastructure.OpenAI;
 
-public sealed record OpenAiRealtimeOptions(
-    string ApiKey,
-    string DefaultRealtimeModel,
-    string DefaultReasoningEffort);
+public sealed record OpenAiRealtimeOptions(string ApiKey);
 
 public sealed class OpenAiRealtimeClientSecretIssuer(
     HttpClient httpClient,
-    OpenAiRealtimeOptions options) : IRealtimeClientSecretIssuer
+    OpenAiRealtimeOptions options,
+    IModelRouter modelRouter) : IRealtimeClientSecretIssuer
 {
     public async Task<RealtimeSessionCredential> IssueAsync(
         RealtimeSessionRequest request,
         CancellationToken cancellationToken)
     {
+        var route = modelRouter.Resolve(new ModelRouteRequest(
+            AiCapability.RealtimeTutorModel,
+            AiCallKind.RealtimeSession));
+        if (string.IsNullOrWhiteSpace(route.ReasoningEffort))
+        {
+            throw new RealtimeSessionIssueException("OpenAI Realtime route did not include reasoning effort.");
+        }
+
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "v1/realtime/client_secrets")
         {
             Content = JsonContent.Create(new OpenAiRealtimeClientSecretRequest(
                 new OpenAiRealtimeSessionRequest(
                     "realtime",
-                    options.DefaultRealtimeModel,
-                    new OpenAiRealtimeReasoning(options.DefaultReasoningEffort),
+                    route.Model,
+                    new OpenAiRealtimeReasoning(route.ReasoningEffort),
                     new OpenAiRealtimeSessionMetadata(
                         request.CorrelationId.Value,
                         request.Settings.CoachingMode,
@@ -49,8 +56,8 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
         return new RealtimeSessionCredential(
             request.CorrelationId.Value,
             body.ClientSecret.Value,
-            body.Session?.Model ?? options.DefaultRealtimeModel,
-            options.DefaultReasoningEffort,
+            body.Session?.Model ?? route.Model,
+            route.ReasoningEffort,
             DateTimeOffset.FromUnixTimeSeconds(body.ClientSecret.ExpiresAt),
             request.Settings);
     }
