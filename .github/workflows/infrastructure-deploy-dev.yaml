@@ -158,9 +158,40 @@ jobs:
             --deployment-storage-auth-type UserAssignedIdentity \
             --deployment-storage-auth-value "$function_identity_resource_id"
 
-          az functionapp deploy \
+          set +e
+          deployment_output="$(
+            az functionapp deployment source config-zip \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$function_app_name" \
+              --src "$package_path" 2>&1
+          )"
+          deployment_status="$?"
+          set -e
+          printf '%s\n' "$deployment_output"
+
+          if [ "$deployment_status" -ne 0 ]; then
+            if printf '%s\n' "$deployment_output" | grep -q "Failed to fetch host key to check for function app status"; then
+              echo "::warning::Function package upload was accepted, but Azure CLI failed its post-upload host-key health check."
+              function_count="$(
+                az functionapp function list \
+                  --resource-group "$AZURE_RESOURCE_GROUP" \
+                  --name "$function_app_name" \
+                  --query "length(@)" \
+                  --output tsv
+              )"
+              if [ "${function_count:-0}" -gt 0 ]; then
+                echo "::notice::Function App reports $function_count deployed functions after package upload."
+              else
+                echo "::error::Function App did not report deployed functions after the host-key check failure."
+                exit "$deployment_status"
+              fi
+            else
+              exit "$deployment_status"
+            fi
+          fi
+
+          az functionapp function list \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$function_app_name" \
-            --src-path "$package_path" \
-            --type zip \
-            --async true
+            --query "[].name" \
+            --output table
