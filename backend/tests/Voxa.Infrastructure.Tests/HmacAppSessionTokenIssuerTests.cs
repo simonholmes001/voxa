@@ -54,6 +54,19 @@ public sealed class HmacAppSessionTokenIssuerTests
         Assert.Null(principal);
     }
 
+    [Theory]
+    [InlineData("abc.x")]
+    [InlineData("not-base64.not-the-right-signature-length")]
+    [InlineData("%%%bad-payload%%%.x")]
+    public void ValidateAccessTokenRejectsMalformedTwoPartTokens(string token)
+    {
+        var issuer = new HmacAppSessionTokenIssuer(CreateOptions(), new FixedClock(Now));
+
+        var principal = issuer.ValidateAccessToken(token, Now.AddMinutes(5));
+
+        Assert.Null(principal);
+    }
+
     private static AppSessionTokenOptions CreateOptions()
     {
         return new AppSessionTokenOptions(

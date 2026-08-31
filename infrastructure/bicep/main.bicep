@@ -20,6 +20,16 @@ param appSessionSigningKey string = ''
 @description('Apple client identifier used as the expected audience for Sign in with Apple identity tokens.')
 param appleClientId string = ''
 
+@description('Apple Developer Team ID used to validate authorization codes.')
+param appleTeamId string = ''
+
+@description('Apple Sign in with Apple private key identifier.')
+param appleKeyId string = ''
+
+@secure()
+@description('Apple Sign in with Apple private key PEM used to create Apple client secrets.')
+param applePrivateKey string = ''
+
 @description('Whether to deploy Cosmos DB serverless as the initial durable store candidate.')
 param deployCosmos bool = false
 
@@ -191,6 +201,17 @@ resource appSessionSigningKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-0
   ]
 }
 
+resource applePrivateKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'apple-private-key'
+  properties: {
+    value: applePrivateKey
+  }
+  dependsOn: [
+    appKeyVaultSecretsOfficer
+  ]
+}
+
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: 'azlog${resourceToken}'
   location: location
@@ -315,6 +336,18 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         {
           name: 'APPLE_CLIENT_ID'
           value: appleClientId
+        }
+        {
+          name: 'APPLE_TEAM_ID'
+          value: appleTeamId
+        }
+        {
+          name: 'APPLE_KEY_ID'
+          value: appleKeyId
+        }
+        {
+          name: 'APPLE_PRIVATE_KEY'
+          value: '@Microsoft.KeyVault(SecretUri=${applePrivateKeySecret.properties.secretUriWithVersion})'
         }
         {
           name: 'APPLE_TENANT_ID'

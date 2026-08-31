@@ -21,13 +21,19 @@ var host = new HostBuilder()
         var appTokenSigningKey = Environment.GetEnvironmentVariable("APP_SESSION_SIGNING_KEY") ?? "";
         var appleClientId = Environment.GetEnvironmentVariable("APPLE_CLIENT_ID") ?? "";
         var appleTenantId = Environment.GetEnvironmentVariable("APPLE_TENANT_ID") ?? "tenant-default";
+        var appleTeamId = Environment.GetEnvironmentVariable("APPLE_TEAM_ID") ?? "";
+        var appleKeyId = Environment.GetEnvironmentVariable("APPLE_KEY_ID") ?? "";
+        var applePrivateKey = Environment.GetEnvironmentVariable("APPLE_PRIVATE_KEY") ?? "";
 
         var options = new VoxaBackendOptions(
             openAiApiKey,
             storageAccountName,
             appTokenSigningKey,
             appleClientId,
-            appleTenantId);
+            appleTenantId,
+            appleTeamId,
+            appleKeyId,
+            applePrivateKey);
         var validationErrors = options.Validate();
         if (validationErrors.Count > 0)
         {
@@ -45,7 +51,11 @@ var host = new HostBuilder()
         services.AddSingleton(new AppleJwksIdentityVerifierOptions(
             appleClientId,
             appleTenantId,
-            new Uri("https://appleid.apple.com/auth/keys")));
+            new Uri("https://appleid.apple.com/auth/keys"),
+            new Uri("https://appleid.apple.com/auth/token"),
+            appleTeamId,
+            appleKeyId,
+            applePrivateKey));
         services.AddHttpClient<IAppleIdentityVerifier, AppleJwksIdentityVerifier>();
         services.AddSingleton<ILearnerStateTable>(_ => AzureTableStorageFactory.CreateLearnerStateTable(storageAccountName));
         services.AddSingleton<IRefreshSessionTable>(_ => AzureTableStorageFactory.CreateRefreshSessionTable(storageAccountName));

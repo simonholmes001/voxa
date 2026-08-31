@@ -23,6 +23,13 @@ if [ -z "${APP_SESSION_SIGNING_KEY:-}" ]; then
   exit 1
 fi
 
+for name in APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY; do
+  if [ -z "${!name:-}" ]; then
+    echo "$name is required for deployment." >&2
+    exit 1
+  fi
+done
+
 cd "$ROOT_DIR"
 
 bash ./infrastructure/scripts/validate.sh "$ENVIRONMENT" --lint-only
@@ -39,7 +46,7 @@ az deployment group create \
   --resource-group "$RESOURCE_GROUP" \
   --template-file "$BICEP_FILE" \
   --parameters "$PARAM_FILE" \
-  --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="$OPENAI_API_KEY" appSessionSigningKey="$APP_SESSION_SIGNING_KEY" appleClientId="${APPLE_CLIENT_ID:-}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
+  --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="$OPENAI_API_KEY" appSessionSigningKey="$APP_SESSION_SIGNING_KEY" appleClientId="$APPLE_CLIENT_ID" appleTeamId="$APPLE_TEAM_ID" appleKeyId="$APPLE_KEY_ID" applePrivateKey="$APPLE_PRIVATE_KEY" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
 
 az deployment group create \
   --name "private-endpoints-${ENVIRONMENT}" \

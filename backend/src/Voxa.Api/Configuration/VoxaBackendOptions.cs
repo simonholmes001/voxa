@@ -5,7 +5,10 @@ public sealed record VoxaBackendOptions(
     string? LearnerStateStorageName,
     string? AppSessionSigningKey = null,
     string? AppleClientId = null,
-    string? AppleTenantId = null)
+    string? AppleTenantId = null,
+    string? AppleTeamId = null,
+    string? AppleKeyId = null,
+    string? ApplePrivateKey = null)
 {
     public IReadOnlyList<string> Validate()
     {

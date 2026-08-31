@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Voxa.Application.Authentication;
 
 namespace Voxa.Infrastructure.Authentication;
@@ -10,7 +11,11 @@ namespace Voxa.Infrastructure.Authentication;
 public sealed record AppleJwksIdentityVerifierOptions(
     string ClientId,
     string TenantId,
-    Uri JwksUri);
+    Uri JwksUri,
+    Uri TokenUri,
+    string TeamId,
+    string KeyId,
+    string PrivateKeyPem);
 
 public sealed class AppleJwksIdentityVerifier(
     HttpClient httpClient,
@@ -28,6 +33,11 @@ public sealed class AppleJwksIdentityVerifier(
         if (string.IsNullOrWhiteSpace(options.ClientId))
         {
             throw new AppleIdentityVerificationException("APPLE_CLIENT_ID is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(authorizationCode))
+        {
+            throw new AppleIdentityVerificationException("Apple authorization code is required.");
         }
 
         var parts = identityToken.Split('.');
@@ -59,7 +69,84 @@ public sealed class AppleJwksIdentityVerifier(
             throw new AppleIdentityVerificationException("Apple identity token signature is invalid.");
         }
 
-        return new VerifiedAppleIdentity(options.TenantId, RequiredString(payload, "sub"));
+        var subject = RequiredString(payload, "sub");
+        await ValidateAuthorizationCodeAsync(authorizationCode, subject, cancellationToken);
+
+        return new VerifiedAppleIdentity(options.TenantId, subject);
+    }
+
+    private async Task ValidateAuthorizationCodeAsync(
+        string authorizationCode,
+        string expectedSubject,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(options.TeamId)
+            || string.IsNullOrWhiteSpace(options.KeyId)
+            || string.IsNullOrWhiteSpace(options.PrivateKeyPem))
+        {
+            throw new AppleIdentityVerificationException(
+                "APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY are required.");
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, options.TokenUri)
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["client_id"] = options.ClientId,
+                ["client_secret"] = CreateClientSecret(),
+                ["code"] = authorizationCode,
+                ["grant_type"] = "authorization_code"
+            })
+        };
+
+        using var response = await httpClient.SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new AppleIdentityVerificationException("Apple authorization code validation failed.");
+        }
+
+        var body = await response.Content.ReadFromJsonAsync<AppleTokenResponse>(
+            cancellationToken)
+            .ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(body?.IdToken))
+        {
+            throw new AppleIdentityVerificationException("Apple authorization code response did not include an identity token.");
+        }
+
+        var exchangedPayload = ReadJwtPayload(body.IdToken);
+        if (!string.Equals(RequiredString(exchangedPayload, "sub"), expectedSubject, StringComparison.Ordinal))
+        {
+            throw new AppleIdentityVerificationException("Apple authorization code identity does not match the supplied identity token.");
+        }
+    }
+
+    private string CreateClientSecret()
+    {
+        var now = clock.UtcNow;
+        var header = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            alg = "ES256",
+            kid = options.KeyId
+        }));
+        var payload = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            iss = options.TeamId,
+            iat = now.ToUnixTimeSeconds(),
+            exp = now.AddMinutes(30).ToUnixTimeSeconds(),
+            aud = AppleIssuer,
+            sub = options.ClientId
+        }));
+        var signingInput = $"{header}.{payload}";
+
+        using var ecdsa = ECDsa.Create();
+        ecdsa.ImportFromPem(NormalizePem(options.PrivateKeyPem));
+        var signature = ecdsa.SignData(
+            Encoding.ASCII.GetBytes(signingInput),
+            HashAlgorithmName.SHA256,
+            DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+
+        return $"{signingInput}.{Base64UrlEncode(signature)}";
     }
 
     private void ValidateClaims(JsonElement payload, string nonce)
@@ -137,6 +224,17 @@ public sealed class AppleJwksIdentityVerifier(
         }
     }
 
+    private static JsonElement ReadJwtPayload(string jwt)
+    {
+        var parts = jwt.Split('.');
+        if (parts.Length != 3)
+        {
+            throw new AppleIdentityVerificationException("Apple token endpoint identity token is malformed.");
+        }
+
+        return ReadJson(parts[1]);
+    }
+
     private static string RequiredString(JsonElement element, string propertyName)
     {
         if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.String)
@@ -180,4 +278,20 @@ public sealed class AppleJwksIdentityVerifier(
         padded = padded.PadRight(padded.Length + (4 - padded.Length % 4) % 4, '=');
         return Convert.FromBase64String(padded);
     }
+
+    private static string Base64UrlEncode(ReadOnlySpan<byte> bytes)
+    {
+        return Convert.ToBase64String(bytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private static string NormalizePem(string pem)
+    {
+        return pem.Replace("\\n", "\n", StringComparison.Ordinal);
+    }
+
+    private sealed record AppleTokenResponse(
+        [property: JsonPropertyName("id_token")] string? IdToken);
 }

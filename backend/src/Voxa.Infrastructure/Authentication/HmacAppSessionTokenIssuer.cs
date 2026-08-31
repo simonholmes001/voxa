@@ -62,16 +62,16 @@ public sealed class HmacAppSessionTokenIssuer(
             return null;
         }
 
-        var expectedSignature = Sign(parts[0]);
-        if (!CryptographicOperations.FixedTimeEquals(
-                Encoding.ASCII.GetBytes(expectedSignature),
-                Encoding.ASCII.GetBytes(parts[1])))
-        {
-            return null;
-        }
-
         try
         {
+            var expectedSignatureBytes = Encoding.ASCII.GetBytes(Sign(parts[0]));
+            var actualSignatureBytes = Encoding.ASCII.GetBytes(parts[1]);
+            if (expectedSignatureBytes.Length != actualSignatureBytes.Length
+                || !CryptographicOperations.FixedTimeEquals(expectedSignatureBytes, actualSignatureBytes))
+            {
+                return null;
+            }
+
             var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(parts[0]));
             var payload = JsonSerializer.Deserialize<AppSessionAccessTokenDocument>(payloadJson, JsonOptions);
             if (payload is null || payload.ExpiresAtUnixSeconds <= utcNow.ToUnixTimeSeconds())
