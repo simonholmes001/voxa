@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Voxa.Application.Authentication;
 using Voxa.Domain.Learners;
 using Voxa.Infrastructure.Authentication;
@@ -67,6 +70,27 @@ public sealed class HmacAppSessionTokenIssuerTests
         Assert.Null(principal);
     }
 
+    [Theory]
+    [InlineData("", "user-a")]
+    [InlineData("tenant-default", "")]
+    public void ValidateAccessTokenRejectsSignedTokensWithInvalidDomainClaims(
+        string tenantId,
+        string userId)
+    {
+        var options = CreateOptions();
+        var issuer = new HmacAppSessionTokenIssuer(options, new FixedClock(Now));
+        var token = CreateSignedToken(
+            options.SigningKey,
+            new AppSessionAccessTokenDocument(
+                tenantId,
+                userId,
+                Now.AddMinutes(5).ToUnixTimeSeconds()));
+
+        var principal = issuer.ValidateAccessToken(token, Now);
+
+        Assert.Null(principal);
+    }
+
     private static AppSessionTokenOptions CreateOptions()
     {
         return new AppSessionTokenOptions(
@@ -74,6 +98,30 @@ public sealed class HmacAppSessionTokenIssuerTests
             AccessTokenLifetime: TimeSpan.FromMinutes(15),
             RefreshTokenLifetime: TimeSpan.FromDays(30));
     }
+
+    private static string CreateSignedToken(
+        string signingKey,
+        AppSessionAccessTokenDocument payload)
+    {
+        var payloadJson = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var encodedPayload = Base64UrlEncode(Encoding.UTF8.GetBytes(payloadJson));
+        var key = Encoding.UTF8.GetBytes(signingKey);
+        var signature = HMACSHA256.HashData(key, Encoding.ASCII.GetBytes(encodedPayload));
+        return $"{encodedPayload}.{Base64UrlEncode(signature)}";
+    }
+
+    private static string Base64UrlEncode(ReadOnlySpan<byte> bytes)
+    {
+        return Convert.ToBase64String(bytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private sealed record AppSessionAccessTokenDocument(
+        string TenantId,
+        string UserId,
+        long ExpiresAtUnixSeconds);
 
     private sealed class FixedClock(DateTimeOffset utcNow) : ISystemClock
     {

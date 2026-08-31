@@ -16,6 +16,30 @@ namespace Voxa.Api.Tests;
 
 public sealed class FunctionInvalidJsonTests
 {
+    [Fact]
+    public async Task RealtimeSessionReturnsUnauthorizedWhenAuthorizationHeaderIsMissing()
+    {
+        var functions = CreateFunctions();
+        var request = new TestHttpRequestData(
+            """
+            {
+              "coachingMode": "tutor",
+              "proficiencyBand": "B1-B2",
+              "targetLanguage": "fr-FR"
+            }
+            """,
+            method: "POST",
+            route: "realtime/session");
+
+        var response = await functions.IssueRealtimeSessionAsync(request, CancellationToken.None);
+
+        response.Body.Position = 0;
+        using var document = await JsonDocument.ParseAsync(response.Body);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("app_session_required", document.RootElement.GetProperty("code").GetString());
+    }
+
     [Theory]
     [InlineData("auth/apple")]
     [InlineData("auth/refresh")]
