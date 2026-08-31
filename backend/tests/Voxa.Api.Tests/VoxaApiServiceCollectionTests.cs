@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Voxa.Api.Configuration;
 using Voxa.Api.Functions;
 using Voxa.Api.Http;
+using Voxa.Application.Ai;
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
 using Voxa.Application.Realtime;
@@ -26,6 +27,8 @@ public sealed class VoxaApiServiceCollectionTests
         Assert.NotNull(provider.GetRequiredService<IAppleIdentityVerifier>());
         Assert.NotNull(provider.GetRequiredService<IAppSessionService>());
         Assert.NotNull(provider.GetRequiredService<ILearnerSessionQueries>());
+        Assert.NotNull(provider.GetRequiredService<IModelRouter>());
+        Assert.NotNull(provider.GetRequiredService<IPromptRegistry>());
         Assert.NotNull(provider.GetRequiredService<IRealtimeSessionService>());
         Assert.NotNull(provider.GetRequiredService<SignInWithAppleEndpoint>());
         Assert.NotNull(provider.GetRequiredService<RefreshAppSessionEndpoint>());

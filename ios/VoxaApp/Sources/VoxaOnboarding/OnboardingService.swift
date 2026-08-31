@@ -11,6 +11,10 @@ public protocol OnboardingService: Sendable {
 public enum OnboardingServiceError: Error, Equatable {
     case unavailable
     case notFound
+    case transportUnavailable
+    case authenticationRequired
+    case invalidResponse
+    case serverUnavailable
 }
 
 /// Default service until the backend `/api/onboarding` client is wired

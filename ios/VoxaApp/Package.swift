@@ -17,6 +17,7 @@ let package = Package(
         .library(name: "VoxaAuth", targets: ["VoxaAuth"]),
         .library(name: "VoxaOnboarding", targets: ["VoxaOnboarding"]),
         .library(name: "VoxaRealtime", targets: ["VoxaRealtime"]),
+        .library(name: "VoxaHome", targets: ["VoxaHome"]),
         .library(name: "VoxaDomain", targets: ["VoxaDomain"]),
         .library(name: "VoxaNetworking", targets: ["VoxaNetworking"]),
         .library(name: "VoxaPersistence", targets: ["VoxaPersistence"]),
@@ -39,15 +40,17 @@ let package = Package(
                 .product(name: "WebRTC", package: "WebRTC"),
             ]
         ),
+        .target(name: "VoxaHome", dependencies: ["VoxaDomain"]),
         .target(
             name: "VoxaAppShell",
-            dependencies: ["VoxaDomain", "VoxaNetworking", "VoxaPersistence", "VoxaAuth", "VoxaOnboarding", "VoxaRealtime"]
+            dependencies: ["VoxaDomain", "VoxaNetworking", "VoxaPersistence", "VoxaAuth", "VoxaOnboarding", "VoxaRealtime", "VoxaHome"]
         ),
         .testTarget(name: "VoxaAppShellTests", dependencies: ["VoxaAppShell"]),
         .testTarget(name: "VoxaAuthTests", dependencies: ["VoxaAuth"]),
         .testTarget(name: "VoxaNetworkingTests", dependencies: ["VoxaNetworking"]),
         .testTarget(name: "VoxaOnboardingTests", dependencies: ["VoxaOnboarding"]),
         .testTarget(name: "VoxaRealtimeTests", dependencies: ["VoxaRealtime"]),
+        .testTarget(name: "VoxaHomeTests", dependencies: ["VoxaHome"]),
         .testTarget(name: "VoxaDomainTests", dependencies: ["VoxaDomain"]),
     ],
     swiftLanguageModes: [.v5]
