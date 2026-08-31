@@ -17,6 +17,43 @@ namespace Voxa.Api.Tests;
 public sealed class FunctionInvalidJsonTests
 {
     [Fact]
+    public async Task DeploymentHealthReturnsPackagedDeploymentMarker()
+    {
+        var markerPath = Path.Combine(Path.GetTempPath(), $"voxa-marker-{Guid.NewGuid():N}.json");
+        await File.WriteAllTextAsync(
+            markerPath,
+            """
+            {
+              "sha": "abc123",
+              "runId": "456",
+              "runAttempt": "2"
+            }
+            """);
+        Environment.SetEnvironmentVariable("VOXA_DEPLOYMENT_MARKER_PATH", markerPath);
+
+        try
+        {
+            var functions = CreateFunctions();
+            var request = new TestHttpRequestData("", method: "GET", route: "health/deployment");
+
+            var response = await functions.DeploymentHealthAsync(request, CancellationToken.None);
+
+            response.Body.Position = 0;
+            using var document = await JsonDocument.ParseAsync(response.Body);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("abc123", document.RootElement.GetProperty("sha").GetString());
+            Assert.Equal("456", document.RootElement.GetProperty("runId").GetString());
+            Assert.Equal("2", document.RootElement.GetProperty("runAttempt").GetString());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VOXA_DEPLOYMENT_MARKER_PATH", null);
+            File.Delete(markerPath);
+        }
+    }
+
+    [Fact]
     public async Task RealtimeSessionReturnsUnauthorizedWhenAuthorizationHeaderIsMissing()
     {
         var functions = CreateFunctions();

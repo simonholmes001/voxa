@@ -131,6 +131,13 @@ jobs:
               --query "properties.outputs.functionAppManagedIdentityResourceId.value" \
               --output tsv
           )"
+          function_app_host_name="$(
+            az deployment group show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name main \
+              --query "properties.outputs.functionAppHostName.value" \
+              --output tsv
+          )"
 
           if [ -z "$function_app_name" ]; then
             echo "::error::Function App name was not found in the main deployment outputs."
@@ -144,10 +151,20 @@ jobs:
             echo "::error::Function App managed identity resource ID was not found in the main deployment outputs."
             exit 1
           fi
+          if [ -z "$function_app_host_name" ]; then
+            echo "::error::Function App host name was not found in the main deployment outputs."
+            exit 1
+          fi
 
           dotnet publish backend/src/Voxa.Api/Voxa.Api.csproj \
             --configuration Release \
             --output "$publish_dir"
+          jq -n \
+            --arg sha "$GITHUB_SHA" \
+            --arg runId "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            '{sha: $sha, runId: $runId, runAttempt: $runAttempt}' \
+            > "$publish_dir/deployment-marker.json"
           (cd "$publish_dir" && zip -qr "$package_path" .)
 
           az functionapp deployment config set \
@@ -172,22 +189,25 @@ jobs:
           if [ "$deployment_status" -ne 0 ]; then
             if printf '%s\n' "$deployment_output" | grep -q "Failed to fetch host key to check for function app status"; then
               echo "::warning::Function package upload was accepted, but Azure CLI failed its post-upload host-key health check."
-              function_count="$(
-                az functionapp function list \
-                  --resource-group "$AZURE_RESOURCE_GROUP" \
-                  --name "$function_app_name" \
-                  --query "length(@)" \
-                  --output tsv
-              )"
-              if [ "${function_count:-0}" -gt 0 ]; then
-                echo "::notice::Function App reports $function_count deployed functions after package upload."
-              else
-                echo "::error::Function App did not report deployed functions after the host-key check failure."
-                exit "$deployment_status"
-              fi
             else
               exit "$deployment_status"
             fi
+          fi
+
+          marker_url="https://${function_app_host_name}/api/health/deployment"
+          deployed_sha=""
+          for attempt in {1..12}; do
+            deployed_sha="$(
+              curl --fail --silent --show-error "$marker_url" \
+                | jq -r '.sha // empty'
+            )" && [ "$deployed_sha" = "$GITHUB_SHA" ] && break
+            echo "::notice::Waiting for deployed marker to report this commit SHA; attempt ${attempt}/12."
+            sleep 10
+          done
+          if [ "$deployed_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::Function deployment marker did not match this workflow commit."
+            echo "::error::Expected $GITHUB_SHA but got ${deployed_sha:-<empty>} from $marker_url."
+            exit 1
           fi
 
           az functionapp function list \

@@ -73,7 +73,13 @@ grep -q "functionAppManagedIdentityResourceId.value" "$DEPLOY_WORKFLOW_FILE" || 
 grep -q -- "--deployment-storage-auth-type UserAssignedIdentity" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use managed identity for deployment storage auth." >&2; exit 1; }
 grep -q "az functionapp deployment source config-zip" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the documented config-zip publish path for Flex code packages." >&2; exit 1; }
 grep -q "Failed to fetch host key to check for function app status" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must tolerate the known post-upload host-key check false negative." >&2; exit 1; }
-grep -q "az functionapp function list" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must verify deployed functions when the host-key check false negative occurs." >&2; exit 1; }
+grep -q "deployment-marker.json" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must stamp the Function package with a deployment marker." >&2; exit 1; }
+grep -q "health/deployment" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must verify the deployed package marker after publish." >&2; exit 1; }
+grep -q "deployed_sha.*GITHUB_SHA" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must verify the deployed marker matches this commit SHA." >&2; exit 1; }
+if grep -q "function_count" "$DEPLOY_WORKFLOW_FILE"; then
+  echo "Deploy workflow must not treat existing function count as package deployment proof." >&2
+  exit 1
+fi
 if grep -Eq "^[[:space:]]*az functionapp deploy([[:space:]\\\\]|$)" "$DEPLOY_WORKFLOW_FILE"; then
   echo "Deploy workflow must not use the preview az functionapp deploy path for this Flex app." >&2
   exit 1
