@@ -6,11 +6,13 @@ BICEP_FILE="$ROOT_DIR/infrastructure/bicep/main.bicep"
 NETWORK_BICEP_FILE="$ROOT_DIR/infrastructure/bicep/network.bicep"
 PRIVATE_ENDPOINTS_BICEP_FILE="$ROOT_DIR/infrastructure/bicep/private-endpoints.bicep"
 BOOTSTRAP_BICEP_FILE="$ROOT_DIR/infrastructure/bootstrap/main.bicep"
+DEPLOY_WORKFLOW_FILE="$ROOT_DIR/.github/workflows/infrastructure-deploy-dev.yaml"
 
 [ -f "$BICEP_FILE" ] || { echo "Missing $BICEP_FILE" >&2; exit 1; }
 [ -f "$NETWORK_BICEP_FILE" ] || { echo "Missing $NETWORK_BICEP_FILE" >&2; exit 1; }
 [ -f "$PRIVATE_ENDPOINTS_BICEP_FILE" ] || { echo "Missing $PRIVATE_ENDPOINTS_BICEP_FILE" >&2; exit 1; }
 [ -f "$BOOTSTRAP_BICEP_FILE" ] || { echo "Missing $BOOTSTRAP_BICEP_FILE" >&2; exit 1; }
+[ -f "$DEPLOY_WORKFLOW_FILE" ] || { echo "Missing $DEPLOY_WORKFLOW_FILE" >&2; exit 1; }
 
 grep -q "FlexConsumption" "$BICEP_FILE" || { echo "Function plan must use Flex Consumption." >&2; exit 1; }
 grep -q "UserAssigned" "$BICEP_FILE" || { echo "Function app must use user-assigned managed identity." >&2; exit 1; }
@@ -58,5 +60,16 @@ grep -R -q "federatedIdentityCredentials" "$ROOT_DIR/infrastructure/bootstrap" |
 grep -R -q "param federatedCredentialName string" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must allow separate OIDC credential names for branch validation." >&2; exit 1; }
 grep -R -q "repo:\${githubOrgSubject}/\${githubRepoSubject}:ref:\${githubRef}" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Federated credential must use GitHub immutable OIDC subject format." >&2; exit 1; }
 grep -R -q "Microsoft.Authorization/roleAssignments" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must assign target resource group RBAC." >&2; exit 1; }
+grep -q "bash ./infrastructure/scripts/deploy.sh dev" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the shared deploy script." >&2; exit 1; }
+if grep -q "az deployment group create" "$DEPLOY_WORKFLOW_FILE"; then
+  echo "Deploy workflow must not duplicate inline az deployment group create commands." >&2
+  exit 1
+fi
+dotnet_setup_line="$(grep -n "uses: actions/setup-dotnet@v5" "$DEPLOY_WORKFLOW_FILE" | head -n 1 | cut -d: -f1)"
+deploy_script_line="$(grep -n "run: bash ./infrastructure/scripts/deploy.sh dev" "$DEPLOY_WORKFLOW_FILE" | head -n 1 | cut -d: -f1)"
+if [ -z "$dotnet_setup_line" ] || [ -z "$deploy_script_line" ] || [ "$dotnet_setup_line" -ge "$deploy_script_line" ]; then
+  echo "Deploy workflow must install .NET before running the shared deploy script." >&2
+  exit 1
+fi
 
 echo "Infrastructure guard tests passed."

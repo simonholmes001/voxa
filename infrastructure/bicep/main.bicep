@@ -11,7 +11,30 @@ param location string = resourceGroup().location
 
 @secure()
 @description('OpenAI API key to store in Key Vault. Use a placeholder in validation environments if the app is not deployed yet.')
-param openAiApiKey string = ''
+@minLength(1)
+param openAiApiKey string
+
+@secure()
+@description('Signing key for Voxa app session access tokens.')
+@minLength(32)
+param appSessionSigningKey string
+
+@description('Apple client identifier used as the expected audience for Sign in with Apple identity tokens.')
+@minLength(1)
+param appleClientId string
+
+@description('Apple Developer Team ID used to validate authorization codes.')
+@minLength(10)
+param appleTeamId string
+
+@description('Apple Sign in with Apple private key identifier.')
+@minLength(10)
+param appleKeyId string
+
+@secure()
+@description('Apple Sign in with Apple private key PEM used to create Apple client secrets.')
+@minLength(32)
+param applePrivateKey string
 
 @description('Whether to deploy Cosmos DB serverless as the initial durable store candidate.')
 param deployCosmos bool = false
@@ -99,6 +122,31 @@ resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/con
   }
 }
 
+resource tableService 'Microsoft.Storage/storageAccounts/tableServices@2023-05-01' = {
+  parent: storageAccount
+  name: 'default'
+}
+
+resource learnerStateTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = {
+  parent: tableService
+  name: 'LearnerState'
+}
+
+resource refreshSessionsTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = {
+  parent: tableService
+  name: 'RefreshSessions'
+}
+
+resource realtimeSessionAuditTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = {
+  parent: tableService
+  name: 'RealtimeSessionAudit'
+}
+
+resource realtimeSessionRateLimitTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = {
+  parent: tableService
+  name: 'RealtimeSessionRateLimit'
+}
+
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: take('azkv${resourceToken}', 24)
   location: location
@@ -142,6 +190,28 @@ resource openAiSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   name: 'openai-api-key'
   properties: {
     value: openAiApiKey
+  }
+  dependsOn: [
+    appKeyVaultSecretsOfficer
+  ]
+}
+
+resource appSessionSigningKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'app-session-signing-key'
+  properties: {
+    value: appSessionSigningKey
+  }
+  dependsOn: [
+    appKeyVaultSecretsOfficer
+  ]
+}
+
+resource applePrivateKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'apple-private-key'
+  properties: {
+    value: applePrivateKey
   }
   dependsOn: [
     appKeyVaultSecretsOfficer
@@ -266,6 +336,30 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
           value: '@Microsoft.KeyVault(SecretUri=${openAiSecret.properties.secretUriWithVersion})'
         }
         {
+          name: 'APP_SESSION_SIGNING_KEY'
+          value: '@Microsoft.KeyVault(SecretUri=${appSessionSigningKeySecret.properties.secretUriWithVersion})'
+        }
+        {
+          name: 'APPLE_CLIENT_ID'
+          value: appleClientId
+        }
+        {
+          name: 'APPLE_TEAM_ID'
+          value: appleTeamId
+        }
+        {
+          name: 'APPLE_KEY_ID'
+          value: appleKeyId
+        }
+        {
+          name: 'APPLE_PRIVATE_KEY'
+          value: '@Microsoft.KeyVault(SecretUri=${applePrivateKeySecret.properties.secretUriWithVersion})'
+        }
+        {
+          name: 'APPLE_TENANT_ID'
+          value: 'tenant-default'
+        }
+        {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
           value: appInsights.properties.ConnectionString
         }
@@ -283,6 +377,10 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
     appStorageQueueDataContributor
     appStorageTableDataContributor
     appMonitoringMetricsPublisher
+    learnerStateTable
+    refreshSessionsTable
+    realtimeSessionAuditTable
+    realtimeSessionRateLimitTable
   ]
 }
 
@@ -419,6 +517,10 @@ output functionAppName string = functionApp.name
 output functionAppHostName string = functionApp.properties.defaultHostName
 output keyVaultName string = keyVault.name
 output storageAccountName string = storageAccount.name
+output learnerStateTableName string = learnerStateTable.name
+output refreshSessionsTableName string = refreshSessionsTable.name
+output realtimeSessionAuditTableName string = realtimeSessionAuditTable.name
+output realtimeSessionRateLimitTableName string = realtimeSessionRateLimitTable.name
 output applicationInsightsName string = appInsights.name
 output cosmosAccountName string = deployCosmos ? cosmosAccount.name : ''
 output virtualNetworkName string = enablePrivateNetworking ? virtualNetwork.name : ''

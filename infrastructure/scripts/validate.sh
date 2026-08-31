@@ -41,7 +41,7 @@ if [ "$MODE" = "--what-if" ]; then
     --resource-group "$RESOURCE_GROUP" \
     --template-file "$BICEP_FILE" \
     --parameters "$PARAM_FILE" \
-    --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
+    --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}" appSessionSigningKey="${APP_SESSION_SIGNING_KEY:-validation-signing-key-32-bytes-minimum}" appleClientId="${APPLE_CLIENT_ID:-com.simonholmes.voxa}" appleTeamId="${APPLE_TEAM_ID:-2PA85SU4UQ}" appleKeyId="${APPLE_KEY_ID:-APPLEKEYID1}" applePrivateKey="${APPLE_PRIVATE_KEY:-validation-apple-private-key-placeholder-not-for-deploy}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
 
   az deployment group what-if \
     --name "private-endpoints-${ENVIRONMENT}" \
@@ -64,7 +64,7 @@ az deployment group validate \
   --resource-group "$RESOURCE_GROUP" \
   --template-file "$BICEP_FILE" \
   --parameters "$PARAM_FILE" \
-  --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
+  --parameters environmentName="$ENVIRONMENT" location="$LOCATION" openAiApiKey="${OPENAI_API_KEY:-set-in-github-actions}" appSessionSigningKey="${APP_SESSION_SIGNING_KEY:-validation-signing-key-32-bytes-minimum}" appleClientId="${APPLE_CLIENT_ID:-com.simonholmes.voxa}" appleTeamId="${APPLE_TEAM_ID:-2PA85SU4UQ}" appleKeyId="${APPLE_KEY_ID:-APPLEKEYID1}" applePrivateKey="${APPLE_PRIVATE_KEY:-validation-apple-private-key-placeholder-not-for-deploy}" networkResourceGroupName="$NETWORK_RESOURCE_GROUP"
 
 az deployment group validate \
   --name "private-endpoints-${ENVIRONMENT}" \

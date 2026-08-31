@@ -31,9 +31,11 @@ Exchanges Sign in with Apple proof for Voxa app-session tokens. Apple identity t
 {
   "identityToken": "apple-id-token",
   "authorizationCode": "authorization-code",
-  "nonce": "nonce-123"
+  "nonce": "raw-nonce-123"
 }
 ```
+
+The client sends the raw nonce. The iOS Sign in with Apple request sends the SHA-256 lowercase hex digest of that nonce to Apple, and the backend hashes the raw nonce before comparing it with the identity-token `nonce` claim.
 
 Response `200`:
 

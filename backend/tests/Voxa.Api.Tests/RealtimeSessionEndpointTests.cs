@@ -1,4 +1,5 @@
 using Voxa.Api.Http;
+using Voxa.Application.Authentication;
 using Voxa.Application.Realtime;
 using Voxa.Domain.Learners;
 
@@ -27,7 +28,7 @@ public sealed class RealtimeSessionEndpointTests
         var endpoint = new RealtimeSessionEndpoint(new StubRealtimeSessionService());
 
         var response = await endpoint.PostAsync(
-            new AppSessionPrincipal("tenant-default", "user-a"),
+            new AppSessionPrincipal(TenantId.Create("tenant-default"), UserId.Create("user-a")),
             new RealtimeSessionHttpRequest("tutor", "B1-B2", "fr-FR"),
             "corr-123",
             CancellationToken.None);
@@ -48,7 +49,7 @@ public sealed class RealtimeSessionEndpointTests
         var endpoint = new RealtimeSessionEndpoint(new StubRealtimeSessionService());
 
         var response = await endpoint.PostAsync(
-            new AppSessionPrincipal("tenant-default", "user-a"),
+            new AppSessionPrincipal(TenantId.Create("tenant-default"), UserId.Create("user-a")),
             new RealtimeSessionHttpRequest("", "B1-B2", "fr-FR"),
             "corr-123",
             CancellationToken.None);

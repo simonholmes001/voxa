@@ -33,6 +33,11 @@ public interface IAppSessionTokenIssuer
         CorrelationId correlationId);
 }
 
+public interface IAppSessionTokenValidator
+{
+    AppSessionPrincipal? ValidateAccessToken(string? accessToken, DateTimeOffset utcNow);
+}
+
 public interface IRefreshSessionStore
 {
     Task StoreAsync(
@@ -113,6 +118,8 @@ public sealed record AppSessionTokenPair(
     string RefreshToken,
     DateTimeOffset ExpiresAt,
     DateTimeOffset RefreshTokenExpiresAt);
+
+public sealed record AppSessionPrincipal(TenantId TenantId, UserId UserId);
 
 public sealed record VerifiedAppleIdentity(
     string TenantId,

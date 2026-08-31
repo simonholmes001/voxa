@@ -1,0 +1,95 @@
+using Voxa.Application.Realtime;
+using Voxa.Domain.Learners;
+using Voxa.Infrastructure.Authentication;
+using Voxa.Infrastructure.Persistence;
+
+namespace Voxa.Infrastructure.Realtime;
+
+public sealed class InMemoryRealtimeSessionRateLimiter : IRealtimeSessionRateLimiter
+{
+    public Task EnsureAllowedAsync(
+        TenantId tenantId,
+        UserId userId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+}
+
+public sealed record RealtimeSessionRateLimitOptions(
+    int MaxRequests,
+    TimeSpan Window);
+
+public sealed class TableRealtimeSessionRateLimiter(
+    IRealtimeSessionRateLimitTable rateLimitTable,
+    ISystemClock clock,
+    RealtimeSessionRateLimitOptions options) : IRealtimeSessionRateLimiter
+{
+    public async Task EnsureAllowedAsync(
+        TenantId tenantId,
+        UserId userId,
+        CancellationToken cancellationToken)
+    {
+        var now = clock.UtcNow;
+        var partitionKey = $"{tenantId.Value}:{userId.Value}";
+        var reserved = await rateLimitTable.TryReserveAsync(
+            partitionKey,
+            WindowStart(now, options.Window),
+            options.MaxRequests,
+            now,
+            cancellationToken);
+
+        if (!reserved)
+        {
+            throw new RealtimeSessionRateLimitException("Realtime session issue limit exceeded.");
+        }
+    }
+
+    private static DateTimeOffset WindowStart(DateTimeOffset now, TimeSpan window)
+    {
+        var ticks = now.UtcTicks - (now.UtcTicks % window.Ticks);
+        return new DateTimeOffset(ticks, TimeSpan.Zero);
+    }
+}
+
+public sealed class InMemoryRealtimeSessionAuditLog : IRealtimeSessionAuditLog
+{
+    public List<RealtimeSessionAuditEvent> Events { get; } = [];
+
+    public Task RecordAsync(
+        RealtimeSessionAuditEvent auditEvent,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Events.Add(auditEvent);
+        return Task.CompletedTask;
+    }
+}
+
+public sealed class TableRealtimeSessionAuditLog(
+    IRealtimeSessionAuditTable auditTable,
+    ISystemClock clock) : IRealtimeSessionAuditLog
+{
+    public Task RecordAsync(
+        RealtimeSessionAuditEvent auditEvent,
+        CancellationToken cancellationToken)
+    {
+        var recordedAt = clock.UtcNow;
+        var partitionKey = $"{auditEvent.TenantId}:{auditEvent.UserId}";
+        var rowKey = $"{DateTimeOffset.MaxValue.Ticks - recordedAt.UtcDateTime.Ticks:D19}:{auditEvent.CorrelationId}";
+
+        return auditTable.AddAsync(
+            new RealtimeSessionAuditTableEntity(
+                partitionKey,
+                rowKey,
+                auditEvent.CorrelationId,
+                auditEvent.TenantId,
+                auditEvent.UserId,
+                auditEvent.Outcome,
+                auditEvent.CoachingMode,
+                auditEvent.TargetLanguage,
+                recordedAt),
+            cancellationToken);
+    }
+}
