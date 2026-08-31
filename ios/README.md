@@ -49,6 +49,7 @@ macOS CI host via `swift test`; there is no macOS product.
 | `VoxaAppShell` | Adaptive navigation shell (`RootView`, routes, layout resolver), auth- and onboarding-gated. |
 | `VoxaAuth` | Sign in with Apple UI, session lifecycle, and secure Keychain token storage. |
 | `VoxaOnboarding` | First-run onboarding flow, CEFR placement estimate, and resumable draft. |
+| `VoxaRealtime` | Talk-screen Realtime voice session: mic permission, connection state machine, session/transport seams, and `TalkView`. |
 | `VoxaDomain` | Domain models (contracts defined in issue #14). |
 | `VoxaNetworking` | Backend HTTP clients (e.g. `VoxaBackendAuthenticationService` for `/api/auth/*`). Clients call the Voxa backend only, never OpenAI directly. |
 | `VoxaPersistence` | On-device learner-state persistence boundary (strategy in #21/#22). |
@@ -76,9 +77,14 @@ Configuration and requirements:
 
 - **Backend base URL** comes from the Info.plist key `VOXA_API_BASE_URL`
   (driven by the `VOXA_API_BASE_URL` build setting; empty by default). When it
-  is blank, `AppComposition` injects `NotConfiguredAuthenticationService`, so
-  sign-in fails clearly instead of silently doing nothing. Set it per
-  configuration (Debug xcconfig / CI / Fastlane) once a deployment URL exists.
+  is blank, `AppComposition` injects the `NotConfigured*` services, so sign-in
+  and Realtime fail clearly instead of silently doing nothing.
+  - **Local/device testing:** copy `ios/Voxa/Config/Debug.local.xcconfig.example`
+    to `ios/Voxa/Config/Debug.local.xcconfig` (git-ignored) and set
+    `VOXA_API_BASE_URL = https://<your-function-app>...`. The committed
+    `Debug.xcconfig` includes it optionally, so no real URL is ever committed.
+  - **CI / one-off:** pass `VOXA_API_BASE_URL=...` on the `xcodebuild` command
+    line, or supply it via Fastlane.
 - The **Sign in with Apple** capability is declared in
   `ios/Voxa/Voxa.entitlements` (`com.apple.developer.applesignin`); the App ID
   must have the capability enabled for signed device/TestFlight builds.
@@ -96,6 +102,36 @@ for tests/previews), so an interrupted onboarding resumes on the same device.
 "can-do" self-assessment ladder. Onboarding **completes locally** by default
 (`LocalOnboardingService`); wiring the `POST /api/onboarding` backend client and
 cross-device resume is tracked as a separate follow-up issue.
+
+### Talk screen (Realtime voice session)
+
+> **Scope:** this provides the **Talk UI and the Realtime session-credential
+> client only**. It does **not** implement live audio yet — there is no WebRTC
+> transport, so you cannot actually speak to the tutor on device. Live audio is
+> a separate follow-up (see below), so the app must not be treated as
+> voice-testable from this work.
+
+The Talk route hosts `TalkView`, driven by `TalkSessionViewModel`
+(`VoxaRealtime`). Starting a session runs an explicit lifecycle:
+
+`idle → requestingSession → connecting → connected` (and `failed(reason)` /
+`ended`).
+
+The flow: request **microphone permission** (`MicrophonePermission`; the app
+uses `SystemMicrophonePermission` backed by `AVAudioApplication`), then request
+a short-lived credential from `POST /api/realtime/session`
+(`VoxaBackendRealtimeSessionService`, authenticated with the app-session access
+token), then hand the credential to a `RealtimeTransport` to establish the
+direct WebRTC connection to OpenAI Realtime. The permanent OpenAI key stays
+server-side. Session settings (target language, proficiency band) are derived
+from the learner's onboarding state at `start()` time, not hard-coded.
+
+**Live audio not yet integrated — dependency decision required:** the concrete
+WebRTC media transport needs a libwebrtc dependency, which is a deliberate
+architecture/dependency choice reviewed separately. Until it is approved, the
+app injects `UnavailableRealtimeTransport`, so the whole Talk path is wired and
+tested up to (but not including) live audio. Audio route/interruption/reconnect
+handling and transcript capture ship with the concrete transport as follow-ups.
 
 ### Adaptive navigation
 

@@ -1,0 +1,5 @@
+// Copy this file to `Debug.local.xcconfig` (git-ignored) and set your own
+// backend base URL for local/device testing. Do not commit real values.
+//
+// Example:
+VOXA_API_BASE_URL = https://your-voxa-function-app.azurewebsites.net

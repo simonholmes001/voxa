@@ -10,7 +10,7 @@
 # all app logic lives in that package.
 name: Voxa
 options:
-  bundleIdPrefix: com.voxa
+  bundleIdPrefix: com.simonholmes
   createIntermediateGroups: true
   deploymentTarget:
     iOS: "17.0"
@@ -19,10 +19,10 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
-    # Backend base URL is injected into Info.plist. Empty by default; set per
-    # configuration (e.g. a Debug xcconfig or CI/Fastlane) once a deployment URL
-    # exists. The app fails clearly on network calls when this is blank.
-    VOXA_API_BASE_URL: ""
+    # Backend base URL is injected into Info.plist from the VOXA_API_BASE_URL
+    # build setting. It is unset by default (Release), and configurable for
+    # Debug via ios/Voxa/Config/Debug.xcconfig (+ an optional, git-ignored
+    # Debug.local.xcconfig). The app fails clearly on network calls when blank.
     # Device/Release signing is left to Xcode automatic signing driven by
     # DEVELOPMENT_TEAM (supplied via CI/Fastlane match), so the project does not
     # permanently disable signing. Simulator/CI builds pass by overriding
@@ -35,6 +35,8 @@ targets:
   Voxa:
     type: application
     platform: iOS
+    configFiles:
+      Debug: Voxa/Config/Debug.xcconfig
     sources:
       - path: Voxa
       - path: VoxaApp/PrivacyInfo.xcprivacy
@@ -48,9 +50,11 @@ targets:
         product: VoxaNetworking
       - package: VoxaApp
         product: VoxaOnboarding
+      - package: VoxaApp
+        product: VoxaRealtime
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.voxa.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.simonholmes.voxa
         INFOPLIST_FILE: Voxa/Info.plist
         CODE_SIGN_ENTITLEMENTS: Voxa/Voxa.entitlements
         GENERATE_INFOPLIST_FILE: "NO"
@@ -63,9 +67,13 @@ targets:
       - path: VoxaTests
     dependencies:
       - target: Voxa
+      - package: VoxaApp
+        product: VoxaOnboarding
+      - package: VoxaApp
+        product: VoxaRealtime
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.voxa.app.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.simonholmes.voxa.tests
         GENERATE_INFOPLIST_FILE: "YES"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Voxa.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Voxa"
         BUNDLE_LOADER: "$(TEST_HOST)"

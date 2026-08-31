@@ -26,12 +26,12 @@ public final class InMemoryOnboardingDraftStore: OnboardingDraftStore, @unchecke
 
 /// UserDefaults-backed draft store for same-device resume.
 public struct UserDefaultsOnboardingDraftStore: OnboardingDraftStore, @unchecked Sendable {
-    private static let defaultKeyPrefix = "com.voxa.onboarding.draft"
+    private static let defaultKeyPrefix = "com.simonholmes.voxa.onboarding.draft"
 
     private let defaults: UserDefaults
     private let key: String
 
-    public init(defaults: UserDefaults = .standard, key: String = "com.voxa.onboarding.draft") {
+    public init(defaults: UserDefaults = .standard, key: String = "com.simonholmes.voxa.onboarding.draft") {
         self.defaults = defaults
         self.key = key
     }
