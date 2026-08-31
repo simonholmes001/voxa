@@ -551,6 +551,7 @@ resource learnerContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/co
 
 output functionAppName string = functionApp.name
 output functionAppHostName string = functionApp.properties.defaultHostName
+output functionAppManagedIdentityResourceId string = appIdentity.id
 output keyVaultName string = keyVault.name
 output storageAccountName string = storageAccount.name
 output deploymentStorageAccountName string = deploymentStorageAccount.name

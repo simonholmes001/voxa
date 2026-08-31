@@ -67,6 +67,10 @@ grep -R -q "param federatedCredentialName string" "$ROOT_DIR/infrastructure/boot
 grep -R -q "repo:\${githubOrgSubject}/\${githubRepoSubject}:ref:\${githubRef}" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Federated credential must use GitHub immutable OIDC subject format." >&2; exit 1; }
 grep -R -q "Microsoft.Authorization/roleAssignments" "$ROOT_DIR/infrastructure/bootstrap" || { echo "Bootstrap must assign target resource group RBAC." >&2; exit 1; }
 grep -q "bash ./infrastructure/scripts/deploy.sh dev" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the shared deploy script." >&2; exit 1; }
+grep -q "az functionapp deployment config set" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must reconcile Flex deployment storage before publishing code." >&2; exit 1; }
+grep -q "deploymentStorageAccountName.value" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must read deployment artifact storage from Bicep outputs." >&2; exit 1; }
+grep -q "functionAppManagedIdentityResourceId.value" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the Function App managed identity for deployment storage auth." >&2; exit 1; }
+grep -q -- "--deployment-storage-auth-type UserAssignedIdentity" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use managed identity for deployment storage auth." >&2; exit 1; }
 if grep -q "az deployment group create" "$DEPLOY_WORKFLOW_FILE"; then
   echo "Deploy workflow must not duplicate inline az deployment group create commands." >&2
   exit 1

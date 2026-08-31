@@ -117,9 +117,31 @@ jobs:
               --query "properties.outputs.functionAppName.value" \
               --output tsv
           )"
+          deployment_storage_account_name="$(
+            az deployment group show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name main \
+              --query "properties.outputs.deploymentStorageAccountName.value" \
+              --output tsv
+          )"
+          function_identity_resource_id="$(
+            az deployment group show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name main \
+              --query "properties.outputs.functionAppManagedIdentityResourceId.value" \
+              --output tsv
+          )"
 
           if [ -z "$function_app_name" ]; then
             echo "::error::Function App name was not found in the main deployment outputs."
+            exit 1
+          fi
+          if [ -z "$deployment_storage_account_name" ]; then
+            echo "::error::Deployment artifact storage account name was not found in the main deployment outputs."
+            exit 1
+          fi
+          if [ -z "$function_identity_resource_id" ]; then
+            echo "::error::Function App managed identity resource ID was not found in the main deployment outputs."
             exit 1
           fi
 
@@ -127,6 +149,14 @@ jobs:
             --configuration Release \
             --output "$publish_dir"
           (cd "$publish_dir" && zip -qr "$package_path" .)
+
+          az functionapp deployment config set \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$function_app_name" \
+            --deployment-storage-name "$deployment_storage_account_name" \
+            --deployment-storage-container-name "function-releases" \
+            --deployment-storage-auth-type UserAssignedIdentity \
+            --deployment-storage-auth-value "$function_identity_resource_id"
 
           az functionapp deployment source config-zip \
             --resource-group "$AZURE_RESOURCE_GROUP" \
