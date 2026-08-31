@@ -62,6 +62,7 @@ public final class OnboardingViewModel {
                 draft.nativeLanguage = profile.nativeLanguage
                 draft.goal = profile.goal
                 draft.minutesPerDay = profile.minutesPerDay
+                draft.placementLevel = profile.placementLevel
                 draft.isCompleted = true
                 try? store.save(draft)
                 phase = .completed
@@ -82,7 +83,7 @@ public final class OnboardingViewModel {
     }
 
     public var placementEstimate: CEFRLevel {
-        PlacementEstimator.estimate(from: draft.placementAnswers)
+        draft.placementLevel ?? PlacementEstimator.estimate(from: draft.placementAnswers)
     }
 
     // MARK: - Answer capture
@@ -102,6 +103,7 @@ public final class OnboardingViewModel {
             guard index >= 0, index < answers.count else { return }
             answers[index] = value
             $0.placementAnswers = answers
+            $0.placementLevel = PlacementEstimator.estimate(from: answers)
         }
     }
 
