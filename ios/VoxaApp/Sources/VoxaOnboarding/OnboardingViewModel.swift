@@ -46,13 +46,13 @@ public final class OnboardingViewModel {
         draft = (try? store.load()) ?? OnboardingDraft()
         phase = draft.isCompleted ? .completed : .inProgress
         currentScope = nextScope
-        
+
         // Try to resume from backend if local draft is not completed
         if !draft.isCompleted {
             Task { await tryResumeFromBackend() }
         }
     }
-    
+
     private func tryResumeFromBackend() async {
         do {
             if let profile = try await service.resume() {

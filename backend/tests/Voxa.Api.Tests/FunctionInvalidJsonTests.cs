@@ -8,6 +8,7 @@ using Voxa.Api.Functions;
 using Voxa.Api.Http;
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
+using Voxa.Application.Onboarding;
 using Voxa.Application.Realtime;
 using Voxa.Domain.Learners;
 using Voxa.Infrastructure.Authentication;
@@ -118,6 +119,7 @@ public sealed class FunctionInvalidJsonTests
             new LogoutAppSessionEndpoint(new StubAppSessionService()),
             new RealtimeSessionEndpoint(new StubRealtimeSessionService()),
             new ResumeSessionEndpoint(new StubLearnerSessionQueries()),
+            new OnboardingSubmitEndpoint(new OnboardingService(new StubLearnerStateRepository())),
             tokenIssuer,
             new FixedClock(DateTimeOffset.Parse("2026-08-31T08:00:00Z")));
     }
@@ -230,6 +232,22 @@ public sealed class FunctionInvalidJsonTests
         }
 
         public Task<LearnerState> SaveLearnerStateAsync(
+            LearnerState state,
+            LearnerStateVersion? expectedVersion,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class StubLearnerStateRepository : ILearnerStateRepository
+    {
+        public Task<LearnerState?> GetAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<LearnerState> SaveAsync(
             LearnerState state,
             LearnerStateVersion? expectedVersion,
             CancellationToken cancellationToken)

@@ -51,14 +51,14 @@ public struct VoxaBackendOnboardingService: OnboardingService {
 
         do {
             let response: ResumeCheckpointResponseDTO = try await get("api/session/resume", accessToken: accessToken)
-            
+
             // Map the DTO to OnboardingProfile
             // We need to infer the goal and minutesPerDay since they're not in the resume response
             // For MVP, use defaults when resuming
             guard let cefrLevel = CEFRLevel(rawValue: response.profile.proficiencyLevel) else {
                 throw OnboardingServiceError.unavailable
             }
-            
+
             return OnboardingProfile(
                 targetLanguage: response.profile.targetLanguage,
                 nativeLanguage: response.profile.nativeLanguage,
@@ -104,7 +104,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
             throw OnboardingServiceError.unavailable
         }
     }
-    
+
     private func get<Response: Decodable>(
         _ path: String,
         accessToken: String

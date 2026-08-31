@@ -5,6 +5,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Voxa.Api.Http;
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
+using Voxa.Application.Onboarding;
 using Voxa.Infrastructure.Authentication;
 
 namespace Voxa.Api.Functions;
@@ -15,6 +16,7 @@ public sealed class VoxaHttpFunctions(
     LogoutAppSessionEndpoint logout,
     RealtimeSessionEndpoint realtimeSession,
     ResumeSessionEndpoint resumeSession,
+    OnboardingSubmitEndpoint onboardingSubmit,
     IAppSessionTokenValidator tokenValidator,
     ISystemClock clock)
 {
@@ -75,6 +77,44 @@ public sealed class VoxaHttpFunctions(
             request,
             await logout.PostAsync(
                 body.Value ?? new LogoutAppSessionHttpRequest(null),
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("onboarding-submit")]
+    public async Task<HttpResponseData> SubmitOnboardingAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "onboarding")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var principal = Principal(request);
+        if (principal is null)
+        {
+            var correlationId = Domain.Learners.CorrelationId.Create(CorrelationId(request));
+            return await WriteAsync(
+                request,
+                ApiResponse<OnboardingSubmitHttpResponse>.Failure(
+                    401,
+                    new ApiErrorResponse(
+                        "app_session_required",
+                        "An authenticated app session is required.",
+                        correlationId.Value,
+                        false)),
+                cancellationToken);
+        }
+
+        var body = await ReadJsonAsync<OnboardingSubmitHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
+        return await WriteAsync(
+            request,
+            await onboardingSubmit.PostAsync(
+                body.Value ?? new OnboardingSubmitHttpRequest(null, null, null, null, null),
+                principal.TenantId,
+                principal.UserId,
                 CorrelationId(request),
                 cancellationToken),
             cancellationToken);

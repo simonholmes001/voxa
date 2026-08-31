@@ -20,7 +20,7 @@ public struct LocalOnboardingService: OnboardingService {
     public init() {}
 
     public func submit(_ profile: OnboardingProfile) async throws {}
-    
+
     public func resume() async throws -> OnboardingProfile? {
         return nil
     }
@@ -33,7 +33,7 @@ public struct UnavailableOnboardingService: OnboardingService {
     public func submit(_ profile: OnboardingProfile) async throws {
         throw OnboardingServiceError.unavailable
     }
-    
+
     public func resume() async throws -> OnboardingProfile? {
         throw OnboardingServiceError.unavailable
     }

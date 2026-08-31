@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Voxa.Api.Http;
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
+using Voxa.Application.Onboarding;
 using Voxa.Application.Realtime;
 using Voxa.Infrastructure.Authentication;
 using Voxa.Infrastructure.OpenAI;
@@ -79,6 +80,8 @@ public static class VoxaApiServiceCollectionExtensions
         services.AddSingleton<LogoutAppSessionEndpoint>();
         services.AddSingleton<RealtimeSessionEndpoint>();
         services.AddSingleton<ResumeSessionEndpoint>();
+        services.AddSingleton<OnboardingService>();
+        services.AddSingleton<OnboardingSubmitEndpoint>();
 
         return services;
     }
