@@ -109,7 +109,7 @@ jobs:
         shell: bash
         run: |
           publish_dir="${RUNNER_TEMP}/voxa-api-publish"
-          package_path="${RUNNER_TEMP}/voxa-api.zip"
+          package_path="${RUNNER_TEMP}/released-package.zip"
           function_app_name="$(
             az deployment group show \
               --resource-group "$AZURE_RESOURCE_GROUP" \
@@ -158,7 +158,9 @@ jobs:
             --deployment-storage-auth-type UserAssignedIdentity \
             --deployment-storage-auth-value "$function_identity_resource_id"
 
-          az functionapp deployment source config-zip \
+          az functionapp deploy \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --name "$function_app_name" \
-            --src "$package_path"
+            --src-path "$package_path" \
+            --type zip \
+            --async true

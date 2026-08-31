@@ -71,6 +71,12 @@ grep -q "az functionapp deployment config set" "$DEPLOY_WORKFLOW_FILE" || { echo
 grep -q "deploymentStorageAccountName.value" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must read deployment artifact storage from Bicep outputs." >&2; exit 1; }
 grep -q "functionAppManagedIdentityResourceId.value" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the Function App managed identity for deployment storage auth." >&2; exit 1; }
 grep -q -- "--deployment-storage-auth-type UserAssignedIdentity" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use managed identity for deployment storage auth." >&2; exit 1; }
+grep -q "az functionapp deploy" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the current Function App deploy command for code packages." >&2; exit 1; }
+grep -q -- "--async true" "$DEPLOY_WORKFLOW_FILE" || { echo "Function code package deployment must be async to avoid failing a successful upload on host-key health checks." >&2; exit 1; }
+if grep -q "az functionapp deployment source config-zip" "$DEPLOY_WORKFLOW_FILE"; then
+  echo "Deploy workflow must not use config-zip for Flex Consumption code package publish." >&2
+  exit 1
+fi
 if grep -q "az deployment group create" "$DEPLOY_WORKFLOW_FILE"; then
   echo "Deploy workflow must not duplicate inline az deployment group create commands." >&2
   exit 1
