@@ -140,8 +140,8 @@ internal sealed record LearnerStateDocument(
                 Profile.TargetLanguage,
                 Profile.NativeLanguage,
                 Profile.ProficiencyLevel,
-                Profile.Goals,
-                Profile.DailyMinutes),
+                Profile.Goals ?? [],
+                Profile.DailyMinutes ?? 15),
             new ActiveLearningPlan(
                 ActivePlan.PlanId,
                 ActivePlan.Title,
@@ -165,8 +165,8 @@ internal sealed record LearnerProfileDocument(
     string TargetLanguage,
     string NativeLanguage,
     string ProficiencyLevel,
-    IReadOnlyList<string> Goals,
-    int DailyMinutes);
+    IReadOnlyList<string>? Goals,
+    int? DailyMinutes);
 
 internal sealed record ActiveLearningPlanDocument(
     string PlanId,

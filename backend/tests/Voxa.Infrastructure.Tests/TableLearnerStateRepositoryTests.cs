@@ -49,6 +49,53 @@ public sealed class TableLearnerStateRepositoryTests
     }
 
     [Fact]
+    public async Task GetAsyncDefaultsMissingProfileFieldsFromLegacyDocuments()
+    {
+        var table = new InMemoryLearnerStateTable();
+        var repository = new TableLearnerStateRepository(table);
+        await table.UpsertAsync(
+            new LearnerStateTableEntity(
+                "tenant-a",
+                "user-a",
+                "etag-1",
+                4,
+                """
+                {
+                  "tenantId": "tenant-a",
+                  "userId": "user-a",
+                  "version": 4,
+                  "profile": {
+                    "targetLanguage": "fr",
+                    "nativeLanguage": "en",
+                    "proficiencyLevel": "A1"
+                  },
+                  "activePlan": {
+                    "planId": "plan-1",
+                    "title": "Survival French",
+                    "knowledgeUnitIds": ["greetings"]
+                  },
+                  "currentLesson": {
+                    "lessonId": "",
+                    "knowledgeUnitId": "",
+                    "stepIndex": 0,
+                    "updatedAt": "1970-01-01T00:00:00+00:00"
+                  },
+                  "reviewQueue": [],
+                  "recentSessions": []
+                }
+                """),
+            expectedETag: null,
+            CancellationToken.None);
+
+        var loaded = await repository.GetAsync(TenantId.Create("tenant-a"), UserId.Create("user-a"), CancellationToken.None);
+
+        Assert.NotNull(loaded);
+        Assert.Empty(loaded.Profile.Goals);
+        Assert.Equal(15, loaded.Profile.DailyMinutes);
+        Assert.Equal(4, loaded.Version.Value);
+    }
+
+    [Fact]
     public async Task SaveAsyncRejectsStaleVersions()
     {
         var table = new InMemoryLearnerStateTable();
