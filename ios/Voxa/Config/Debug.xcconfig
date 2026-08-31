@@ -1,0 +1,11 @@
+// Voxa Debug build configuration.
+//
+// Do NOT put secrets or personal URLs in this committed file. To point the app
+// at a backend during local/device testing, copy `Debug.local.xcconfig.example`
+// to `Debug.local.xcconfig` (git-ignored) and set VOXA_API_BASE_URL there.
+
+// Default: unset, so the app clearly reports "not configured" on network calls.
+VOXA_API_BASE_URL =
+
+// Optional local override (git-ignored). Included last so it wins.
+#include? "Debug.local.xcconfig"

@@ -16,10 +16,11 @@ enum AppComposition {
     @MainActor
     static func makeRootView() -> RootView {
         let authModel = makeAuthModel()
+        let onboardingModel = makeOnboardingModel()
         return RootView(
             authModel: authModel,
-            onboardingModel: makeOnboardingModel(),
-            talkModel: makeTalkModel(authModel: authModel)
+            onboardingModel: onboardingModel,
+            talkModel: makeTalkModel(authModel: authModel, onboardingModel: onboardingModel)
         )
     }
 
@@ -35,30 +36,32 @@ enum AppComposition {
         OnboardingViewModel(store: InMemoryOnboardingDraftStore())
     }
 
-    /// Builds the Talk-screen session model. The Realtime session credential is
-    /// fetched from the backend using the current app-session access token; the
-    /// WebRTC media transport is a placeholder until libwebrtc is integrated.
-    ///
-    /// TODO: Settings are hard-coded until onboarding/profile integration (#59, #20).
-    /// When integrated, inject: targetLanguage from profile.targetLanguage,
-    /// proficiencyBand from profile.proficiencyLevel (mapped to CEFR bands).
-    ///
-    /// TODO: Transport is UnavailableRealtimeTransport until WebRTC is integrated.
-    /// The UI and backend client-secret call are fully wired, but live audio
-    /// will fail with .unavailable until a real transport is injected.
+    /// Builds the Talk-screen session model. Session settings are evaluated at
+    /// `start()` time from the learner's onboarding state, so the Realtime
+    /// request reflects their chosen language and level. The WebRTC media
+    /// transport is a placeholder until libwebrtc is integrated.
     @MainActor
-    static func makeTalkModel(authModel: AuthViewModel) -> TalkSessionViewModel {
+    static func makeTalkModel(
+        authModel: AuthViewModel,
+        onboardingModel: OnboardingViewModel
+    ) -> TalkSessionViewModel {
         TalkSessionViewModel(
-            settings: RealtimeCoachingSettings(
-                proficiencyBand: "A1-A2",  // TODO: derive from profile.proficiencyLevel
-                targetLanguage: "fr-FR"    // TODO: derive from profile.targetLanguage
-            ),
+            settingsProvider: { [weak onboardingModel] in
+                realtimeSettings(from: onboardingModel)
+            },
             permission: SystemMicrophonePermission(),
             service: makeRealtimeSessionService(),
-            transport: UnavailableRealtimeTransport(
-                reason: "WebRTC transport integration pending. See TalkSessionViewModel docs."
-            ),
+            transport: UnavailableRealtimeTransport(),
             accessTokenProvider: { [weak authModel] in authModel?.state.session?.accessToken }
+        )
+    }
+
+    /// Derives Realtime coaching settings from the learner's onboarding state.
+    @MainActor
+    static func realtimeSettings(from onboardingModel: OnboardingViewModel?) -> RealtimeCoachingSettings {
+        RealtimeCoachingSettings(
+            proficiencyBand: proficiencyBand(for: onboardingModel?.placementEstimate),
+            targetLanguage: languageCode(for: onboardingModel?.draft.targetLanguage)
         )
     }
 
@@ -96,5 +99,30 @@ enum AppComposition {
             return nil
         }
         return URL(string: trimmed)
+    }
+
+    /// Maps an onboarding language display name to a BCP-47 tag. Defaults to
+    /// French until the learner has chosen a language.
+    static func languageCode(for displayName: String?) -> String {
+        switch displayName {
+        case "French": return "fr-FR"
+        case "Spanish": return "es-ES"
+        case "German": return "de-DE"
+        case "Italian": return "it-IT"
+        case "Japanese": return "ja-JP"
+        case "English": return "en-US"
+        case "Mandarin": return "zh-CN"
+        case "Portuguese": return "pt-PT"
+        default: return "fr-FR"
+        }
+    }
+
+    /// Maps a CEFR estimate to a coaching proficiency band.
+    static func proficiencyBand(for level: CEFRLevel?) -> String {
+        switch level {
+        case .a1, .a2, .none: return "A1-A2"
+        case .b1, .b2: return "B1-B2"
+        case .c1, .c2: return "C1-C2"
+        }
     }
 }

@@ -11,24 +11,44 @@ public final class TalkSessionViewModel {
     public private(set) var state: RealtimeConnectionState = .idle
     public private(set) var micPermission: MicrophonePermissionStatus = .undetermined
 
-    private let settings: RealtimeCoachingSettings
+    private let settingsProvider: @MainActor () -> RealtimeCoachingSettings
     private let permission: any MicrophonePermission
     private let service: any RealtimeSessionService
     private let transport: any RealtimeTransport
     private let accessTokenProvider: @MainActor () -> String?
 
+    /// Creates a Talk session model. `settingsProvider` is evaluated at
+    /// `start()` time so the session reflects the learner's current
+    /// language/level rather than a value fixed at construction.
     public init(
+        settingsProvider: @escaping @MainActor () -> RealtimeCoachingSettings,
+        permission: any MicrophonePermission,
+        service: any RealtimeSessionService,
+        transport: any RealtimeTransport = UnavailableRealtimeTransport(),
+        accessTokenProvider: @escaping @MainActor () -> String? = { nil }
+    ) {
+        self.settingsProvider = settingsProvider
+        self.permission = permission
+        self.service = service
+        self.transport = transport
+        self.accessTokenProvider = accessTokenProvider
+    }
+
+    /// Convenience for fixed settings (previews/tests).
+    public convenience init(
         settings: RealtimeCoachingSettings,
         permission: any MicrophonePermission,
         service: any RealtimeSessionService,
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
         accessTokenProvider: @escaping @MainActor () -> String? = { nil }
     ) {
-        self.settings = settings
-        self.permission = permission
-        self.service = service
-        self.transport = transport
-        self.accessTokenProvider = accessTokenProvider
+        self.init(
+            settingsProvider: { settings },
+            permission: permission,
+            service: service,
+            transport: transport,
+            accessTokenProvider: accessTokenProvider
+        )
     }
 
     /// Starts a session: ensures mic permission, requests a credential, and
@@ -50,6 +70,7 @@ public final class TalkSessionViewModel {
             return
         }
 
+        let settings = settingsProvider()
         state = .requestingSession
         let credential: RealtimeSessionCredential
         do {

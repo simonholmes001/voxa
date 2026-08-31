@@ -184,4 +184,35 @@ final class TalkSessionViewModelTests: XCTestCase {
 
         XCTAssertEqual(service.createdWith.count, 1)
     }
+
+    func testConfiguredSettingsAreSentToService() async {
+        let custom = RealtimeCoachingSettings(coachingMode: "tutor", proficiencyBand: "C1-C2", targetLanguage: "ja-JP")
+        let service = FakeRealtimeSessionService(result: .success(credential()))
+        let model = TalkSessionViewModel(
+            settings: custom,
+            permission: FakeMicrophonePermission(current: .granted),
+            service: service,
+            accessTokenProvider: { "t" }
+        )
+
+        await model.start()
+
+        XCTAssertEqual(service.createdWith.first?.0, custom)
+    }
+
+    func testSettingsProviderIsEvaluatedAtStart() async {
+        var band = "A1-A2"
+        let service = FakeRealtimeSessionService(result: .success(credential()))
+        let model = TalkSessionViewModel(
+            settingsProvider: { RealtimeCoachingSettings(proficiencyBand: band, targetLanguage: "fr-FR") },
+            permission: FakeMicrophonePermission(current: .granted),
+            service: service,
+            accessTokenProvider: { "t" }
+        )
+        band = "B1-B2" // learner state changes before the session starts
+
+        await model.start()
+
+        XCTAssertEqual(service.createdWith.first?.0.proficiencyBand, "B1-B2")
+    }
 }

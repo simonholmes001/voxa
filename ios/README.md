@@ -77,9 +77,14 @@ Configuration and requirements:
 
 - **Backend base URL** comes from the Info.plist key `VOXA_API_BASE_URL`
   (driven by the `VOXA_API_BASE_URL` build setting; empty by default). When it
-  is blank, `AppComposition` injects `NotConfiguredAuthenticationService`, so
-  sign-in fails clearly instead of silently doing nothing. Set it per
-  configuration (Debug xcconfig / CI / Fastlane) once a deployment URL exists.
+  is blank, `AppComposition` injects the `NotConfigured*` services, so sign-in
+  and Realtime fail clearly instead of silently doing nothing.
+  - **Local/device testing:** copy `ios/Voxa/Config/Debug.local.xcconfig.example`
+    to `ios/Voxa/Config/Debug.local.xcconfig` (git-ignored) and set
+    `VOXA_API_BASE_URL = https://<your-function-app>...`. The committed
+    `Debug.xcconfig` includes it optionally, so no real URL is ever committed.
+  - **CI / one-off:** pass `VOXA_API_BASE_URL=...` on the `xcodebuild` command
+    line, or supply it via Fastlane.
 - The **Sign in with Apple** capability is declared in
   `ios/Voxa/Voxa.entitlements` (`com.apple.developer.applesignin`); the App ID
   must have the capability enabled for signed device/TestFlight builds.
@@ -100,6 +105,12 @@ cross-device resume is tracked as a separate follow-up issue.
 
 ### Talk screen (Realtime voice session)
 
+> **Scope:** this provides the **Talk UI and the Realtime session-credential
+> client only**. It does **not** implement live audio yet — there is no WebRTC
+> transport, so you cannot actually speak to the tutor on device. Live audio is
+> a separate follow-up (see below), so the app must not be treated as
+> voice-testable from this work.
+
 The Talk route hosts `TalkView`, driven by `TalkSessionViewModel`
 (`VoxaRealtime`). Starting a session runs an explicit lifecycle:
 
@@ -112,14 +123,15 @@ a short-lived credential from `POST /api/realtime/session`
 (`VoxaBackendRealtimeSessionService`, authenticated with the app-session access
 token), then hand the credential to a `RealtimeTransport` to establish the
 direct WebRTC connection to OpenAI Realtime. The permanent OpenAI key stays
-server-side.
+server-side. Session settings (target language, proficiency band) are derived
+from the learner's onboarding state at `start()` time, not hard-coded.
 
-**Not yet integrated — dependency decision required:** the concrete WebRTC media
-transport needs a libwebrtc dependency, which is a deliberate
-architecture/dependency choice. Until it is approved, the app injects
-`UnavailableRealtimeTransport`, so the whole Talk path is wired and tested up to
-(but not including) live audio. Audio route/interruption/reconnect handling and
-transcript capture ship with the concrete transport as follow-ups.
+**Live audio not yet integrated — dependency decision required:** the concrete
+WebRTC media transport needs a libwebrtc dependency, which is a deliberate
+architecture/dependency choice reviewed separately. Until it is approved, the
+app injects `UnavailableRealtimeTransport`, so the whole Talk path is wired and
+tested up to (but not including) live audio. Audio route/interruption/reconnect
+handling and transcript capture ship with the concrete transport as follow-ups.
 
 ### Adaptive navigation
 
