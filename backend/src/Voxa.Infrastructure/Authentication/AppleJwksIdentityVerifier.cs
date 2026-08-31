@@ -40,36 +40,11 @@ public sealed class AppleJwksIdentityVerifier(
             throw new AppleIdentityVerificationException("Apple authorization code is required.");
         }
 
-        var parts = identityToken.Split('.');
-        if (parts.Length != 3)
-        {
-            throw new AppleIdentityVerificationException("Apple identity token is malformed.");
-        }
-
-        var header = ReadJson(parts[0]);
-        var payload = ReadJson(parts[1]);
-        var algorithm = RequiredString(header, "alg");
-        var keyId = RequiredString(header, "kid");
-
-        if (!string.Equals(algorithm, "RS256", StringComparison.Ordinal))
-        {
-            throw new AppleIdentityVerificationException("Apple identity token uses an unsupported signing algorithm.");
-        }
-
-        ValidateClaims(payload, nonce);
-        var key = await FindSigningKeyAsync(keyId, cancellationToken);
-        var signedBytes = Encoding.UTF8.GetBytes($"{parts[0]}.{parts[1]}");
-        var signature = Base64UrlDecode(parts[2]);
-
-        using var rsa = RSA.Create();
-        rsa.ImportParameters(key);
-
-        if (!rsa.VerifyData(signedBytes, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
-        {
-            throw new AppleIdentityVerificationException("Apple identity token signature is invalid.");
-        }
-
-        var subject = RequiredString(payload, "sub");
+        var subject = await ValidateSignedIdentityTokenAsync(
+            identityToken,
+            rawNonce: nonce,
+            expectedSubject: null,
+            cancellationToken);
         await ValidateAuthorizationCodeAsync(authorizationCode, subject, cancellationToken);
 
         return new VerifiedAppleIdentity(options.TenantId, subject);
@@ -114,11 +89,60 @@ public sealed class AppleJwksIdentityVerifier(
             throw new AppleIdentityVerificationException("Apple authorization code response did not include an identity token.");
         }
 
-        var exchangedPayload = ReadJwtPayload(body.IdToken);
-        if (!string.Equals(RequiredString(exchangedPayload, "sub"), expectedSubject, StringComparison.Ordinal))
+        await ValidateSignedIdentityTokenAsync(
+            body.IdToken,
+            rawNonce: null,
+            expectedSubject: expectedSubject,
+            cancellationToken);
+    }
+
+    private async Task<string> ValidateSignedIdentityTokenAsync(
+        string identityToken,
+        string? rawNonce,
+        string? expectedSubject,
+        CancellationToken cancellationToken)
+    {
+        var parts = identityToken.Split('.');
+        if (parts.Length != 3)
         {
-            throw new AppleIdentityVerificationException("Apple authorization code identity does not match the supplied identity token.");
+            throw new AppleIdentityVerificationException("Apple identity token is malformed.");
         }
+
+        var header = ReadJson(parts[0]);
+        var payload = ReadJson(parts[1]);
+        var algorithm = RequiredString(header, "alg");
+        var keyId = RequiredString(header, "kid");
+
+        if (!string.Equals(algorithm, "RS256", StringComparison.Ordinal))
+        {
+            throw new AppleIdentityVerificationException("Apple identity token uses an unsupported signing algorithm.");
+        }
+
+        ValidateClaims(payload, rawNonce, expectedSubject);
+        var key = await FindSigningKeyAsync(keyId, cancellationToken);
+        var signedBytes = Encoding.UTF8.GetBytes($"{parts[0]}.{parts[1]}");
+
+        using var rsa = RSA.Create();
+        rsa.ImportParameters(key);
+
+        try
+        {
+            var signature = Base64UrlDecode(parts[2]);
+            if (!rsa.VerifyData(signedBytes, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
+            {
+                throw new AppleIdentityVerificationException("Apple identity token signature is invalid.");
+            }
+        }
+        catch (FormatException exception)
+        {
+            throw new AppleIdentityVerificationException($"Apple identity token signature encoding is invalid: {exception.Message}");
+        }
+        catch (CryptographicException exception)
+        {
+            throw new AppleIdentityVerificationException($"Apple identity token signature is invalid: {exception.Message}");
+        }
+
+        return RequiredString(payload, "sub");
     }
 
     private string CreateClientSecret()
@@ -149,7 +173,7 @@ public sealed class AppleJwksIdentityVerifier(
         return $"{signingInput}.{Base64UrlEncode(signature)}";
     }
 
-    private void ValidateClaims(JsonElement payload, string nonce)
+    private void ValidateClaims(JsonElement payload, string? rawNonce, string? expectedSubject)
     {
         if (!string.Equals(RequiredString(payload, "iss"), AppleIssuer, StringComparison.Ordinal))
         {
@@ -161,7 +185,15 @@ public sealed class AppleJwksIdentityVerifier(
             throw new AppleIdentityVerificationException("Apple identity token audience is invalid.");
         }
 
-        if (!string.Equals(RequiredString(payload, "nonce"), Sha256Hex(nonce), StringComparison.Ordinal))
+        var subject = RequiredString(payload, "sub");
+        if (expectedSubject is not null
+            && !string.Equals(subject, expectedSubject, StringComparison.Ordinal))
+        {
+            throw new AppleIdentityVerificationException("Apple authorization code identity does not match the supplied identity token.");
+        }
+
+        if (rawNonce is not null
+            && !string.Equals(RequiredString(payload, "nonce"), Sha256Hex(rawNonce), StringComparison.Ordinal))
         {
             throw new AppleIdentityVerificationException("Apple identity token nonce is invalid.");
         }
@@ -171,8 +203,6 @@ public sealed class AppleJwksIdentityVerifier(
         {
             throw new AppleIdentityVerificationException("Apple identity token has expired.");
         }
-
-        _ = RequiredString(payload, "sub");
     }
 
     private async Task<RSAParameters> FindSigningKeyAsync(string keyId, CancellationToken cancellationToken)
@@ -222,17 +252,6 @@ public sealed class AppleJwksIdentityVerifier(
         {
             throw new AppleIdentityVerificationException($"Apple identity token encoding is invalid: {exception.Message}");
         }
-    }
-
-    private static JsonElement ReadJwtPayload(string jwt)
-    {
-        var parts = jwt.Split('.');
-        if (parts.Length != 3)
-        {
-            throw new AppleIdentityVerificationException("Apple token endpoint identity token is malformed.");
-        }
-
-        return ReadJson(parts[1]);
     }
 
     private static string RequiredString(JsonElement element, string propertyName)

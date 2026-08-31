@@ -62,7 +62,7 @@ jobs:
         shell: bash
         run: |
           missing=0
-          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_LOCATION AZURE_RESOURCE_GROUP AZURE_NETWORK_RESOURCE_GROUP OPENAI_API_KEY APP_SESSION_SIGNING_KEY; do
+          for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_LOCATION AZURE_RESOURCE_GROUP AZURE_NETWORK_RESOURCE_GROUP OPENAI_API_KEY APP_SESSION_SIGNING_KEY APPLE_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY; do
             if [ -z "${!name:-}" ]; then
               echo "::error::$name is not configured as a repository secret."
               missing=1

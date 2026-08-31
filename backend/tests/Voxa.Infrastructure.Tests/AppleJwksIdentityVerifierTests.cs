@@ -115,6 +115,81 @@ public sealed class AppleJwksIdentityVerifierTests
                 CancellationToken.None));
     }
 
+    [Fact]
+    public async Task VerifyRejectsTokenEndpointIdentityTokenWithTamperedSignature()
+    {
+        using var fixture = AppleJwtFixture.Create();
+        fixture.Handler.TokenResponseJson = JsonSerializer.Serialize(new
+        {
+            id_token = fixture.ReplaceSignature(fixture.CreateToken(audience: "com.voxa.ios", nonce: "unused"))
+        });
+        var verifier = fixture.CreateVerifier();
+
+        await Assert.ThrowsAsync<AppleIdentityVerificationException>(() =>
+            verifier.VerifyAsync(
+                fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
+                "authorization-code",
+                "nonce-123",
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task VerifyRejectsTokenEndpointIdentityTokenWithMalformedSignature()
+    {
+        using var fixture = AppleJwtFixture.Create();
+        fixture.Handler.TokenResponseJson = JsonSerializer.Serialize(new
+        {
+            id_token = fixture.ReplaceSignature(fixture.CreateToken(audience: "com.voxa.ios", nonce: "unused"), "not-base64!")
+        });
+        var verifier = fixture.CreateVerifier();
+
+        await Assert.ThrowsAsync<AppleIdentityVerificationException>(() =>
+            verifier.VerifyAsync(
+                fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
+                "authorization-code",
+                "nonce-123",
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task VerifyRejectsTokenEndpointIdentityTokenWithWrongAudience()
+    {
+        using var fixture = AppleJwtFixture.Create();
+        fixture.Handler.TokenResponseJson = JsonSerializer.Serialize(new
+        {
+            id_token = fixture.CreateToken(audience: "wrong-client", nonce: "unused")
+        });
+        var verifier = fixture.CreateVerifier();
+
+        await Assert.ThrowsAsync<AppleIdentityVerificationException>(() =>
+            verifier.VerifyAsync(
+                fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
+                "authorization-code",
+                "nonce-123",
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task VerifyRejectsTokenEndpointIdentityTokenWithExpiredToken()
+    {
+        using var fixture = AppleJwtFixture.Create();
+        fixture.Handler.TokenResponseJson = JsonSerializer.Serialize(new
+        {
+            id_token = fixture.CreateToken(
+                audience: "com.voxa.ios",
+                nonce: "unused",
+                expiresAt: DateTimeOffset.Parse("2026-08-30T08:59:59Z"))
+        });
+        var verifier = fixture.CreateVerifier();
+
+        await Assert.ThrowsAsync<AppleIdentityVerificationException>(() =>
+            verifier.VerifyAsync(
+                fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
+                "authorization-code",
+                "nonce-123",
+                CancellationToken.None));
+    }
+
     private sealed class AppleJwtFixture : IDisposable
     {
         private const string KeyId = "apple-key-1";
@@ -182,7 +257,11 @@ public sealed class AppleJwksIdentityVerifierTests
             });
         }
 
-        public string CreateToken(string audience, string nonce)
+        public string CreateToken(
+            string audience,
+            string nonce,
+            DateTimeOffset? expiresAt = null,
+            string subject = "apple-user-123")
         {
             var header = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(new
             {
@@ -194,9 +273,9 @@ public sealed class AppleJwksIdentityVerifierTests
             {
                 iss = "https://appleid.apple.com",
                 aud = audience,
-                sub = "apple-user-123",
+                sub = subject,
                 nonce,
-                exp = DateTimeOffset.Parse("2026-08-30T09:15:00Z").ToUnixTimeSeconds().ToString(),
+                exp = (expiresAt ?? DateTimeOffset.Parse("2026-08-30T09:15:00Z")).ToUnixTimeSeconds().ToString(),
                 iat = DateTimeOffset.Parse("2026-08-30T08:55:00Z").ToUnixTimeSeconds().ToString()
             }));
             var signingInput = $"{header}.{payload}";
@@ -215,8 +294,13 @@ public sealed class AppleJwksIdentityVerifierTests
 
         public string ReplaceSignature(string token)
         {
+            return ReplaceSignature(token, Base64UrlEncode(new byte[256]));
+        }
+
+        public string ReplaceSignature(string token, string signature)
+        {
             var parts = token.Split('.');
-            return $"{parts[0]}.{parts[1]}.{Base64UrlEncode(new byte[256])}";
+            return $"{parts[0]}.{parts[1]}.{signature}";
         }
 
         public void Dispose()
