@@ -148,7 +148,14 @@
 
 - **Authentication:** Uses backend-issued `clientSecret` as bearer token
 - **SDP Exchange:** Posts local SDP offer to `https://api.openai.com/v1/realtime/calls`
+  as multipart form data with `sdp` and `session` parts; success is validated
+  against the documented `201 Created`/2xx SDP answer path.
 - **WebRTC Mode:** Ephemeral token approach (not unified interface)
+- **Session Config:** Uses the backend-returned `model` and `reasoningEffort`
+  from `POST /api/realtime/session` rather than hardcoding model IDs in the
+  iOS transport.
+- **Connection Readiness:** Talk only reports connected after WebRTC ICE reaches
+  connected/completed; failure and timeout paths tear down local resources.
 - **Data Channel:** Created for Realtime events (not used in current scope)
 
 ### WebRTC Dependency

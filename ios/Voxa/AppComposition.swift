@@ -6,6 +6,7 @@ import VoxaHome
 import VoxaNetworking
 import VoxaOnboarding
 import VoxaRealtime
+import VoxaRealtimeWebRTC
 
 /// Composition root for the Voxa app target.
 ///

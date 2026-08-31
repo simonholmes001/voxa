@@ -130,11 +130,10 @@ cross-device resume is tracked as a separate follow-up issue.
 
 ### Talk screen (Realtime voice session)
 
-> **Scope:** this provides the **Talk UI and the Realtime session-credential
-> client only**. It does **not** implement live audio yet — there is no WebRTC
-> transport, so you cannot actually speak to the tutor on device. Live audio is
-> a separate follow-up (see below), so the app must not be treated as
-> voice-testable from this work.
+> **Scope:** this provides the **Talk UI, Realtime session-credential client,
+> and WebRTC transport** needed for the first live voice path. Advanced voice
+> reliability features such as route-change recovery, interruption recovery,
+> transcripts, and session summaries remain follow-up work.
 
 The Talk route hosts `TalkView`, driven by `TalkSessionViewModel`
 (`VoxaRealtime`). Starting a session runs an explicit lifecycle:
@@ -153,8 +152,8 @@ from the learner's onboarding state at `start()` time, not hard-coded.
 
 The concrete WebRTC transport (`WebRTCRealtimeTransport`) uses the
 `stasel/WebRTC` package (see Dependencies above) to establish the media session.
-Audio route/interruption/reconnect handling is implemented; transcript capture
-and session summaries are deferred to follow-up work.
+Audio route/interruption/reconnect hardening, transcript capture, and session
+summaries are deferred to follow-up work.
 
 ### Home / Today (post-onboarding surface)
 

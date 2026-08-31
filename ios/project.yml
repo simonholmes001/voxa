@@ -53,6 +53,8 @@ targets:
       - package: VoxaApp
         product: VoxaRealtime
       - package: VoxaApp
+        product: VoxaRealtimeWebRTC
+      - package: VoxaApp
         product: VoxaHome
     settings:
       base:
