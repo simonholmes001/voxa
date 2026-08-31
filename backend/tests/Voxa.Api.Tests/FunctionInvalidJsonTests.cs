@@ -1,0 +1,184 @@
+using System.Net;
+using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Voxa.Api.Functions;
+using Voxa.Api.Http;
+using Voxa.Application.Authentication;
+using Voxa.Application.Learners;
+using Voxa.Application.Realtime;
+using Voxa.Domain.Learners;
+using Voxa.Infrastructure.Authentication;
+
+namespace Voxa.Api.Tests;
+
+public sealed class FunctionInvalidJsonTests
+{
+    [Theory]
+    [InlineData("auth/apple")]
+    [InlineData("auth/refresh")]
+    [InlineData("auth/logout")]
+    [InlineData("realtime/session")]
+    public async Task PostFunctionsReturnInvalidJsonForMalformedBodies(string route)
+    {
+        var functions = CreateFunctions();
+        var request = new TestHttpRequestData("{not-json", method: "POST", route);
+
+        var response = route switch
+        {
+            "auth/apple" => await functions.SignInWithAppleAsync(request, CancellationToken.None),
+            "auth/refresh" => await functions.RefreshSessionAsync(request, CancellationToken.None),
+            "auth/logout" => await functions.LogoutAsync(request, CancellationToken.None),
+            "realtime/session" => await functions.IssueRealtimeSessionAsync(request, CancellationToken.None),
+            _ => throw new ArgumentOutOfRangeException(nameof(route), route, null)
+        };
+
+        response.Body.Position = 0;
+        using var document = await JsonDocument.ParseAsync(response.Body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("invalid_json", document.RootElement.GetProperty("code").GetString());
+    }
+
+    private static VoxaHttpFunctions CreateFunctions()
+    {
+        var tokenIssuer = new HmacAppSessionTokenIssuer(
+            new AppSessionTokenOptions(
+                "test-signing-key-that-is-long-enough-for-hmac",
+                TimeSpan.FromMinutes(15),
+                TimeSpan.FromDays(30)),
+            new FixedClock(DateTimeOffset.Parse("2026-08-31T08:00:00Z")));
+
+        return new VoxaHttpFunctions(
+            new SignInWithAppleEndpoint(new StubAppSessionService()),
+            new RefreshAppSessionEndpoint(new StubAppSessionService()),
+            new LogoutAppSessionEndpoint(new StubAppSessionService()),
+            new RealtimeSessionEndpoint(new StubRealtimeSessionService()),
+            new ResumeSessionEndpoint(new StubLearnerSessionQueries()),
+            tokenIssuer,
+            new FixedClock(DateTimeOffset.Parse("2026-08-31T08:00:00Z")));
+    }
+
+    private sealed class TestHttpRequestData : HttpRequestData
+    {
+        private readonly string method;
+        private readonly Uri url;
+
+        public TestHttpRequestData(string body, string method, string route)
+            : base(new TestFunctionContext())
+        {
+            this.method = method;
+            url = new Uri($"https://api.voxa.example/api/{route}");
+            Body = new MemoryStream(Encoding.UTF8.GetBytes(body));
+            Headers = new HttpHeadersCollection();
+        }
+
+        public override Stream Body { get; }
+
+        public override HttpHeadersCollection Headers { get; }
+
+        public override IReadOnlyCollection<IHttpCookie> Cookies { get; } = [];
+
+        public override Uri Url => url;
+
+        public override IEnumerable<ClaimsIdentity> Identities { get; } = [];
+
+        public override string Method => method;
+
+        public override HttpResponseData CreateResponse()
+        {
+            return new TestHttpResponseData(FunctionContext);
+        }
+    }
+
+    private sealed class TestHttpResponseData(FunctionContext functionContext) : HttpResponseData(functionContext)
+    {
+        public override HttpStatusCode StatusCode { get; set; }
+
+        public override HttpHeadersCollection Headers { get; set; } = [];
+
+        public override Stream Body { get; set; } = new MemoryStream();
+
+        public override HttpCookies Cookies { get; } = null!;
+    }
+
+    private sealed class TestFunctionContext : FunctionContext
+    {
+        public override string InvocationId => "test-invocation";
+
+        public override string FunctionId => "test-function";
+
+        public override TraceContext TraceContext { get; } = null!;
+
+        public override BindingContext BindingContext { get; } = null!;
+
+        public override RetryContext RetryContext { get; } = null!;
+
+        public override IServiceProvider InstanceServices { get; set; } = null!;
+
+        public override FunctionDefinition FunctionDefinition { get; } = null!;
+
+        public override IDictionary<object, object> Items { get; set; } = new Dictionary<object, object>();
+
+        public override IInvocationFeatures Features { get; } = null!;
+    }
+
+    private sealed class StubAppSessionService : IAppSessionService
+    {
+        public Task<AppSessionTokenPair> SignInWithAppleAsync(
+            SignInWithAppleCommand command,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<AppSessionTokenPair> RefreshAsync(
+            RefreshAppSessionCommand command,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task RevokeRefreshTokenAsync(
+            LogoutAppSessionCommand command,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class StubRealtimeSessionService : IRealtimeSessionService
+    {
+        public Task<RealtimeSessionCredential> IssueClientSecretAsync(
+            RealtimeSessionCommand command,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class StubLearnerSessionQueries : ILearnerSessionQueries
+    {
+        public Task<ResumeCheckpointResponse> GetResumeCheckpointAsync(
+            ResumeCheckpointQuery query,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<LearnerState> SaveLearnerStateAsync(
+            LearnerState state,
+            LearnerStateVersion? expectedVersion,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class FixedClock(DateTimeOffset utcNow) : ISystemClock
+    {
+        public DateTimeOffset UtcNow => utcNow;
+    }
+}

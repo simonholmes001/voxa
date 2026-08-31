@@ -161,7 +161,7 @@ public sealed class AppleJwksIdentityVerifier(
             throw new AppleIdentityVerificationException("Apple identity token audience is invalid.");
         }
 
-        if (!string.Equals(RequiredString(payload, "nonce"), nonce, StringComparison.Ordinal))
+        if (!string.Equals(RequiredString(payload, "nonce"), Sha256Hex(nonce), StringComparison.Ordinal))
         {
             throw new AppleIdentityVerificationException("Apple identity token nonce is invalid.");
         }
@@ -290,6 +290,11 @@ public sealed class AppleJwksIdentityVerifier(
     private static string NormalizePem(string pem)
     {
         return pem.Replace("\\n", "\n", StringComparison.Ordinal);
+    }
+
+    private static string Sha256Hex(string value)
+    {
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
     }
 
     private sealed record AppleTokenResponse(

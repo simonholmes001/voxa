@@ -16,7 +16,7 @@ public sealed class AppleJwksIdentityVerifierTests
         var verifier = fixture.CreateVerifier();
 
         var identity = await verifier.VerifyAsync(
-            fixture.CreateToken(audience: "com.voxa.ios", nonce: "nonce-123"),
+            fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
             "authorization-code",
             "nonce-123",
             CancellationToken.None);
@@ -30,6 +30,21 @@ public sealed class AppleJwksIdentityVerifierTests
     }
 
     [Fact]
+    public async Task VerifyAcceptsNativeAppleHashedNonceClaim()
+    {
+        using var fixture = AppleJwtFixture.Create();
+        var verifier = fixture.CreateVerifier();
+
+        var identity = await verifier.VerifyAsync(
+            fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "raw-nonce-123"),
+            "authorization-code",
+            "raw-nonce-123",
+            CancellationToken.None);
+
+        Assert.Equal("apple-user-123", identity.UserId);
+    }
+
+    [Fact]
     public async Task VerifyRejectsWrongAudience()
     {
         using var fixture = AppleJwtFixture.Create();
@@ -37,7 +52,7 @@ public sealed class AppleJwksIdentityVerifierTests
 
         await Assert.ThrowsAsync<AppleIdentityVerificationException>(() =>
             verifier.VerifyAsync(
-                fixture.CreateToken(audience: "wrong-client", nonce: "nonce-123"),
+                fixture.CreateTokenWithRawNonce(audience: "wrong-client", rawNonce: "nonce-123"),
                 "authorization-code",
                 "nonce-123",
                 CancellationToken.None));
@@ -51,7 +66,7 @@ public sealed class AppleJwksIdentityVerifierTests
 
         await Assert.ThrowsAsync<AppleIdentityVerificationException>(() =>
             verifier.VerifyAsync(
-                fixture.CreateToken(audience: "com.voxa.ios", nonce: "nonce-123"),
+                fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
                 "authorization-code",
                 "different-nonce",
                 CancellationToken.None));
@@ -62,12 +77,11 @@ public sealed class AppleJwksIdentityVerifierTests
     {
         using var fixture = AppleJwtFixture.Create();
         var verifier = fixture.CreateVerifier();
-        var token = fixture.CreateToken(audience: "com.voxa.ios", nonce: "nonce-123");
-        var replacement = token[^1] == 'x' ? 'y' : 'x';
+        var token = fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123");
 
         await Assert.ThrowsAsync<AppleIdentityVerificationException>(() =>
             verifier.VerifyAsync(
-                $"{token[..^1]}{replacement}",
+                fixture.ReplaceSignature(token),
                 "authorization-code",
                 "nonce-123",
                 CancellationToken.None));
@@ -81,7 +95,7 @@ public sealed class AppleJwksIdentityVerifierTests
 
         await Assert.ThrowsAsync<AppleIdentityVerificationException>(() =>
             verifier.VerifyAsync(
-                fixture.CreateToken(audience: "com.voxa.ios", nonce: "nonce-123"),
+                fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
                 "",
                 "nonce-123",
                 CancellationToken.None));
@@ -95,7 +109,7 @@ public sealed class AppleJwksIdentityVerifierTests
 
         await Assert.ThrowsAsync<AppleIdentityVerificationException>(() =>
             verifier.VerifyAsync(
-                fixture.CreateToken(audience: "com.voxa.ios", nonce: "nonce-123"),
+                fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
                 "authorization-code",
                 "nonce-123",
                 CancellationToken.None));
@@ -194,6 +208,17 @@ public sealed class AppleJwksIdentityVerifierTests
             return $"{signingInput}.{Base64UrlEncode(signature)}";
         }
 
+        public string CreateTokenWithRawNonce(string audience, string rawNonce)
+        {
+            return CreateToken(audience, Sha256Hex(rawNonce));
+        }
+
+        public string ReplaceSignature(string token)
+        {
+            var parts = token.Split('.');
+            return $"{parts[0]}.{parts[1]}.{Base64UrlEncode(new byte[256])}";
+        }
+
         public void Dispose()
         {
             rsa.Dispose();
@@ -211,6 +236,11 @@ public sealed class AppleJwksIdentityVerifierTests
                 .TrimEnd('=')
                 .Replace('+', '-')
                 .Replace('/', '_');
+        }
+
+        private static string Sha256Hex(string value)
+        {
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
         }
     }
 

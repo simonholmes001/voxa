@@ -56,6 +56,9 @@ Configure these as GitHub repository secrets:
 - `AZURE_NETWORK_RESOURCE_GROUP`
 - `OPENAI_API_KEY`
 - `APP_SESSION_SIGNING_KEY`
+
+Configure these before real Sign in with Apple testing. Without them, infrastructure can deploy but `POST /api/auth/apple` returns a configuration error:
+
 - `APPLE_CLIENT_ID`
 - `APPLE_TEAM_ID`
 - `APPLE_KEY_ID`

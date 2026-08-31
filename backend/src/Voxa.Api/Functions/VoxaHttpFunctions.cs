@@ -25,11 +25,18 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/apple")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<SignInWithAppleHttpRequest>(request, cancellationToken)
-            ?? new SignInWithAppleHttpRequest(null, null, null);
+        var body = await ReadJsonAsync<SignInWithAppleHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
         return await WriteAsync(
             request,
-            await signInWithApple.PostAsync(body, CorrelationId(request), cancellationToken),
+            await signInWithApple.PostAsync(
+                body.Value ?? new SignInWithAppleHttpRequest(null, null, null),
+                CorrelationId(request),
+                cancellationToken),
             cancellationToken);
     }
 
@@ -38,11 +45,18 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/refresh")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<RefreshAppSessionHttpRequest>(request, cancellationToken)
-            ?? new RefreshAppSessionHttpRequest(null);
+        var body = await ReadJsonAsync<RefreshAppSessionHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
         return await WriteAsync(
             request,
-            await refreshSession.PostAsync(body, CorrelationId(request), cancellationToken),
+            await refreshSession.PostAsync(
+                body.Value ?? new RefreshAppSessionHttpRequest(null),
+                CorrelationId(request),
+                cancellationToken),
             cancellationToken);
     }
 
@@ -51,11 +65,18 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "auth/logout")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<LogoutAppSessionHttpRequest>(request, cancellationToken)
-            ?? new LogoutAppSessionHttpRequest(null);
+        var body = await ReadJsonAsync<LogoutAppSessionHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
         return await WriteAsync(
             request,
-            await logout.PostAsync(body, CorrelationId(request), cancellationToken),
+            await logout.PostAsync(
+                body.Value ?? new LogoutAppSessionHttpRequest(null),
+                CorrelationId(request),
+                cancellationToken),
             cancellationToken);
     }
 
@@ -64,11 +85,19 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "realtime/session")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<RealtimeSessionHttpRequest>(request, cancellationToken)
-            ?? new RealtimeSessionHttpRequest(null, null, null);
+        var body = await ReadJsonAsync<RealtimeSessionHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
         return await WriteAsync(
             request,
-            await realtimeSession.PostAsync(Principal(request), body, CorrelationId(request), cancellationToken),
+            await realtimeSession.PostAsync(
+                Principal(request),
+                body.Value ?? new RealtimeSessionHttpRequest(null, null, null),
+                CorrelationId(request),
+                cancellationToken),
             cancellationToken);
     }
 
@@ -125,18 +154,38 @@ public sealed class VoxaHttpFunctions(
             : null;
     }
 
-    private static async Task<T?> ReadJsonAsync<T>(
+    private static async Task<JsonReadResult<T>> ReadJsonAsync<T>(
         HttpRequestData request,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await JsonSerializer.DeserializeAsync<T>(request.Body, JsonOptions, cancellationToken);
+            return JsonReadResult<T>.Ok(await JsonSerializer.DeserializeAsync<T>(
+                request.Body,
+                JsonOptions,
+                cancellationToken));
         }
         catch (JsonException)
         {
-            return default;
+            return JsonReadResult<T>.Invalid();
         }
+    }
+
+    private static Task<HttpResponseData> WriteInvalidJsonAsync(
+        HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var correlationId = Domain.Learners.CorrelationId.Create(CorrelationId(request));
+        return WriteAsync(
+            request,
+            ApiResponse<object>.Failure(
+                400,
+                new ApiErrorResponse(
+                    "invalid_json",
+                    "Request body is not valid JSON.",
+                    correlationId.Value,
+                    false)),
+            cancellationToken);
     }
 
     private static async Task<HttpResponseData> WriteAsync<T>(
@@ -152,5 +201,12 @@ public sealed class VoxaHttpFunctions(
             JsonOptions,
             cancellationToken);
         return response;
+    }
+
+    private sealed record JsonReadResult<T>(T? Value, bool Malformed)
+    {
+        public static JsonReadResult<T> Ok(T? value) => new(value, false);
+
+        public static JsonReadResult<T> Invalid() => new(default, true);
     }
 }
