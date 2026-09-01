@@ -16,6 +16,7 @@ DEPLOY_WORKFLOW_FILE="$ROOT_DIR/.github/workflows/infrastructure-deploy-dev.yaml
 
 grep -q "FlexConsumption" "$BICEP_FILE" || { echo "Function plan must use Flex Consumption." >&2; exit 1; }
 grep -q "UserAssigned" "$BICEP_FILE" || { echo "Function app must use user-assigned managed identity." >&2; exit 1; }
+grep -q "keyVaultReferenceIdentity: appIdentity.id" "$BICEP_FILE" || { echo "Function Key Vault references must use the user-assigned managed identity." >&2; exit 1; }
 grep -q "allowSharedKeyAccess: false" "$BICEP_FILE" || { echo "Storage local auth must be disabled." >&2; exit 1; }
 grep -q "allowBlobPublicAccess: false" "$BICEP_FILE" || { echo "Storage blob public access must be disabled." >&2; exit 1; }
 grep -q "resource deploymentStorageAccount" "$BICEP_FILE" || { echo "Function deployment packages must use dedicated deployment artifact storage." >&2; exit 1; }
