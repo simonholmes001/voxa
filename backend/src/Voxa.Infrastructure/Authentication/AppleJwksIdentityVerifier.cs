@@ -310,6 +310,8 @@ public sealed class AppleJwksIdentityVerifier(
     {
         var normalized = pem.Trim();
 
+        normalized = normalized.Trim('\uFEFF', '\u200B', '\u200C', '\u200D').Trim();
+
         if ((normalized.StartsWith('"') && normalized.EndsWith('"'))
             || (normalized.StartsWith('\'') && normalized.EndsWith('\'')))
         {
@@ -323,12 +325,40 @@ public sealed class AppleJwksIdentityVerifier(
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n');
 
-        return string.Join(
+        normalized = string.Join(
             "\n",
             normalized
                 .Split('\n')
                 .Select(line => line.Trim())
                 .Where(line => line.Length > 0));
+
+        var beginIndex = normalized.IndexOf("BEGIN PRIVATE KEY", StringComparison.Ordinal);
+        var endIndex = normalized.IndexOf("END PRIVATE KEY", StringComparison.Ordinal);
+        if (beginIndex < 0 || endIndex <= beginIndex)
+        {
+            return normalized;
+        }
+
+        var bodyStart = beginIndex + "BEGIN PRIVATE KEY".Length;
+        var body = normalized[bodyStart..endIndex];
+        var base64 = new string(body
+            .Where(character => char.IsAsciiLetterOrDigit(character) || character is '+' or '/' or '=')
+            .ToArray());
+
+        if (base64.Length == 0)
+        {
+            return normalized;
+        }
+
+        var lines = Enumerable.Range(0, (base64.Length + 63) / 64)
+            .Select(index =>
+            {
+                var start = index * 64;
+                var length = Math.Min(64, base64.Length - start);
+                return base64.Substring(start, length);
+            });
+
+        return $"-----BEGIN PRIVATE KEY-----\n{string.Join("\n", lines)}\n-----END PRIVATE KEY-----";
     }
 
     private static string Sha256Hex(string value)

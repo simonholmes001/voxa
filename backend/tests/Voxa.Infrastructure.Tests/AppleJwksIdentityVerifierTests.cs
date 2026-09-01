@@ -231,6 +231,49 @@ public sealed class AppleJwksIdentityVerifierTests
         Assert.False(string.IsNullOrWhiteSpace(fixture.Handler.TokenRequestClientSecret));
     }
 
+    [Fact]
+    public async Task VerifyAcceptsFlattenedApplePrivateKeyPemFromSecretTransport()
+    {
+        using var fixture = AppleJwtFixture.Create();
+        var flattenedPem = fixture.ExportClientSecretPrivateKeyPem()
+            .Replace("\r", "", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal);
+        var verifier = fixture.CreateVerifier(flattenedPem);
+
+        var identity = await verifier.VerifyAsync(
+            fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
+            "authorization-code",
+            "nonce-123",
+            CancellationToken.None);
+
+        Assert.Equal("apple-user-123", identity.UserId);
+        Assert.False(string.IsNullOrWhiteSpace(fixture.Handler.TokenRequestClientSecret));
+    }
+
+    [Fact]
+    public async Task VerifyAcceptsPemWithNonStandardBoundaryWhitespace()
+    {
+        using var fixture = AppleJwtFixture.Create();
+        var pem = fixture.ExportClientSecretPrivateKeyPem();
+        var body = pem
+            .Replace("-----BEGIN PRIVATE KEY-----", "", StringComparison.Ordinal)
+            .Replace("-----END PRIVATE KEY-----", "", StringComparison.Ordinal)
+            .Replace("\r", "", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Trim();
+        var copiedPem = $"\uFEFF ------BEGIN PRIVATE KEY------ {body} ------END PRIVATE KEY------ ";
+        var verifier = fixture.CreateVerifier(copiedPem);
+
+        var identity = await verifier.VerifyAsync(
+            fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
+            "authorization-code",
+            "nonce-123",
+            CancellationToken.None);
+
+        Assert.Equal("apple-user-123", identity.UserId);
+        Assert.False(string.IsNullOrWhiteSpace(fixture.Handler.TokenRequestClientSecret));
+    }
+
     private sealed class AppleJwtFixture : IDisposable
     {
         private const string KeyId = "apple-key-1";
