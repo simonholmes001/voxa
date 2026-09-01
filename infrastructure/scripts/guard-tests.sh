@@ -75,6 +75,8 @@ grep -q "az functionapp deployment config set" "$DEPLOY_WORKFLOW_FILE" || { echo
 grep -q "deploymentStorageAccountName.value" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must read deployment artifact storage from Bicep outputs." >&2; exit 1; }
 grep -q "functionAppManagedIdentityResourceId.value" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the Function App managed identity for deployment storage auth." >&2; exit 1; }
 grep -q -- "--deployment-storage-auth-type UserAssignedIdentity" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use managed identity for deployment storage auth." >&2; exit 1; }
+grep -q "name: 'AZURE_CLIENT_ID'" "$BICEP_FILE" || { echo "Function App runtime must expose AZURE_CLIENT_ID for Azure SDK user-assigned managed identity selection." >&2; exit 1; }
+grep -q "value: appIdentity.properties.clientId" "$BICEP_FILE" || { echo "Function App runtime AZURE_CLIENT_ID must use the app managed identity client id." >&2; exit 1; }
 grep -q "az functionapp deployment source config-zip" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the documented config-zip publish path for Flex code packages." >&2; exit 1; }
 grep -q "Failed to fetch host key to check for function app status" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must tolerate the known post-upload host-key check false negative." >&2; exit 1; }
 grep -q "deployment-marker.json" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must stamp the Function package with a deployment marker." >&2; exit 1; }

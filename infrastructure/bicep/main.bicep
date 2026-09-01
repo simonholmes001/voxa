@@ -350,6 +350,10 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
           value: appIdentity.properties.clientId
         }
         {
+          name: 'AZURE_CLIENT_ID'
+          value: appIdentity.properties.clientId
+        }
+        {
           name: 'WEBSITE_VNET_ROUTE_ALL'
           value: enablePrivateNetworking ? '1' : '0'
         }
