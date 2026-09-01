@@ -65,7 +65,7 @@ The iOS app has one external binary dependency: **WebRTC** for live voice tutori
 ### WebRTC (stasel/WebRTC)
 
 - **Package**: https://github.com/stasel/WebRTC
-- **Version**: 151.0.0 (pinned, not floating)
+- **Version**: 151.0.1 (pinned, not floating)
 - **License**: BSD 3-Clause (permissive, compatible with commercial use)
 - **Purpose**: Enables live voice tutoring by establishing direct WebRTC peer connections to OpenAI Realtime API
 - **Size impact**: ~42MB xcframework (compressed); ~15-20MB per architecture after App Store thinning
