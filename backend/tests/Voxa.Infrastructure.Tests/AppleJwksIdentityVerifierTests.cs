@@ -190,6 +190,47 @@ public sealed class AppleJwksIdentityVerifierTests
                 CancellationToken.None));
     }
 
+    [Fact]
+    public async Task VerifyAcceptsIndentedApplePrivateKeyPemFromSecretPasting()
+    {
+        using var fixture = AppleJwtFixture.Create();
+        var indentedPem = string.Join(
+            "\n",
+            fixture.ExportClientSecretPrivateKeyPem()
+                .Split('\n')
+                .Where(line => line.Length > 0)
+                .Select(line => $"  {line}  "));
+        var verifier = fixture.CreateVerifier(indentedPem);
+
+        var identity = await verifier.VerifyAsync(
+            fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
+            "authorization-code",
+            "nonce-123",
+            CancellationToken.None);
+
+        Assert.Equal("apple-user-123", identity.UserId);
+        Assert.False(string.IsNullOrWhiteSpace(fixture.Handler.TokenRequestClientSecret));
+    }
+
+    [Fact]
+    public async Task VerifyAcceptsEscapedAndQuotedApplePrivateKeyPemFromDeploymentPipeline()
+    {
+        using var fixture = AppleJwtFixture.Create();
+        var escapedPem = "\"" + fixture.ExportClientSecretPrivateKeyPem()
+            .Replace("\n", "\\n", StringComparison.Ordinal)
+            .Replace("\r", "\\r", StringComparison.Ordinal) + "\"";
+        var verifier = fixture.CreateVerifier(escapedPem);
+
+        var identity = await verifier.VerifyAsync(
+            fixture.CreateTokenWithRawNonce(audience: "com.voxa.ios", rawNonce: "nonce-123"),
+            "authorization-code",
+            "nonce-123",
+            CancellationToken.None);
+
+        Assert.Equal("apple-user-123", identity.UserId);
+        Assert.False(string.IsNullOrWhiteSpace(fixture.Handler.TokenRequestClientSecret));
+    }
+
     private sealed class AppleJwtFixture : IDisposable
     {
         private const string KeyId = "apple-key-1";
@@ -223,7 +264,7 @@ public sealed class AppleJwksIdentityVerifierTests
             return fixture;
         }
 
-        public AppleJwksIdentityVerifier CreateVerifier()
+        public AppleJwksIdentityVerifier CreateVerifier(string? privateKeyPem = null)
         {
             return new AppleJwksIdentityVerifier(
                 new HttpClient(Handler),
@@ -234,7 +275,7 @@ public sealed class AppleJwksIdentityVerifierTests
                     new Uri("https://appleid.apple.com/auth/token"),
                     "2PA85SU4UQ",
                     "APPLEKEYID1",
-                    ExportClientSecretPrivateKeyPem()),
+                    privateKeyPem ?? ExportClientSecretPrivateKeyPem()),
                 new FixedClock(DateTimeOffset.Parse("2026-08-30T09:00:00Z")));
         }
 
@@ -309,7 +350,7 @@ public sealed class AppleJwksIdentityVerifierTests
             clientSecretKey.Dispose();
         }
 
-        private string ExportClientSecretPrivateKeyPem()
+        public string ExportClientSecretPrivateKeyPem()
         {
             return clientSecretKey.ExportPkcs8PrivateKeyPem();
         }

@@ -308,7 +308,27 @@ public sealed class AppleJwksIdentityVerifier(
 
     private static string NormalizePem(string pem)
     {
-        return pem.Replace("\\n", "\n", StringComparison.Ordinal);
+        var normalized = pem.Trim();
+
+        if ((normalized.StartsWith('"') && normalized.EndsWith('"'))
+            || (normalized.StartsWith('\'') && normalized.EndsWith('\'')))
+        {
+            normalized = normalized[1..^1].Trim();
+        }
+
+        normalized = normalized
+            .Replace("\\r\\n", "\n", StringComparison.Ordinal)
+            .Replace("\\n", "\n", StringComparison.Ordinal)
+            .Replace("\\r", "\n", StringComparison.Ordinal)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n');
+
+        return string.Join(
+            "\n",
+            normalized
+                .Split('\n')
+                .Select(line => line.Trim())
+                .Where(line => line.Length > 0));
     }
 
     private static string Sha256Hex(string value)
