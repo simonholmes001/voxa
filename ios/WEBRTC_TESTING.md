@@ -160,7 +160,7 @@
 
 ### WebRTC Dependency
 
-- **Package:** stasel/WebRTC 151.0.0
+- **Package:** stasel/WebRTC 152.0.0
 - **License:** BSD 3-Clause (permissive)
 - **Size:** ~42MB xcframework (~15-20MB per architecture after App Store thinning)
 - **Source:** Community binary built from official Google WebRTC sources

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using Voxa.Api.Functions;
 using Voxa.Api.Http;
 using Voxa.Application.Authentication;
@@ -121,7 +122,7 @@ public sealed class FunctionInvalidJsonTests
     private static VoxaHttpFunctions CreateFunctions(HmacAppSessionTokenIssuer tokenIssuer)
     {
         return new VoxaHttpFunctions(
-            new SignInWithAppleEndpoint(new StubAppSessionService()),
+            new SignInWithAppleEndpoint(new StubAppSessionService(), NullLogger<SignInWithAppleEndpoint>.Instance),
             new RefreshAppSessionEndpoint(new StubAppSessionService()),
             new LogoutAppSessionEndpoint(new StubAppSessionService()),
             new RealtimeSessionEndpoint(new StubRealtimeSessionService()),

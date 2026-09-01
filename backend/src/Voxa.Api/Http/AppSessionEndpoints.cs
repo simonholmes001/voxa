@@ -1,10 +1,16 @@
+using Microsoft.Extensions.Logging;
 using Voxa.Application.Authentication;
 using Voxa.Domain.Learners;
 
 namespace Voxa.Api.Http;
 
-public sealed class SignInWithAppleEndpoint(IAppSessionService appSessions)
+public sealed class SignInWithAppleEndpoint(
+    IAppSessionService appSessions,
+    ILogger<SignInWithAppleEndpoint> logger)
 {
+    private static readonly EventId AppleSignInRequestRejected = new(17001, nameof(AppleSignInRequestRejected));
+    private static readonly EventId AppleSignInVerificationFailed = new(17002, nameof(AppleSignInVerificationFailed));
+
     public async Task<ApiResponse<AppSessionHttpResponse>> PostAsync(
         SignInWithAppleHttpRequest request,
         string? correlationId,
@@ -24,10 +30,20 @@ public sealed class SignInWithAppleEndpoint(IAppSessionService appSessions)
         }
         catch (ArgumentException exception)
         {
+            logger.LogWarning(
+                AppleSignInRequestRejected,
+                "Apple sign-in request rejected. CorrelationId: {CorrelationId}. Reason: {Reason}",
+                requestCorrelationId.Value,
+                exception.Message);
             return Failure<AppSessionHttpResponse>("validation_error", exception.Message, requestCorrelationId, 400, retryable: false);
         }
-        catch (AppleIdentityVerificationException)
+        catch (AppleIdentityVerificationException exception)
         {
+            logger.LogWarning(
+                AppleSignInVerificationFailed,
+                "Apple sign-in failed. CorrelationId: {CorrelationId}. Reason: {Reason}",
+                requestCorrelationId.Value,
+                exception.Message);
             return Failure<AppSessionHttpResponse>(
                 "apple_identity_invalid",
                 "Apple identity could not be verified.",
