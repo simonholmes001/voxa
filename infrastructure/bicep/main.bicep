@@ -313,6 +313,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
     serverFarmId: functionPlan.id
     httpsOnly: true
     publicNetworkAccess: functionPublicNetworkAccessValue
+    keyVaultReferenceIdentity: appIdentity.id
     virtualNetworkSubnetId: enablePrivateNetworking ? functionIntegrationSubnet.id : null
     functionAppConfig: {
       runtime: {
