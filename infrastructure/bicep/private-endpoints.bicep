@@ -129,6 +129,9 @@ resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/priv
 resource storageBlobPrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
   parent: blobPrivateDnsZone
   name: storageAccount.name
+  dependsOn: [
+    storageBlobPrivateDnsZoneGroup
+  ]
   properties: {
     ttl: 10
     aRecords: [
@@ -180,6 +183,9 @@ resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/pri
 resource storageQueuePrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
   parent: queuePrivateDnsZone
   name: storageAccount.name
+  dependsOn: [
+    storageQueuePrivateDnsZoneGroup
+  ]
   properties: {
     ttl: 10
     aRecords: [
@@ -231,6 +237,9 @@ resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/pri
 resource storageTablePrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
   parent: tablePrivateDnsZone
   name: storageAccount.name
+  dependsOn: [
+    storageTablePrivateDnsZoneGroup
+  ]
   properties: {
     ttl: 10
     aRecords: [
@@ -282,6 +291,9 @@ resource keyVaultPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/private
 resource keyVaultPrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
   parent: vaultPrivateDnsZone
   name: keyVault.name
+  dependsOn: [
+    keyVaultPrivateDnsZoneGroup
+  ]
   properties: {
     ttl: 10
     aRecords: [
