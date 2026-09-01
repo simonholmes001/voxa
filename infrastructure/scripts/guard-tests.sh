@@ -47,8 +47,11 @@ grep -q "var privateEndpointToken = uniqueString(subscription().id, resourceGrou
 grep -q "Microsoft.Network/privateEndpoints" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoints must be deployed from the network resource group template." >&2; exit 1; }
 grep -q "customNetworkInterfaceName" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint NIC names must be explicitly controlled." >&2; exit 1; }
 grep -q "Microsoft.Network/privateDnsZones/A" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint DNS A records must be materialized explicitly." >&2; exit 1; }
-grep -q "ipConfigurations" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoints must declare deterministic private IP configurations." >&2; exit 1; }
-grep -q "privateIPAddress: keyVaultPrivateEndpointIpAddress" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Key Vault private endpoint DNS must use the declared private endpoint IP." >&2; exit 1; }
+grep -q "customDnsConfigs\\[0\\].ipAddresses\\[0\\]" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint DNS A records must use Azure-allocated private endpoint IP addresses." >&2; exit 1; }
+if grep -q "privateIPAddress:" "$PRIVATE_ENDPOINTS_BICEP_FILE"; then
+  echo "Private endpoint IP addresses must not be hard-coded." >&2
+  exit 1
+fi
 grep -q "virtualNetworkSubnetId" "$BICEP_FILE" || { echo "Function outbound VNet integration must be configured." >&2; exit 1; }
 grep -q "diagnosticSettings" "$BICEP_FILE" || { echo "Function diagnostics must be configured." >&2; exit 1; }
 grep -q "networkAclBypass: enablePrivateNetworking ? 'None' : 'AzureServices'" "$BICEP_FILE" || { echo "Cosmos must disable network ACL bypass when private networking is enabled." >&2; exit 1; }

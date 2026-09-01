@@ -31,10 +31,6 @@ var workloadResourceGroup = resourceGroup(workloadResourceGroupName)
 var workloadResourceGroupId = subscriptionResourceId('Microsoft.Resources/resourceGroups', workloadResourceGroupName)
 var resourceToken = uniqueString(subscription().id, workloadResourceGroupId, location, environmentName)
 var privateEndpointToken = uniqueString(subscription().id, resourceGroup().name, workloadResourceGroupId, location, environmentName)
-var keyVaultPrivateEndpointIpAddress = '10.42.0.40'
-var storageQueuePrivateEndpointIpAddress = '10.42.0.41'
-var storageBlobPrivateEndpointIpAddress = '10.42.0.42'
-var storageTablePrivateEndpointIpAddress = '10.42.0.43'
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-03-01' existing = {
   name: 'azvnet${resourceToken}'
@@ -101,16 +97,6 @@ resource storageBlobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-
     subnet: {
       id: privateEndpointSubnet.id
     }
-    ipConfigurations: [
-      {
-        name: 'blob'
-        properties: {
-          groupId: 'blob'
-          memberName: 'blob'
-          privateIPAddress: storageBlobPrivateEndpointIpAddress
-        }
-      }
-    ]
     privateLinkServiceConnections: [
       {
         name: 'storage-blob'
@@ -147,7 +133,7 @@ resource storageBlobPrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-0
     ttl: 10
     aRecords: [
       {
-        ipv4Address: storageBlobPrivateEndpointIpAddress
+        ipv4Address: storageBlobPrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
       }
     ]
   }
@@ -162,16 +148,6 @@ resource storageQueuePrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03
     subnet: {
       id: privateEndpointSubnet.id
     }
-    ipConfigurations: [
-      {
-        name: 'queue'
-        properties: {
-          groupId: 'queue'
-          memberName: 'queue'
-          privateIPAddress: storageQueuePrivateEndpointIpAddress
-        }
-      }
-    ]
     privateLinkServiceConnections: [
       {
         name: 'storage-queue'
@@ -208,7 +184,7 @@ resource storageQueuePrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-
     ttl: 10
     aRecords: [
       {
-        ipv4Address: storageQueuePrivateEndpointIpAddress
+        ipv4Address: storageQueuePrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
       }
     ]
   }
@@ -223,16 +199,6 @@ resource storageTablePrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03
     subnet: {
       id: privateEndpointSubnet.id
     }
-    ipConfigurations: [
-      {
-        name: 'table'
-        properties: {
-          groupId: 'table'
-          memberName: 'table'
-          privateIPAddress: storageTablePrivateEndpointIpAddress
-        }
-      }
-    ]
     privateLinkServiceConnections: [
       {
         name: 'storage-table'
@@ -269,7 +235,7 @@ resource storageTablePrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-
     ttl: 10
     aRecords: [
       {
-        ipv4Address: storageTablePrivateEndpointIpAddress
+        ipv4Address: storageTablePrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
       }
     ]
   }
@@ -284,16 +250,6 @@ resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01'
     subnet: {
       id: privateEndpointSubnet.id
     }
-    ipConfigurations: [
-      {
-        name: 'vault'
-        properties: {
-          groupId: 'vault'
-          memberName: 'default'
-          privateIPAddress: keyVaultPrivateEndpointIpAddress
-        }
-      }
-    ]
     privateLinkServiceConnections: [
       {
         name: 'key-vault'
@@ -330,7 +286,7 @@ resource keyVaultPrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-0
     ttl: 10
     aRecords: [
       {
-        ipv4Address: keyVaultPrivateEndpointIpAddress
+        ipv4Address: keyVaultPrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
       }
     ]
   }
