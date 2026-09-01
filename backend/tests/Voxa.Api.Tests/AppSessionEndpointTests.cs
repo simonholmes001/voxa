@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Voxa.Api.Http;
 using Voxa.Application.Authentication;
 using Voxa.Domain.Learners;
@@ -9,7 +10,7 @@ public sealed class AppSessionEndpointTests
     [Fact]
     public async Task SignInWithAppleReturnsAppSessionWithoutProviderTokenDetails()
     {
-        var endpoint = new SignInWithAppleEndpoint(new StubAppSessionService());
+        var endpoint = new SignInWithAppleEndpoint(new StubAppSessionService(), new CapturingLogger<SignInWithAppleEndpoint>());
 
         var response = await endpoint.PostAsync(
             new SignInWithAppleHttpRequest("apple-id-token", "authorization-code", "nonce-123"),
@@ -30,7 +31,8 @@ public sealed class AppSessionEndpointTests
     [Fact]
     public async Task SignInWithAppleReturnsUnauthorizedWhenIdentityCannotBeVerified()
     {
-        var endpoint = new SignInWithAppleEndpoint(new StubAppSessionService { RejectAppleIdentity = true });
+        var logger = new CapturingLogger<SignInWithAppleEndpoint>();
+        var endpoint = new SignInWithAppleEndpoint(new StubAppSessionService { RejectAppleIdentity = true }, logger);
 
         var response = await endpoint.PostAsync(
             new SignInWithAppleHttpRequest("bad-token", "authorization-code", "nonce-123"),
@@ -40,6 +42,40 @@ public sealed class AppSessionEndpointTests
         Assert.Equal(401, response.StatusCode);
         Assert.Equal("apple_identity_invalid", response.Error?.Code);
         Assert.Equal("corr-123", response.Error?.CorrelationId);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Equal(17002, entry.EventId.Id);
+        Assert.Equal("AppleSignInVerificationFailed", entry.EventId.Name);
+        Assert.Contains("Apple sign-in failed", entry.Message);
+        Assert.Contains("corr-123", entry.Message);
+        Assert.Contains("Apple identity could not be verified.", entry.Message);
+        Assert.DoesNotContain("bad-token", entry.Message);
+        Assert.DoesNotContain("authorization-code", entry.Message);
+        Assert.DoesNotContain("nonce-123", entry.Message);
+    }
+
+    [Fact]
+    public async Task SignInWithAppleLogsValidationFailuresWithoutSensitiveValues()
+    {
+        var logger = new CapturingLogger<SignInWithAppleEndpoint>();
+        var endpoint = new SignInWithAppleEndpoint(new StubAppSessionService(), logger);
+
+        var response = await endpoint.PostAsync(
+            new SignInWithAppleHttpRequest("apple-id-token", "authorization-code", null),
+            "corr-validation",
+            CancellationToken.None);
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal("validation_error", response.Error?.Code);
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Equal(17001, entry.EventId.Id);
+        Assert.Equal("AppleSignInRequestRejected", entry.EventId.Name);
+        Assert.Contains("Apple sign-in request rejected", entry.Message);
+        Assert.Contains("corr-validation", entry.Message);
+        Assert.Contains("nonce is required", entry.Message);
+        Assert.DoesNotContain("apple-id-token", entry.Message);
+        Assert.DoesNotContain("authorization-code", entry.Message);
     }
 
     [Fact]
@@ -121,4 +157,25 @@ public sealed class AppSessionEndpointTests
             return Task.CompletedTask;
         }
     }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add(new LogEntry(logLevel, eventId, formatter(state, exception)));
+        }
+    }
+
+    private sealed record LogEntry(LogLevel Level, EventId EventId, string Message);
 }
