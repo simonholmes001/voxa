@@ -126,6 +126,10 @@ resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/priv
   }
 }
 
+resource storageBlobPrivateEndpointNic 'Microsoft.Network/networkInterfaces@2024-03-01' existing = {
+  name: 'aznicpepb${privateEndpointToken}'
+}
+
 resource storageBlobPrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
   parent: blobPrivateDnsZone
   name: storageAccount.name
@@ -136,7 +140,7 @@ resource storageBlobPrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-0
     ttl: 10
     aRecords: [
       {
-        ipv4Address: storageBlobPrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
+        ipv4Address: storageBlobPrivateEndpointNic.properties.ipConfigurations[0].properties.privateIPAddress
       }
     ]
   }
@@ -180,6 +184,10 @@ resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/pri
   }
 }
 
+resource storageQueuePrivateEndpointNic 'Microsoft.Network/networkInterfaces@2024-03-01' existing = {
+  name: 'aznicpepq${privateEndpointToken}'
+}
+
 resource storageQueuePrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
   parent: queuePrivateDnsZone
   name: storageAccount.name
@@ -190,7 +198,7 @@ resource storageQueuePrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-
     ttl: 10
     aRecords: [
       {
-        ipv4Address: storageQueuePrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
+        ipv4Address: storageQueuePrivateEndpointNic.properties.ipConfigurations[0].properties.privateIPAddress
       }
     ]
   }
@@ -234,6 +242,10 @@ resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/pri
   }
 }
 
+resource storageTablePrivateEndpointNic 'Microsoft.Network/networkInterfaces@2024-03-01' existing = {
+  name: 'aznicpept${privateEndpointToken}'
+}
+
 resource storageTablePrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
   parent: tablePrivateDnsZone
   name: storageAccount.name
@@ -244,7 +256,7 @@ resource storageTablePrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-
     ttl: 10
     aRecords: [
       {
-        ipv4Address: storageTablePrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
+        ipv4Address: storageTablePrivateEndpointNic.properties.ipConfigurations[0].properties.privateIPAddress
       }
     ]
   }
@@ -288,6 +300,10 @@ resource keyVaultPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/private
   }
 }
 
+resource keyVaultPrivateEndpointNic 'Microsoft.Network/networkInterfaces@2024-03-01' existing = {
+  name: 'aznicpepk${privateEndpointToken}'
+}
+
 resource keyVaultPrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
   parent: vaultPrivateDnsZone
   name: keyVault.name
@@ -298,7 +314,7 @@ resource keyVaultPrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-0
     ttl: 10
     aRecords: [
       {
-        ipv4Address: keyVaultPrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
+        ipv4Address: keyVaultPrivateEndpointNic.properties.ipConfigurations[0].properties.privateIPAddress
       }
     ]
   }

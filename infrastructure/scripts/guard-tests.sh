@@ -47,11 +47,16 @@ grep -q "var privateEndpointToken = uniqueString(subscription().id, resourceGrou
 grep -q "Microsoft.Network/privateEndpoints" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoints must be deployed from the network resource group template." >&2; exit 1; }
 grep -q "customNetworkInterfaceName" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint NIC names must be explicitly controlled." >&2; exit 1; }
 grep -q "Microsoft.Network/privateDnsZones/A" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint DNS A records must be materialized explicitly." >&2; exit 1; }
-grep -q "customDnsConfigs\\[0\\].ipAddresses\\[0\\]" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint DNS A records must use Azure-allocated private endpoint IP addresses." >&2; exit 1; }
+grep -q "Microsoft.Network/networkInterfaces" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint DNS A records must read Azure-allocated private endpoint NIC IP addresses." >&2; exit 1; }
+grep -q "properties.ipConfigurations\\[0\\].properties.privateIPAddress" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint DNS A records must use private endpoint NIC private IP addresses." >&2; exit 1; }
 grep -q "storageBlobPrivateDnsZoneGroup" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Storage blob private DNS A record must depend on its zone group." >&2; exit 1; }
 grep -q "storageQueuePrivateDnsZoneGroup" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Storage queue private DNS A record must depend on its zone group." >&2; exit 1; }
 grep -q "storageTablePrivateDnsZoneGroup" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Storage table private DNS A record must depend on its zone group." >&2; exit 1; }
 grep -q "keyVaultPrivateDnsZoneGroup" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Key Vault private DNS A record must depend on its zone group." >&2; exit 1; }
+if grep -q "customDnsConfigs\\[0\\]" "$PRIVATE_ENDPOINTS_BICEP_FILE"; then
+  echo "Private endpoint DNS A records must not use provider-populated customDnsConfigs during deployment." >&2
+  exit 1
+fi
 if grep -q "privateIPAddress:" "$PRIVATE_ENDPOINTS_BICEP_FILE"; then
   echo "Private endpoint IP addresses must not be hard-coded." >&2
   exit 1
