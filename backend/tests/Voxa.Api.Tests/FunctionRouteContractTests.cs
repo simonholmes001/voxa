@@ -15,6 +15,7 @@ public sealed class FunctionRouteContractTests
     [InlineData(nameof(VoxaHttpFunctions.IssueRealtimeSessionAsync), "realtime/session", "post")]
     [InlineData(nameof(VoxaHttpFunctions.ResumeSessionAsync), "session/resume", "get")]
     [InlineData(nameof(VoxaHttpFunctions.DeploymentHealthAsync), "health/deployment", "get")]
+    [InlineData(nameof(VoxaHttpFunctions.ResetLearnerStateAsync), "dev/learner-state", "delete")]
     public void FunctionRoutesMatchMobileApiContract(string methodName, string route, string method)
     {
         var methodInfo = typeof(VoxaHttpFunctions).GetMethod(methodName);

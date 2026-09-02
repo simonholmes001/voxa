@@ -17,6 +17,7 @@ public sealed class VoxaHttpFunctions(
     RealtimeSessionEndpoint realtimeSession,
     ResumeSessionEndpoint resumeSession,
     OnboardingSubmitEndpoint onboardingSubmit,
+    DevResetEndpoint devReset,
     IAppSessionTokenValidator tokenValidator,
     ISystemClock clock)
 {
@@ -204,6 +205,20 @@ public sealed class VoxaHttpFunctions(
             JsonOptions,
             cancellationToken);
         return ok;
+    }
+
+    [Function("dev-reset-learner-state")]
+    public async Task<HttpResponseData> ResetLearnerStateAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "dev/learner-state")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        return await WriteAsync(
+            request,
+            await devReset.DeleteAsync(
+                Principal(request),
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
     }
 
     private AppSessionPrincipal? Principal(HttpRequestData request)

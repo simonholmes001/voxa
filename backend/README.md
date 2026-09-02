@@ -37,6 +37,15 @@ The backend exposes contract classes for:
 Permanent OpenAI API keys stay server-side; the mobile app receives only short-lived Realtime client credentials.
 Apple identity tokens are verified against Apple's JWKS and must match the configured `APPLE_CLIENT_ID`.
 
+## Developer Reset
+
+For repeatable iPhone/iPad first-run UX testing, dev deployments can enable
+`APP_ENABLE_DEV_RESET=true`. When enabled, `DELETE /api/dev/learner-state`
+requires a valid Voxa app-session bearer token and deletes only that
+tenant/user's learner state. The endpoint is not a production user feature; it
+exists to let testers replay sign-in, onboarding, resume, and Home/Talk routing
+without manually editing Azure Table rows or reinstalling the app.
+
 ## Local Tests
 
 ```bash

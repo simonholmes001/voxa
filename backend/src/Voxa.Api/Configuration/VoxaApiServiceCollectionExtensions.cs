@@ -26,6 +26,10 @@ public static class VoxaApiServiceCollectionExtensions
         var appleTeamId = Environment.GetEnvironmentVariable("APPLE_TEAM_ID") ?? "";
         var appleKeyId = Environment.GetEnvironmentVariable("APPLE_KEY_ID") ?? "";
         var applePrivateKey = Environment.GetEnvironmentVariable("APPLE_PRIVATE_KEY") ?? "";
+        var devResetEnabled = string.Equals(
+            Environment.GetEnvironmentVariable("APP_ENABLE_DEV_RESET"),
+            "true",
+            StringComparison.OrdinalIgnoreCase);
 
         var options = new VoxaBackendOptions(
             openAiApiKey,
@@ -85,6 +89,9 @@ public static class VoxaApiServiceCollectionExtensions
         services.AddSingleton<ResumeSessionEndpoint>();
         services.AddSingleton<OnboardingService>();
         services.AddSingleton<OnboardingSubmitEndpoint>();
+        services.AddSingleton(provider => new DevResetEndpoint(
+            provider.GetRequiredService<ILearnerStateRepository>(),
+            devResetEnabled));
 
         return services;
     }

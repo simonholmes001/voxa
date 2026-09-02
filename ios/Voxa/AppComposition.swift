@@ -24,7 +24,8 @@ enum AppComposition {
             authModel: authModel,
             onboardingModel: onboardingModel,
             homeModel: makeHomeModel(onboardingService: onboardingService, onboardingModel: onboardingModel),
-            talkModel: makeTalkModel(authModel: authModel, onboardingModel: onboardingModel)
+            talkModel: makeTalkModel(authModel: authModel, onboardingModel: onboardingModel),
+            developerResetService: makeDeveloperResetService()
         )
     }
 
@@ -60,7 +61,7 @@ enum AppComposition {
         return HomeViewModel(provider: FallbackProfileProvider(
             primary: server,
             fallback: local,
-            shouldFallback: isHomeProfileFallbackEligible
+            shouldFallback: { error in isHomeProfileFallbackEligible(error) }
         ))
     }
 
@@ -155,6 +156,13 @@ enum AppComposition {
             return NotConfiguredRealtimeSessionService()
         }
         return VoxaBackendRealtimeSessionService(baseURL: baseURL)
+    }
+
+    static func makeDeveloperResetService() -> any DeveloperResetService {
+        guard let baseURL = backendBaseURL() else {
+            return UnavailableDeveloperResetService()
+        }
+        return VoxaBackendDeveloperResetService(baseURL: baseURL)
     }
 
     /// Resolves the backend base URL from the app's Info.plist

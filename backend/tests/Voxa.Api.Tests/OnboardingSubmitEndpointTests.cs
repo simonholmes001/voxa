@@ -46,5 +46,10 @@ public sealed class OnboardingSubmitEndpointTests
         {
             return Task.FromResult(state);
         }
+
+        public Task DeleteAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

@@ -50,6 +50,15 @@ private final class FakeRealtimeTransport: RealtimeTransport, @unchecked Sendabl
 }
 
 @MainActor
+private final class MutableRealtimeSettings {
+    var band: String
+
+    init(band: String) {
+        self.band = band
+    }
+}
+
+@MainActor
 final class TalkSessionViewModelTests: XCTestCase {
     private let settings = RealtimeCoachingSettings(proficiencyBand: "B1-B2", targetLanguage: "fr-FR")
 
@@ -201,15 +210,15 @@ final class TalkSessionViewModelTests: XCTestCase {
     }
 
     func testSettingsProviderIsEvaluatedAtStart() async {
-        var band = "A1-A2"
+        let mutableSettings = MutableRealtimeSettings(band: "A1-A2")
         let service = FakeRealtimeSessionService(result: .success(credential()))
         let model = TalkSessionViewModel(
-            settingsProvider: { RealtimeCoachingSettings(proficiencyBand: band, targetLanguage: "fr-FR") },
+            settingsProvider: { RealtimeCoachingSettings(proficiencyBand: mutableSettings.band, targetLanguage: "fr-FR") },
             permission: FakeMicrophonePermission(current: .granted),
             service: service,
             accessTokenProvider: { "t" }
         )
-        band = "B1-B2" // learner state changes before the session starts
+        mutableSettings.band = "B1-B2" // learner state changes before the session starts
 
         await model.start()
 

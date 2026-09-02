@@ -107,6 +107,21 @@ public sealed class TableLearnerStateRepositoryTests
             repository.SaveAsync(saved, LearnerStateVersion.Create(0), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task DeleteAsyncRemovesOnlyTheRequestedTenantAndUserState()
+    {
+        var table = new InMemoryLearnerStateTable();
+        var repository = new TableLearnerStateRepository(table);
+        var userId = UserId.Create("user-a");
+        await repository.SaveAsync(CreateState(TenantId.Create("tenant-a"), userId), null, CancellationToken.None);
+        await repository.SaveAsync(CreateState(TenantId.Create("tenant-b"), userId), null, CancellationToken.None);
+
+        await repository.DeleteAsync(TenantId.Create("tenant-a"), userId, CancellationToken.None);
+
+        Assert.Null(await repository.GetAsync(TenantId.Create("tenant-a"), userId, CancellationToken.None));
+        Assert.NotNull(await repository.GetAsync(TenantId.Create("tenant-b"), userId, CancellationToken.None));
+    }
+
     private static LearnerState CreateState(TenantId tenantId, UserId userId)
     {
         return LearnerState.Create(

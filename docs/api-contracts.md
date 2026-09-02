@@ -94,7 +94,9 @@ Response `200`:
   "profile": {
     "targetLanguage": "fr",
     "nativeLanguage": "en",
-    "proficiencyLevel": "A1"
+    "proficiencyLevel": "A1",
+    "goals": ["travel", "conversation"],
+    "dailyMinutes": 15
   },
   "activePlan": {
     "planId": "plan-1",
@@ -143,6 +145,48 @@ Response `401`:
 {
   "code": "app_session_required",
   "message": "An authenticated app session is required.",
+  "correlationId": "corr-123",
+  "retryable": false
+}
+```
+
+## Developer Reset
+
+`DELETE /api/dev/learner-state`
+
+Deletes the server-owned learner state for the authenticated app session so a developer can replay the first-run onboarding flow on iPhone or iPad. This endpoint is for debug/QA use only and is available only when the backend is deployed with `APP_ENABLE_DEV_RESET=true`.
+
+Required headers:
+
+- `Authorization: Bearer <app-access-token>`
+- `X-Correlation-Id: corr-123`
+
+Response `200`:
+
+```json
+{
+  "correlationId": "corr-123",
+  "deleted": true
+}
+```
+
+Response `401`:
+
+```json
+{
+  "code": "app_session_required",
+  "message": "An authenticated app session is required.",
+  "correlationId": "corr-123",
+  "retryable": false
+}
+```
+
+Response `404` when the reset surface is disabled:
+
+```json
+{
+  "code": "dev_reset_unavailable",
+  "message": "Developer reset is not enabled for this environment.",
   "correlationId": "corr-123",
   "retryable": false
 }
@@ -249,7 +293,9 @@ Response `200`:
   "profile": {
     "targetLanguage": "fr",
     "nativeLanguage": "en",
-    "proficiencyLevel": "A1"
+    "proficiencyLevel": "A1",
+    "goals": ["travel", "conversation"],
+    "dailyMinutes": 15
   },
   "activePlan": {
     "planId": "plan-1",

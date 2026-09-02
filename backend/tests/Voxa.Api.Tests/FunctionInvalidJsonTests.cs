@@ -128,6 +128,7 @@ public sealed class FunctionInvalidJsonTests
             new RealtimeSessionEndpoint(new StubRealtimeSessionService()),
             new ResumeSessionEndpoint(new StubLearnerSessionQueries()),
             new OnboardingSubmitEndpoint(new OnboardingService(new StubLearnerStateRepository())),
+            new DevResetEndpoint(new StubLearnerStateRepository(), enabled: true),
             tokenIssuer,
             new FixedClock(DateTimeOffset.Parse("2026-08-31T08:00:00Z")));
     }
@@ -276,6 +277,11 @@ public sealed class FunctionInvalidJsonTests
             LearnerState state,
             LearnerStateVersion? expectedVersion,
             CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task DeleteAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }

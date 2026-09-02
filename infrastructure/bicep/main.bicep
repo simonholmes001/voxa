@@ -45,6 +45,9 @@ param enablePrivateNetworking bool = true
 @description('Temporary dev/test escape hatch. Keep false for production.')
 param allowPublicNetworkAccessForDev bool = false
 
+@description('Enable authenticated developer reset endpoints for repeatable first-run UX testing. Keep false outside dev.')
+param enableDevReset bool = environmentName == 'dev'
+
 @description('Make the Function App ingress private. Leave false for the mobile MVP unless a public edge such as Front Door, API Management, or VPN is added.')
 param enablePrivateFunctionIngress bool = false
 
@@ -396,6 +399,10 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         {
           name: 'VOXA_ENVIRONMENT'
           value: environmentName
+        }
+        {
+          name: 'APP_ENABLE_DEV_RESET'
+          value: string(enableDevReset)
         }
       ]
     }

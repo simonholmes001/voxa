@@ -91,6 +91,12 @@ public sealed class LearnerSessionServiceTests
             return Task.FromResult(saved);
         }
 
+        public Task DeleteAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
+        {
+            states.Remove(Key(tenantId, userId));
+            return Task.CompletedTask;
+        }
+
         private static string Key(TenantId tenantId, UserId userId) => $"{tenantId.Value}:{userId.Value}";
     }
 }

@@ -138,6 +138,13 @@ public final class OnboardingViewModel {
         }
     }
 
+    public func resetForFirstRunReview() {
+        try? store.clear()
+        draft = OnboardingDraft()
+        phase = .inProgress
+        currentScope = nil
+    }
+
     public func makeProfile() -> OnboardingProfile? {
         guard
             let targetLanguage = draft.targetLanguage, !targetLanguage.isEmpty,

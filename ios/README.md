@@ -124,9 +124,17 @@ after every answer via an `OnboardingDraftStore`
 for tests/previews), so an interrupted onboarding resumes on the same device.
 
 `PlacementEstimator` produces a deterministic initial CEFR estimate from a short
-"can-do" self-assessment ladder. Onboarding **completes locally** by default
-(`LocalOnboardingService`); wiring the `POST /api/onboarding` backend client and
-cross-device resume is tracked as a separate follow-up issue.
+"can-do" self-assessment ladder. In the app composition, completed onboarding is
+submitted to `POST /api/onboarding`; launch/resume hydration reads
+`GET /api/session/resume` so iPhone and iPad share the same server-owned profile
+state.
+
+Debug builds with a configured backend show a **Reset first run** control. It
+calls `DELETE /api/dev/learner-state` for the current app session, signs out,
+clears the local onboarding draft, and returns to the initial sign-in/onboarding
+flow. The backend must be deployed with `APP_ENABLE_DEV_RESET=true`; if the
+control reports a reset failure, the deployed backend does not currently expose
+that dev reset endpoint for the app session.
 
 ### Talk screen (Realtime voice session)
 

@@ -14,13 +14,13 @@ public struct VoxaBackendOnboardingService: OnboardingService {
     private let baseURL: URL
     private let session: URLSession
     private let correlationIDProvider: @Sendable () -> String
-    private let accessTokenProvider: @Sendable () -> String?
+    private let accessTokenProvider: @MainActor @Sendable () -> String?
 
     public init(
         baseURL: URL,
         session: URLSession = .shared,
         correlationIDProvider: @escaping @Sendable () -> String = { UUID().uuidString },
-        accessTokenProvider: @escaping @Sendable () -> String?
+        accessTokenProvider: @escaping @MainActor @Sendable () -> String?
     ) {
         self.baseURL = baseURL
         self.session = session
@@ -29,7 +29,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
     }
 
     public func submit(_ profile: OnboardingProfile) async throws {
-        guard let accessToken = accessTokenProvider() else {
+        guard let accessToken = await accessTokenProvider() else {
             throw OnboardingServiceError.authenticationRequired
         }
 
@@ -45,7 +45,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
     }
 
     public func resume() async throws -> OnboardingProfile? {
-        guard let accessToken = accessTokenProvider() else {
+        guard let accessToken = await accessTokenProvider() else {
             throw OnboardingServiceError.authenticationRequired
         }
 

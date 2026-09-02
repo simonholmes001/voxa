@@ -10,4 +10,6 @@ public interface ILearnerStateRepository
         LearnerState state,
         LearnerStateVersion? expectedVersion,
         CancellationToken cancellationToken);
+
+    Task DeleteAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken);
 }
