@@ -53,11 +53,11 @@ test('iOS WebRTC package pin uses an upstream release with downloadable assets',
   const lockfile = readWorkflow('ios/VoxaApp/Package.resolved');
   const readme = readWorkflow('ios/README.md');
 
-  assert.match(manifest, /exact: "151\.0\.1"/);
-  assert.match(lockfile, /"version" : "151\.0\.1"/);
-  assert.match(readme, /Version\*\*: 151\.0\.1/);
-  assert.doesNotMatch(manifest, /151\.0\.0|152\.0\.0/);
-  assert.doesNotMatch(lockfile, /151\.0\.0|152\.0\.0/);
+  assert.match(manifest, /exact: "152\.0\.0"/);
+  assert.match(lockfile, /"version" : "152\.0\.0"/);
+  assert.match(readme, /Version\*\*: 152\.0\.0/);
+  assert.doesNotMatch(manifest, /151\.0\.0|151\.0\.1/);
+  assert.doesNotMatch(lockfile, /151\.0\.0|151\.0\.1/);
 });
 
 test('local pre-commit hook keeps unit test guardrails enabled', () => {

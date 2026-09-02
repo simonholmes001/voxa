@@ -26,7 +26,7 @@ let package = Package(
     dependencies: [
         // WebRTC for OpenAI Realtime voice sessions. Pinned exactly for reproducible CI/device builds.
         // See ios/README.md Dependencies section for rationale, license, and size impact.
-        .package(url: "https://github.com/stasel/WebRTC.git", exact: "151.0.1"),
+        .package(url: "https://github.com/stasel/WebRTC.git", exact: "152.0.0"),
     ],
     targets: [
         .target(name: "VoxaDomain"),
