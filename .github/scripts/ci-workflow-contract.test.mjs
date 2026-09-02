@@ -23,11 +23,11 @@ test('backend CI workflow is path-filtered to backend and contract-impacting fil
 
   assert.match(workflow, /name: Backend CI/);
   assert.match(workflow, /pull_request:/);
-  assert.doesNotMatch(workflow, /pull_request:\n(?:.*\n){0,4}\s+paths:/);
+  assert.match(workflow, /pull_request:\n\s+branches: \[main\]\n\s+paths:/);
   assert.match(workflow, /"backend\/\*\*"/);
   assert.match(workflow, /"docs\/api-contracts\.md"/);
-  assert.match(workflow, /should-run/);
-  assert.match(workflow, /Backend paths were not changed; skipping \.NET tests\./);
+  assert.doesNotMatch(workflow, /should-run/);
+  assert.doesNotMatch(workflow, /Backend paths were not changed; skipping \.NET tests\./);
   assert.match(workflow, /dotnet test backend\/\*\.sln --verbosity minimal/);
 });
 
@@ -36,10 +36,10 @@ test('iOS CI workflow is path-filtered and still covers Swift plus iPhone and iP
 
   assert.match(workflow, /name: iOS CI/);
   assert.match(workflow, /pull_request:/);
-  assert.doesNotMatch(workflow, /pull_request:\n(?:.*\n){0,4}\s+paths:/);
+  assert.match(workflow, /pull_request:\n\s+branches: \[main\]\n\s+paths:/);
   assert.match(workflow, /"ios\/\*\*"/);
-  assert.match(workflow, /should-run/);
-  assert.match(workflow, /iOS paths were not changed; skipping iOS tests\./);
+  assert.doesNotMatch(workflow, /should-run/);
+  assert.doesNotMatch(workflow, /iOS paths were not changed; skipping iOS tests\./);
   assert.match(workflow, /swift test --package-path ios\/VoxaApp/);
   assert.doesNotMatch(workflow, /matrix:/);
   assert.match(workflow, /Pick an iPhone simulator device/);

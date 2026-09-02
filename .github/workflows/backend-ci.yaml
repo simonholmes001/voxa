@@ -10,6 +10,11 @@ on:
       - ".github/workflows/backend-ci.yaml"
   pull_request:
     branches: [main]
+    paths:
+      - "backend/**"
+      - "docs/api-contracts.md"
+      - "global.json"
+      - ".github/workflows/backend-ci.yaml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -22,38 +27,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          fetch-depth: 0
-
-      - name: Detect backend-impacting changes
-        id: should-run
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          changed_files="$(
-            git diff --name-only \
-              "${{ github.event.pull_request.base.sha }}" \
-              "${{ github.event.pull_request.head.sha }}"
-          )"
-
-          if echo "$changed_files" | grep -Eq '^(backend/|docs/api-contracts\.md$|global\.json$|\.github/workflows/backend-ci\.yaml$)'; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "Backend paths were not changed; skipping .NET tests."
-          fi
 
       - name: Setup .NET
-        if: steps.should-run.outputs.run == 'true'
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
 
       - name: Run .NET tests
-        if: steps.should-run.outputs.run == 'true'
         shell: bash
         run: dotnet test backend/*.sln --verbosity minimal
