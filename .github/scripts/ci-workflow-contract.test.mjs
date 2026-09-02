@@ -41,6 +41,8 @@ test('iOS CI workflow is path-filtered and still covers Swift plus iPhone and iP
   assert.doesNotMatch(workflow, /should-run/);
   assert.doesNotMatch(workflow, /iOS paths were not changed; skipping iOS tests\./);
   assert.match(workflow, /swift test --package-path ios\/VoxaApp/);
+  assert.match(workflow, /timeout-minutes: 15/);
+  assert.match(workflow, /timeout-minutes: 25/);
   assert.doesNotMatch(workflow, /matrix:/);
   assert.match(workflow, /Pick an iPhone simulator device/);
   assert.match(workflow, /Pick an iPad simulator device/);

@@ -22,6 +22,7 @@ jobs:
   swift-package-tests:
     name: iPhone/iPad Swift Tests
     runs-on: macos-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -37,6 +38,7 @@ jobs:
   app-simulator-tests:
     name: iPhone/iPad App Simulator Tests
     runs-on: macos-latest
+    timeout-minutes: 25
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
