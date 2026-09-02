@@ -1,0 +1,145 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - "docs/api-contracts.md"
+      - ".github/workflows/ios-ci.yaml"
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-ci-required:
+    name: iOS CI Required
+    runs-on: ubuntu-latest
+    outputs:
+      run-tests: ${{ steps.detect.outputs.run-tests }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect iOS-impacting changes
+        id: detect
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run-tests=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed_files="$(
+            git diff --name-only \
+              "${{ github.event.pull_request.base.sha }}" \
+              "${{ github.event.pull_request.head.sha }}"
+          )"
+
+          if echo "$changed_files" | grep -Eq '^(ios/|docs/api-contracts\.md$|\.github/workflows/ios-ci\.yaml$)'; then
+            echo "run-tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run-tests=false" >> "$GITHUB_OUTPUT"
+            echo "iOS tests are not required for this change set."
+          fi
+
+  swift-package-tests:
+    name: iPhone/iPad Swift Tests (iOS changes)
+    runs-on: macos-latest
+    needs: ios-ci-required
+    if: needs.ios-ci-required.outputs.run-tests == 'true'
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Run Swift package tests
+        shell: bash
+        run: |
+          GIT_CONFIG_COUNT=1 \
+            GIT_CONFIG_KEY_0=safe.bareRepository \
+            GIT_CONFIG_VALUE_0=all \
+            swift test --package-path ios/VoxaApp
+
+  app-simulator-tests:
+    name: iPhone/iPad App Simulator Tests (iOS changes)
+    runs-on: macos-latest
+    needs: ios-ci-required
+    if: needs.ios-ci-required.outputs.run-tests == 'true'
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Pick an iPhone simulator device
+        id: pick-iphone
+        shell: bash
+        run: |
+          udid="$(
+            xcrun simctl list devices available -j \
+              | jq -r --arg pat '^iPhone' \
+                  '.devices | to_entries[] | .value[]
+                   | select(.name | test($pat))
+                   | .udid' \
+              | head -n1
+          )"
+          if [ -z "${udid}" ]; then
+            echo "::error::No available iPhone simulator on this runner image."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "udid=${udid}" >> "$GITHUB_OUTPUT"
+
+      - name: Run app target tests on iPhone Simulator
+        shell: bash
+        run: |
+          GIT_CONFIG_COUNT=1 \
+            GIT_CONFIG_KEY_0=safe.bareRepository \
+            GIT_CONFIG_VALUE_0=all \
+            xcodebuild test \
+              -project ios/Voxa.xcodeproj \
+              -scheme Voxa \
+              -destination "id=${{ steps.pick-iphone.outputs.udid }}" \
+              -configuration Debug \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY=""
+
+      - name: Pick an iPad simulator device
+        id: pick-ipad
+        shell: bash
+        run: |
+          udid="$(
+            xcrun simctl list devices available -j \
+              | jq -r --arg pat '^iPad' \
+                  '.devices | to_entries[] | .value[]
+                   | select(.name | test($pat))
+                   | .udid' \
+              | head -n1
+          )"
+          if [ -z "${udid}" ]; then
+            echo "::error::No available iPad simulator on this runner image."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "udid=${udid}" >> "$GITHUB_OUTPUT"
+
+      - name: Run app target tests on iPad Simulator
+        shell: bash
+        run: |
+          GIT_CONFIG_COUNT=1 \
+            GIT_CONFIG_KEY_0=safe.bareRepository \
+            GIT_CONFIG_VALUE_0=all \
+            xcodebuild test \
+              -project ios/Voxa.xcodeproj \
+              -scheme Voxa \
+              -destination "id=${{ steps.pick-ipad.outputs.udid }}" \
+              -configuration Debug \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY=""
