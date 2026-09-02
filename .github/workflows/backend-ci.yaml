@@ -1,0 +1,38 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "docs/api-contracts.md"
+      - "global.json"
+      - ".github/workflows/backend-ci.yaml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "docs/api-contracts.md"
+      - "global.json"
+      - ".github/workflows/backend-ci.yaml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dotnet-tests:
+    name: .NET Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run .NET tests
+        shell: bash
+        run: dotnet test backend/*.sln --verbosity minimal

@@ -28,28 +28,6 @@ run_root_node_tests() {
   fi
 }
 
-run_node_tests() {
-  local dir="$1"
-  if [ ! -f "$dir/package.json" ]; then
-    echo "No Node project in $dir; skipping."
-    return 0
-  fi
-
-  echo ""
-  echo "Running Node tests in $dir before commit..."
-  if [ -f "$dir/package-lock.json" ]; then
-    npm --cache "$NPM_CACHE_DIR" --prefix "$dir" ci --workspaces=false
-  else
-    npm --cache "$NPM_CACHE_DIR" --prefix "$dir" install
-  fi
-
-  if node -e "const p=require('./$dir/package.json'); process.exit(p.scripts && p.scripts.test ? 0 : 1)"; then
-    npm --cache "$NPM_CACHE_DIR" --prefix "$dir" run test
-  else
-    echo "No test script in $dir/package.json; skipping."
-  fi
-}
-
 run_dotnet_tests() {
   if compgen -G "backend/*.sln" > /dev/null; then
     echo ""
@@ -81,7 +59,6 @@ run_swift_tests() {
 }
 
 run_root_node_tests
-run_node_tests "functions/voxa-api"
 run_dotnet_tests
 run_swift_tests "ios/VoxaApp"
 
