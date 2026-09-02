@@ -40,6 +40,7 @@ jobs:
       - name: Run repository script tests
         shell: bash
         run: |
-          node --test .github/scripts/*.test.mjs
+          npm ci --workspaces=false
+          npm test
           bash .github/scripts/compute-next-release.test.sh
           bash .github/scripts/changeset-check.test.sh

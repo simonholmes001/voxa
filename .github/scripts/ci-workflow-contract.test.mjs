@@ -11,6 +11,8 @@ test('main CI workflow keeps only cheap repository-level PR checks', () => {
 
   assert.match(workflow, /changeset-check:/);
   assert.match(workflow, /repository-guard-tests:/);
+  assert.match(workflow, /npm ci --workspaces=false/);
+  assert.match(workflow, /npm test/);
   assert.doesNotMatch(workflow, /\n  node-tests:/);
   assert.doesNotMatch(workflow, /functions\/voxa-api/);
   assert.doesNotMatch(workflow, /\n  dotnet-tests:/);
