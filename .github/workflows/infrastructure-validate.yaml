@@ -6,7 +6,10 @@ on:
     paths:
       - "infrastructure/**"
       - ".github/workflows/infrastructure-validate.yaml"
-      - ".github/workflows/iac-lint.yaml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

@@ -2,11 +2,6 @@ name: Azure IaC Lint
 
 on:
   push:
-    branches: [main, "feature/**", "fix/**", "chore/**", "ci/**"]
-    paths:
-      - "infrastructure/**"
-      - ".github/workflows/iac-lint.yaml"
-  pull_request:
     branches: [main]
     paths:
       - "infrastructure/**"

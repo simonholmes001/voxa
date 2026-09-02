@@ -74,7 +74,10 @@ run_swift_tests() {
 
   echo ""
   echo "Running Swift tests in $target_dir before commit..."
-  swift test --package-path "$target_dir"
+  GIT_CONFIG_COUNT=1 \
+    GIT_CONFIG_KEY_0=safe.bareRepository \
+    GIT_CONFIG_VALUE_0=all \
+    swift test --package-path "$target_dir"
 }
 
 run_root_node_tests
