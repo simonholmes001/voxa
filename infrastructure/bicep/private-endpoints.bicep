@@ -126,6 +126,22 @@ resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/priv
   }
 }
 
+resource storageBlobPrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
+  parent: blobPrivateDnsZone
+  name: storageAccount.name
+  dependsOn: [
+    storageBlobPrivateDnsZoneGroup
+  ]
+  properties: {
+    ttl: 10
+    aRecords: [
+      {
+        ipv4Address: storageBlobPrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
+      }
+    ]
+  }
+}
+
 resource storageQueuePrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = {
   name: 'azpepq${privateEndpointToken}'
   location: location
@@ -159,6 +175,22 @@ resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/pri
         properties: {
           privateDnsZoneId: queuePrivateDnsZone.id
         }
+      }
+    ]
+  }
+}
+
+resource storageQueuePrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
+  parent: queuePrivateDnsZone
+  name: storageAccount.name
+  dependsOn: [
+    storageQueuePrivateDnsZoneGroup
+  ]
+  properties: {
+    ttl: 10
+    aRecords: [
+      {
+        ipv4Address: storageQueuePrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
       }
     ]
   }
@@ -202,6 +234,22 @@ resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/pri
   }
 }
 
+resource storageTablePrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
+  parent: tablePrivateDnsZone
+  name: storageAccount.name
+  dependsOn: [
+    storageTablePrivateDnsZoneGroup
+  ]
+  properties: {
+    ttl: 10
+    aRecords: [
+      {
+        ipv4Address: storageTablePrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
+      }
+    ]
+  }
+}
+
 resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-03-01' = {
   name: 'azpepk${privateEndpointToken}'
   location: location
@@ -235,6 +283,22 @@ resource keyVaultPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/private
         properties: {
           privateDnsZoneId: vaultPrivateDnsZone.id
         }
+      }
+    ]
+  }
+}
+
+resource keyVaultPrivateDnsRecord 'Microsoft.Network/privateDnsZones/A@2024-06-01' = {
+  parent: vaultPrivateDnsZone
+  name: keyVault.name
+  dependsOn: [
+    keyVaultPrivateDnsZoneGroup
+  ]
+  properties: {
+    ttl: 10
+    aRecords: [
+      {
+        ipv4Address: keyVaultPrivateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]
       }
     ]
   }

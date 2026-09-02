@@ -16,6 +16,7 @@ DEPLOY_WORKFLOW_FILE="$ROOT_DIR/.github/workflows/infrastructure-deploy-dev.yaml
 
 grep -q "FlexConsumption" "$BICEP_FILE" || { echo "Function plan must use Flex Consumption." >&2; exit 1; }
 grep -q "UserAssigned" "$BICEP_FILE" || { echo "Function app must use user-assigned managed identity." >&2; exit 1; }
+grep -q "keyVaultReferenceIdentity: appIdentity.id" "$BICEP_FILE" || { echo "Function Key Vault references must use the user-assigned managed identity." >&2; exit 1; }
 grep -q "allowSharedKeyAccess: false" "$BICEP_FILE" || { echo "Storage local auth must be disabled." >&2; exit 1; }
 grep -q "allowBlobPublicAccess: false" "$BICEP_FILE" || { echo "Storage blob public access must be disabled." >&2; exit 1; }
 grep -q "resource deploymentStorageAccount" "$BICEP_FILE" || { echo "Function deployment packages must use dedicated deployment artifact storage." >&2; exit 1; }
@@ -45,6 +46,16 @@ grep -q "workloadResourceGroupName" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "P
 grep -q "var privateEndpointToken = uniqueString(subscription().id, resourceGroup().name, workloadResourceGroupId, location, environmentName)" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoints must use a network-resource-group naming token." >&2; exit 1; }
 grep -q "Microsoft.Network/privateEndpoints" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoints must be deployed from the network resource group template." >&2; exit 1; }
 grep -q "customNetworkInterfaceName" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint NIC names must be explicitly controlled." >&2; exit 1; }
+grep -q "Microsoft.Network/privateDnsZones/A" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint DNS A records must be materialized explicitly." >&2; exit 1; }
+grep -q "customDnsConfigs\\[0\\].ipAddresses\\[0\\]" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Private endpoint DNS A records must use Azure-allocated private endpoint IP addresses." >&2; exit 1; }
+grep -q "storageBlobPrivateDnsZoneGroup" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Storage blob private DNS A record must depend on its zone group." >&2; exit 1; }
+grep -q "storageQueuePrivateDnsZoneGroup" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Storage queue private DNS A record must depend on its zone group." >&2; exit 1; }
+grep -q "storageTablePrivateDnsZoneGroup" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Storage table private DNS A record must depend on its zone group." >&2; exit 1; }
+grep -q "keyVaultPrivateDnsZoneGroup" "$PRIVATE_ENDPOINTS_BICEP_FILE" || { echo "Key Vault private DNS A record must depend on its zone group." >&2; exit 1; }
+if grep -q "privateIPAddress:" "$PRIVATE_ENDPOINTS_BICEP_FILE"; then
+  echo "Private endpoint IP addresses must not be hard-coded." >&2
+  exit 1
+fi
 grep -q "virtualNetworkSubnetId" "$BICEP_FILE" || { echo "Function outbound VNet integration must be configured." >&2; exit 1; }
 grep -q "diagnosticSettings" "$BICEP_FILE" || { echo "Function diagnostics must be configured." >&2; exit 1; }
 grep -q "networkAclBypass: enablePrivateNetworking ? 'None' : 'AzureServices'" "$BICEP_FILE" || { echo "Cosmos must disable network ACL bypass when private networking is enabled." >&2; exit 1; }
@@ -71,6 +82,8 @@ grep -q "az functionapp deployment config set" "$DEPLOY_WORKFLOW_FILE" || { echo
 grep -q "deploymentStorageAccountName.value" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must read deployment artifact storage from Bicep outputs." >&2; exit 1; }
 grep -q "functionAppManagedIdentityResourceId.value" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the Function App managed identity for deployment storage auth." >&2; exit 1; }
 grep -q -- "--deployment-storage-auth-type UserAssignedIdentity" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use managed identity for deployment storage auth." >&2; exit 1; }
+grep -q "name: 'AZURE_CLIENT_ID'" "$BICEP_FILE" || { echo "Function App runtime must expose AZURE_CLIENT_ID for Azure SDK user-assigned managed identity selection." >&2; exit 1; }
+grep -q "value: appIdentity.properties.clientId" "$BICEP_FILE" || { echo "Function App runtime AZURE_CLIENT_ID must use the app managed identity client id." >&2; exit 1; }
 grep -q "az functionapp deployment source config-zip" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must use the documented config-zip publish path for Flex code packages." >&2; exit 1; }
 grep -q "Failed to fetch host key to check for function app status" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must tolerate the known post-upload host-key check false negative." >&2; exit 1; }
 grep -q "deployment-marker.json" "$DEPLOY_WORKFLOW_FILE" || { echo "Deploy workflow must stamp the Function package with a deployment marker." >&2; exit 1; }

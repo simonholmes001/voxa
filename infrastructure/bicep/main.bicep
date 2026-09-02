@@ -313,6 +313,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
     serverFarmId: functionPlan.id
     httpsOnly: true
     publicNetworkAccess: functionPublicNetworkAccessValue
+    keyVaultReferenceIdentity: appIdentity.id
     virtualNetworkSubnetId: enablePrivateNetworking ? functionIntegrationSubnet.id : null
     functionAppConfig: {
       runtime: {
@@ -346,6 +347,10 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         }
         {
           name: 'AzureWebJobsStorage__clientId'
+          value: appIdentity.properties.clientId
+        }
+        {
+          name: 'AZURE_CLIENT_ID'
           value: appIdentity.properties.clientId
         }
         {
