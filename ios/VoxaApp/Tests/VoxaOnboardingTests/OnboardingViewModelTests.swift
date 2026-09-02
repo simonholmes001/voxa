@@ -132,6 +132,20 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(model.phase, .completed)
     }
 
+    func testResetForFirstRunReviewClearsCompletedDraft() throws {
+        var draft = completeDraft()
+        draft.isCompleted = true
+        let store = InMemoryOnboardingDraftStore(draft: draft)
+        let model = OnboardingViewModel(store: store)
+
+        model.resetForFirstRunReview()
+
+        XCTAssertFalse(model.isComplete)
+        XCTAssertEqual(model.currentStep, .welcome)
+        XCTAssertEqual(model.phase, .inProgress)
+        XCTAssertNil(try store.load())
+    }
+
     func testChangingAuthenticatedUserLoadsThatUsersOnboardingDraft() throws {
         var completed = completeDraft()
         completed.isCompleted = true

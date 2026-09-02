@@ -12,6 +12,8 @@ public interface ILearnerStateTable
         LearnerStateTableEntity entity,
         string? expectedETag,
         CancellationToken cancellationToken);
+
+    Task DeleteAsync(string partitionKey, string rowKey, CancellationToken cancellationToken);
 }
 
 public sealed record LearnerStateTableEntity(
@@ -74,6 +76,11 @@ public sealed class TableLearnerStateRepository(ILearnerStateTable table) : ILea
 
         await table.UpsertAsync(entity, current?.ETag, cancellationToken);
         return saved;
+    }
+
+    public Task DeleteAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
+    {
+        return table.DeleteAsync(PartitionKey(tenantId), RowKey(userId), cancellationToken);
     }
 
     private static LearnerState Deserialize(string payloadJson)
@@ -227,6 +234,17 @@ public sealed class InMemoryLearnerStateTable : ILearnerStateTable
             }
 
             entities[key] = entity;
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task DeleteAsync(string partitionKey, string rowKey, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (gate)
+        {
+            entities.Remove(Key(partitionKey, rowKey));
             return Task.CompletedTask;
         }
     }

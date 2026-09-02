@@ -46,6 +46,11 @@ struct LogoutResponseDTO: Decodable {
     let revoked: Bool
 }
 
+struct DevResetResponseDTO: Decodable {
+    let correlationId: String
+    let deleted: Bool
+}
+
 struct ApiErrorDTO: Decodable {
     let code: String
     let message: String

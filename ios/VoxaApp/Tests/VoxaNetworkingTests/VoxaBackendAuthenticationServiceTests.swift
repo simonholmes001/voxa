@@ -91,6 +91,12 @@ final class VoxaBackendAuthenticationServiceTests: XCTestCase {
         }
     }
 
+    private func sessionConfiguration() -> URLSessionConfiguration {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubURLProtocol.self]
+        return config
+    }
+
     private let sessionJSON = """
     {
       "correlationId": "corr-test",
@@ -164,6 +170,36 @@ final class VoxaBackendAuthenticationServiceTests: XCTestCase {
         XCTAssertEqual(StubURLProtocol.lastRequest?.url?.path, "/api/auth/logout")
     }
 
+    func testDeveloperResetDeletesLearnerStateWithBearerToken() async throws {
+        let reset = VoxaBackendDeveloperResetService(
+            baseURL: URL(string: "https://api.voxa.test")!,
+            session: URLSession(configuration: sessionConfiguration()),
+            correlationIDProvider: { "corr-test" }
+        )
+        StubURLProtocol.handler = ok(#"{"correlationId":"corr-test","deleted":true}"#)
+
+        try await reset.resetLearnerState(accessToken: "access-token")
+
+        let request = try XCTUnwrap(StubURLProtocol.lastRequest)
+        XCTAssertEqual(request.url?.path, "/api/dev/learner-state")
+        XCTAssertEqual(request.httpMethod, "DELETE")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Correlation-Id"), "corr-test")
+    }
+
+    func testDeveloperResetUnavailableMapsToUnavailable() async {
+        let reset = VoxaBackendDeveloperResetService(
+            baseURL: URL(string: "https://api.voxa.test")!,
+            session: URLSession(configuration: sessionConfiguration()),
+            correlationIDProvider: { "corr-test" }
+        )
+        StubURLProtocol.handler = error(status: 404, code: "dev_reset_unavailable")
+
+        await assertThrows(DeveloperResetServiceError.unavailable) {
+            try await reset.resetLearnerState(accessToken: "access-token")
+        }
+    }
+
     func testInvalidAppleIdentityMapsError() async {
         StubURLProtocol.handler = error(status: 401, code: "apple_identity_invalid")
         await assertThrows(AuthenticationServiceError.invalidAppleIdentity) {
@@ -214,6 +250,22 @@ final class VoxaBackendAuthenticationServiceTests: XCTestCase {
             try await operation()
             XCTFail("expected \(expected)", file: file, line: line)
         } catch let error as AuthenticationServiceError {
+            XCTAssertEqual(error, expected, file: file, line: line)
+        } catch {
+            XCTFail("unexpected error \(error)", file: file, line: line)
+        }
+    }
+
+    private func assertThrows(
+        _ expected: DeveloperResetServiceError,
+        _ operation: () async throws -> Void,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        do {
+            try await operation()
+            XCTFail("expected \(expected)", file: file, line: line)
+        } catch let error as DeveloperResetServiceError {
             XCTAssertEqual(error, expected, file: file, line: line)
         } catch {
             XCTFail("unexpected error \(error)", file: file, line: line)

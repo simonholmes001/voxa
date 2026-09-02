@@ -11,21 +11,21 @@ public final class TalkSessionViewModel {
     public private(set) var state: RealtimeConnectionState = .idle
     public private(set) var micPermission: MicrophonePermissionStatus = .undetermined
 
-    private let settingsProvider: @MainActor () -> RealtimeCoachingSettings
+    private let settingsProvider: @MainActor @Sendable () -> RealtimeCoachingSettings
     private let permission: any MicrophonePermission
     private let service: any RealtimeSessionService
     private let transport: any RealtimeTransport
-    private let accessTokenProvider: @MainActor () -> String?
+    private let accessTokenProvider: @MainActor @Sendable () -> String?
 
     /// Creates a Talk session model. `settingsProvider` is evaluated at
     /// `start()` time so the session reflects the learner's current
     /// language/level rather than a value fixed at construction.
     public init(
-        settingsProvider: @escaping @MainActor () -> RealtimeCoachingSettings,
+        settingsProvider: @escaping @MainActor @Sendable () -> RealtimeCoachingSettings,
         permission: any MicrophonePermission,
         service: any RealtimeSessionService,
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
-        accessTokenProvider: @escaping @MainActor () -> String? = { nil }
+        accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil }
     ) {
         self.settingsProvider = settingsProvider
         self.permission = permission
@@ -40,7 +40,7 @@ public final class TalkSessionViewModel {
         permission: any MicrophonePermission,
         service: any RealtimeSessionService,
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
-        accessTokenProvider: @escaping @MainActor () -> String? = { nil }
+        accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil }
     ) {
         self.init(
             settingsProvider: { settings },

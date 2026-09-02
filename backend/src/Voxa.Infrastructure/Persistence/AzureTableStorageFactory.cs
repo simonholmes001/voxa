@@ -93,6 +93,21 @@ public sealed class AzureLearnerStateTable(TableClient tableClient) : ILearnerSt
             TableUpdateMode.Replace,
             cancellationToken);
     }
+
+    public async Task DeleteAsync(string partitionKey, string rowKey, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await tableClient.DeleteEntityAsync(
+                partitionKey,
+                rowKey,
+                ETag.All,
+                cancellationToken);
+        }
+        catch (RequestFailedException exception) when (exception.Status == 404)
+        {
+        }
+    }
 }
 
 public sealed class AzureRefreshSessionTable(TableClient tableClient) : IRefreshSessionTable

@@ -8,6 +8,7 @@
 
 # Bicep build output; source of truth is *.bicep.
 infrastructure/**/main.json
+infrastructure/bicep/*.json
 .azure/
 !.azure/pipeline-setup.md
 
@@ -32,5 +33,3 @@ ios/**/Config/*.local.xcconfig
 *.mobileprovision
 *.cer
 *.p12
-
-infrastructure/bicep/main.json

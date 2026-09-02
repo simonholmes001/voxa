@@ -2,6 +2,7 @@
 import SwiftUI
 import VoxaAuth
 import VoxaHome
+import VoxaNetworking
 import VoxaOnboarding
 import VoxaRealtime
 
@@ -12,21 +13,27 @@ public struct RootView: View {
     @State private var navigationModel: AppNavigationModel
     @State private var authModel: AuthViewModel
     @State private var onboardingModel: OnboardingViewModel
+    #if DEBUG
+    @State private var debugResetError: String?
+    #endif
     private let homeModel: HomeViewModel?
     private let talkModel: TalkSessionViewModel?
+    private let developerResetService: (any DeveloperResetService)?
 
     public init(
         navigationModel: AppNavigationModel = AppNavigationModel(),
         authModel: AuthViewModel? = nil,
         onboardingModel: OnboardingViewModel? = nil,
         homeModel: HomeViewModel? = nil,
-        talkModel: TalkSessionViewModel? = nil
+        talkModel: TalkSessionViewModel? = nil,
+        developerResetService: (any DeveloperResetService)? = nil
     ) {
         _navigationModel = State(initialValue: navigationModel)
         _authModel = State(initialValue: authModel ?? AuthViewModel())
         _onboardingModel = State(initialValue: onboardingModel ?? OnboardingViewModel())
         self.homeModel = homeModel
         self.talkModel = talkModel
+        self.developerResetService = developerResetService
     }
 
     public var body: some View {
@@ -35,6 +42,26 @@ public struct RootView: View {
                 MainShellView(model: navigationModel, homeModel: homeModel, talkModel: talkModel)
             }
         }
+        #if DEBUG
+        .safeAreaInset(edge: .bottom, alignment: .trailing) {
+            if developerResetService != nil {
+                VStack(alignment: .trailing, spacing: 8) {
+                    if let debugResetError {
+                        Text(debugResetError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    Button("Reset first run") {
+                        Task { await resetFirstRunForReview() }
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("debug-reset-first-run")
+                }
+                .padding()
+            }
+        }
+        #endif
         .task { await authModel.restore() }
         .task(id: authenticatedUserScope) {
             guard let session = authModel.state.session else { return }
@@ -46,6 +73,24 @@ public struct RootView: View {
         guard let session = authModel.state.session else { return nil }
         return "\(session.tenantId)|\(session.userId)"
     }
+
+    #if DEBUG
+    @MainActor
+    private func resetFirstRunForReview() async {
+        debugResetError = nil
+        if let accessToken = authModel.state.session?.accessToken {
+            do {
+                try await developerResetService?.resetLearnerState(accessToken: accessToken)
+            } catch {
+                debugResetError = "Reset failed. Check backend dev reset is deployed."
+                return
+            }
+        }
+        await authModel.signOut()
+        onboardingModel.resetForFirstRunReview()
+        navigationModel.selectedRoute = .home
+    }
+    #endif
 }
 
 /// The adaptive navigation shell shown once the learner is signed in.

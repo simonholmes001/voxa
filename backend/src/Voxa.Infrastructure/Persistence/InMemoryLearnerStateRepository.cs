@@ -56,5 +56,16 @@ public sealed class InMemoryLearnerStateRepository : ILearnerStateRepository
         }
     }
 
+    public Task DeleteAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (gate)
+        {
+            states.Remove(Key(tenantId, userId));
+            return Task.CompletedTask;
+        }
+    }
+
     private static string Key(TenantId tenantId, UserId userId) => $"{tenantId.Value}:{userId.Value}";
 }
