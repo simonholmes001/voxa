@@ -1,5 +1,5 @@
 {
-  "originHash" : "e2c93e567c61ad0ddc9c5e6143356ebff06903768e4bef0f7aefd2ab71ec9a07",
+  "originHash" : "fd9b4ea694291067750bb0478daf84f0ccbf4a00bef9113e9830617f30c53a7d",
   "pins" : [
     {
       "identity" : "webrtc",
@@ -7,7 +7,7 @@
       "location" : "https://github.com/stasel/WebRTC.git",
       "state" : {
         "revision" : "3e43fa9b8d149d2f8adb9bb1e53152cb955ec72b",
-        "version" : "151.0.0"
+        "version" : "151.0.1"
       }
     }
   ],

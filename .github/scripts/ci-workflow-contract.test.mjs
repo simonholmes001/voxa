@@ -23,8 +23,11 @@ test('backend CI workflow is path-filtered to backend and contract-impacting fil
 
   assert.match(workflow, /name: Backend CI/);
   assert.match(workflow, /pull_request:/);
+  assert.doesNotMatch(workflow, /pull_request:\n(?:.*\n){0,4}\s+paths:/);
   assert.match(workflow, /"backend\/\*\*"/);
   assert.match(workflow, /"docs\/api-contracts\.md"/);
+  assert.match(workflow, /should-run/);
+  assert.match(workflow, /Backend paths were not changed; skipping \.NET tests\./);
   assert.match(workflow, /dotnet test backend\/\*\.sln --verbosity minimal/);
 });
 
@@ -33,13 +36,28 @@ test('iOS CI workflow is path-filtered and still covers Swift plus iPhone and iP
 
   assert.match(workflow, /name: iOS CI/);
   assert.match(workflow, /pull_request:/);
+  assert.doesNotMatch(workflow, /pull_request:\n(?:.*\n){0,4}\s+paths:/);
   assert.match(workflow, /"ios\/\*\*"/);
+  assert.match(workflow, /should-run/);
+  assert.match(workflow, /iOS paths were not changed; skipping iOS tests\./);
   assert.match(workflow, /swift test --package-path ios\/VoxaApp/);
   assert.doesNotMatch(workflow, /matrix:/);
   assert.match(workflow, /Pick an iPhone simulator device/);
   assert.match(workflow, /Pick an iPad simulator device/);
   assert.match(workflow, /Run app target tests on iPhone Simulator/);
   assert.match(workflow, /Run app target tests on iPad Simulator/);
+});
+
+test('iOS WebRTC package pin uses an upstream release with downloadable assets', () => {
+  const manifest = readWorkflow('ios/VoxaApp/Package.swift');
+  const lockfile = readWorkflow('ios/VoxaApp/Package.resolved');
+  const readme = readWorkflow('ios/README.md');
+
+  assert.match(manifest, /exact: "151\.0\.1"/);
+  assert.match(lockfile, /"version" : "151\.0\.1"/);
+  assert.match(readme, /Version\*\*: 151\.0\.1/);
+  assert.doesNotMatch(manifest, /151\.0\.0|152\.0\.0/);
+  assert.doesNotMatch(lockfile, /151\.0\.0|152\.0\.0/);
 });
 
 test('local pre-commit hook keeps unit test guardrails enabled', () => {
