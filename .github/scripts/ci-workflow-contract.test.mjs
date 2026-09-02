@@ -20,28 +20,33 @@ test('main CI workflow keeps only cheap repository-level PR checks', () => {
   assert.doesNotMatch(workflow, /\n  ios-app-simulator-tests:/);
 });
 
-test('backend CI workflow is path-filtered to backend and contract-impacting files', () => {
+test('backend CI workflow uses a required sentinel and gates expensive tests by path', () => {
   const workflow = readWorkflow('.github/workflows/backend-ci.yaml');
 
   assert.match(workflow, /name: Backend CI/);
   assert.match(workflow, /pull_request:/);
-  assert.match(workflow, /pull_request:\n\s+branches: \[main\]\n\s+paths:/);
+  assert.doesNotMatch(workflow, /pull_request:\n\s+branches: \[main\]\n\s+paths:/);
+  assert.match(workflow, /backend-ci-required:/);
+  assert.match(workflow, /name: Backend CI Required/);
   assert.match(workflow, /"backend\/\*\*"/);
   assert.match(workflow, /"docs\/api-contracts\.md"/);
-  assert.doesNotMatch(workflow, /should-run/);
-  assert.doesNotMatch(workflow, /Backend paths were not changed; skipping \.NET tests\./);
+  assert.match(workflow, /Backend tests are not required for this change set\./);
+  assert.match(workflow, /if: needs\.backend-ci-required\.outputs\.run-tests == 'true'/);
+  assert.match(workflow, /name: \.NET Tests \(backend changes\)/);
   assert.match(workflow, /dotnet test backend\/\*\.sln --verbosity minimal/);
 });
 
-test('iOS CI workflow is path-filtered and still covers Swift plus iPhone and iPad simulators', () => {
+test('iOS CI workflow uses a required sentinel and still covers Swift plus iPhone and iPad simulators', () => {
   const workflow = readWorkflow('.github/workflows/ios-ci.yaml');
 
   assert.match(workflow, /name: iOS CI/);
   assert.match(workflow, /pull_request:/);
-  assert.match(workflow, /pull_request:\n\s+branches: \[main\]\n\s+paths:/);
+  assert.doesNotMatch(workflow, /pull_request:\n\s+branches: \[main\]\n\s+paths:/);
+  assert.match(workflow, /ios-ci-required:/);
+  assert.match(workflow, /name: iOS CI Required/);
   assert.match(workflow, /"ios\/\*\*"/);
-  assert.doesNotMatch(workflow, /should-run/);
-  assert.doesNotMatch(workflow, /iOS paths were not changed; skipping iOS tests\./);
+  assert.match(workflow, /iOS tests are not required for this change set\./);
+  assert.match(workflow, /if: needs\.ios-ci-required\.outputs\.run-tests == 'true'/);
   assert.match(workflow, /swift test --package-path ios\/VoxaApp/);
   assert.match(workflow, /timeout-minutes: 15/);
   assert.match(workflow, /timeout-minutes: 25/);

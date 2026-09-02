@@ -10,20 +10,50 @@ on:
       - ".github/workflows/backend-ci.yaml"
   pull_request:
     branches: [main]
-    paths:
-      - "backend/**"
-      - "docs/api-contracts.md"
-      - "global.json"
-      - ".github/workflows/backend-ci.yaml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  dotnet-tests:
-    name: .NET Tests
+  backend-ci-required:
+    name: Backend CI Required
     runs-on: ubuntu-latest
+    outputs:
+      run-tests: ${{ steps.detect.outputs.run-tests }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect backend-impacting changes
+        id: detect
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run-tests=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed_files="$(
+            git diff --name-only \
+              "${{ github.event.pull_request.base.sha }}" \
+              "${{ github.event.pull_request.head.sha }}"
+          )"
+
+          if echo "$changed_files" | grep -Eq '^(backend/|docs/api-contracts\.md$|global\.json$|\.github/workflows/backend-ci\.yaml$)'; then
+            echo "run-tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run-tests=false" >> "$GITHUB_OUTPUT"
+            echo "Backend tests are not required for this change set."
+          fi
+
+  dotnet-tests:
+    name: .NET Tests (backend changes)
+    runs-on: ubuntu-latest
+    needs: backend-ci-required
+    if: needs.backend-ci-required.outputs.run-tests == 'true'
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
