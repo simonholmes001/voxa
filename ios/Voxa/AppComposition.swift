@@ -23,7 +23,11 @@ enum AppComposition {
         return RootView(
             authModel: authModel,
             onboardingModel: onboardingModel,
-            homeModel: makeHomeModel(onboardingService: onboardingService, onboardingModel: onboardingModel),
+            homeModel: makeHomeModel(
+                authModel: authModel,
+                onboardingService: onboardingService,
+                onboardingModel: onboardingModel
+            ),
             talkModel: makeTalkModel(authModel: authModel, onboardingModel: onboardingModel),
             developerResetService: makeDeveloperResetService()
         )
@@ -49,6 +53,7 @@ enum AppComposition {
     /// onboarding profile when the server is unreachable (offline).
     @MainActor
     static func makeHomeModel(
+        authModel: AuthViewModel,
         onboardingService: any OnboardingService,
         onboardingModel: OnboardingViewModel
     ) -> HomeViewModel {
@@ -56,23 +61,28 @@ enum AppComposition {
             learnerSummary(from: try await onboardingService.resume())
         }
         let local = MainActorProfileProvider { [weak onboardingModel] in
-            learnerSummary(from: onboardingModel?.makeProfile())
+            learnerSummary(from: onboardingModel?.makeProfile(), isStale: true)
         }
         return HomeViewModel(provider: FallbackProfileProvider(
             primary: server,
             fallback: local,
             shouldFallback: { error in isHomeProfileFallbackEligible(error) }
-        ))
+        ), messageForError: homeProfileErrorMessage,
+        isAuthenticationFailure: isHomeProfileAuthenticationFailure,
+        onAuthenticationFailure: { [weak authModel] in
+            await authModel?.signOut()
+        })
     }
 
     /// Maps an onboarding profile into the display-ready Home summary.
-    static func learnerSummary(from profile: OnboardingProfile?) -> LearnerProfileSummary? {
+    static func learnerSummary(from profile: OnboardingProfile?, isStale: Bool = false) -> LearnerProfileSummary? {
         guard let profile else { return nil }
         return LearnerProfileSummary(
             languageName: profile.targetLanguage,
             levelName: profile.placementLevel.displayName,
             goalName: profile.goal.title,
-            dailyMinutes: profile.minutesPerDay
+            dailyMinutes: profile.minutesPerDay,
+            isStale: isStale
         )
     }
 
@@ -80,7 +90,22 @@ enum AppComposition {
         guard let onboardingError = error as? OnboardingServiceError else {
             return false
         }
-        return onboardingError == .transportUnavailable
+        return onboardingError == .transportUnavailable || onboardingError == .serverUnavailable
+    }
+
+    static func homeProfileErrorMessage(_ error: Error) -> String {
+        if let onboardingError = error as? OnboardingServiceError,
+           onboardingError == .authenticationRequired {
+            return "Please sign in again to load your learning home."
+        }
+        return "We couldn't load your learning home. Check your connection and try again."
+    }
+
+    static func isHomeProfileAuthenticationFailure(_ error: Error) -> Bool {
+        guard let onboardingError = error as? OnboardingServiceError else {
+            return false
+        }
+        return onboardingError == .authenticationRequired
     }
 
     /// Builds the onboarding service against the configured backend, or a
