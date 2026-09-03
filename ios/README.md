@@ -117,11 +117,22 @@ Configuration and requirements:
 ### Onboarding and placement
 
 After sign-in, `RootView` shows onboarding until it is complete. `OnboardingView`
-is a short stepped flow (target/native language, goal, daily time, a quick
+is a short stepped flow (target/native language, goals, daily time, a quick
 placement, summary). `OnboardingViewModel` persists a resumable `OnboardingDraft`
 after every answer via an `OnboardingDraftStore`
 (`UserDefaultsOnboardingDraftStore` in the app, `InMemoryOnboardingDraftStore`
 for tests/previews), so an interrupted onboarding resumes on the same device.
+
+Language and goal inputs:
+
+- Target/native language lists are shown **alphabetically** (`OnboardingLanguages.displayNames`).
+  Sorting is presentation-only; the stored/submitted value is unchanged (a
+  stable language code/value split is tracked with the multi-language work).
+- Goals are **multi-select**: learners can pick any number of predefined goals
+  and add **custom goals** (trimmed, non-empty, ≤ 40 chars, de-duplicated, up to
+  5 customs — see `GoalSelection`). Continue requires at least one goal.
+- Goals persist and submit as a `goals` array (`OnboardingProfile.goals: [String]`,
+  predefined raw values + custom text).
 
 `PlacementEstimator` produces a deterministic initial CEFR estimate from a short
 "can-do" self-assessment ladder. In the app composition, completed onboarding is

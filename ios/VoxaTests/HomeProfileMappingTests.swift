@@ -10,7 +10,7 @@ final class HomeProfileMappingTests: XCTestCase {
         let profile = OnboardingProfile(
             targetLanguage: "French",
             nativeLanguage: "English",
-            goal: .travel,
+            goals: ["travel"],
             minutesPerDay: 15,
             placementLevel: .b1
         )
@@ -30,7 +30,7 @@ final class HomeProfileMappingTests: XCTestCase {
         let profile = OnboardingProfile(
             targetLanguage: "French",
             nativeLanguage: "English",
-            goal: .travel,
+            goals: ["travel"],
             minutesPerDay: 15,
             placementLevel: .b1
         )

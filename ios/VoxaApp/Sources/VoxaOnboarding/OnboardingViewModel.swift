@@ -60,7 +60,7 @@ public final class OnboardingViewModel {
                 // Update local draft to reflect completion
                 draft.targetLanguage = profile.targetLanguage
                 draft.nativeLanguage = profile.nativeLanguage
-                draft.goal = profile.goal
+                draft.goals = profile.goals
                 draft.minutesPerDay = profile.minutesPerDay
                 draft.placementLevel = profile.placementLevel
                 draft.isCompleted = true
@@ -90,8 +90,42 @@ public final class OnboardingViewModel {
 
     public func setTargetLanguage(_ value: String) { mutate { $0.targetLanguage = value } }
     public func setNativeLanguage(_ value: String) { mutate { $0.nativeLanguage = value } }
-    public func setGoal(_ value: LearningGoal) { mutate { $0.goal = value } }
     public func setMinutesPerDay(_ value: Int) { mutate { $0.minutesPerDay = value } }
+
+    /// The learner's selected goals (predefined raw values and custom text).
+    public var selectedGoals: [String] { draft.goals }
+
+    public func isGoalSelected(_ value: String) -> Bool {
+        draft.goals.contains(value)
+    }
+
+    /// Toggles a predefined goal on or off.
+    public func togglePredefinedGoal(_ goal: LearningGoal) {
+        mutate {
+            if let index = $0.goals.firstIndex(of: goal.rawValue) {
+                $0.goals.remove(at: index)
+            } else {
+                $0.goals.append(goal.rawValue)
+            }
+        }
+    }
+
+    /// Adds a validated custom goal. Returns `nil` on success, or the validation
+    /// error to surface in the UI.
+    @discardableResult
+    public func addCustomGoal(_ text: String) -> GoalSelection.CustomGoalError? {
+        switch GoalSelection.validatedCustomGoal(text, existing: draft.goals) {
+        case let .success(value):
+            mutate { $0.goals.append(value) }
+            return nil
+        case let .failure(error):
+            return error
+        }
+    }
+
+    public func removeGoal(_ value: String) {
+        mutate { $0.goals.removeAll { $0 == value } }
+    }
 
     public func answerPlacement(_ index: Int, _ value: Bool) {
         mutate {
@@ -149,7 +183,7 @@ public final class OnboardingViewModel {
         guard
             let targetLanguage = draft.targetLanguage, !targetLanguage.isEmpty,
             let nativeLanguage = draft.nativeLanguage, !nativeLanguage.isEmpty,
-            let goal = draft.goal,
+            !draft.goals.isEmpty,
             let minutesPerDay = draft.minutesPerDay
         else {
             return nil
@@ -157,7 +191,7 @@ public final class OnboardingViewModel {
         return OnboardingProfile(
             targetLanguage: targetLanguage,
             nativeLanguage: nativeLanguage,
-            goal: goal,
+            goals: draft.goals,
             minutesPerDay: minutesPerDay,
             placementLevel: placementEstimate
         )

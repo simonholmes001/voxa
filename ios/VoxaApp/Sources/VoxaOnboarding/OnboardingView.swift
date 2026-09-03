@@ -2,15 +2,14 @@
 import SwiftUI
 
 /// The first-run onboarding flow: a short, stepped questionnaire that captures
-/// the essentials (target/native language, goal, time, a quick placement) and
+/// the essentials (target/native language, goals, time, a quick placement) and
 /// shows the estimated CEFR level before starting.
 public struct OnboardingView: View {
     @Bindable private var model: OnboardingViewModel
+    @State private var customGoalText = ""
+    @State private var customGoalError: String?
 
-    private static let languages = [
-        "French", "Spanish", "German", "Italian", "Japanese",
-        "English", "Mandarin", "Portuguese",
-    ]
+    private static let languages = OnboardingLanguages.displayNames
     private static let minuteOptions = [5, 10, 15, 30]
 
     public init(model: OnboardingViewModel) {
@@ -48,10 +47,7 @@ public struct OnboardingView: View {
             header("What's your native language?", "This helps us explain things clearly.")
             picker(selection: nativeLanguageBinding, options: Self.languages)
         case .goal:
-            header("Why are you learning?", "Pick the main reason for now.")
-            ForEach(LearningGoal.allCases) { goal in
-                choiceRow(goal.title, isSelected: model.draft.goal == goal) { model.setGoal(goal) }
-            }
+            goalStep
         case .time:
             header("How much time per day?", "You can change this anytime.")
             ForEach(Self.minuteOptions, id: \.self) { minutes in
@@ -68,7 +64,7 @@ public struct OnboardingView: View {
         case .summary:
             header("You're all set", "Here's where we'll start.")
             summaryRow("Learning", model.draft.targetLanguage ?? "—")
-            summaryRow("Goal", model.draft.goal?.title ?? "—")
+            summaryRow("Goals", goalsSummary)
             summaryRow("Daily time", model.draft.minutesPerDay.map { "\($0) min" } ?? "—")
             summaryRow("Starting level", model.placementEstimate.displayName)
             if case let .failed(message) = model.phase {
@@ -79,6 +75,89 @@ public struct OnboardingView: View {
             }
         }
     }
+
+    // MARK: - Goal step (multi-select + custom)
+
+    @ViewBuilder
+    private var goalStep: some View {
+        header("Why are you learning?", "Pick one or more, or add your own.")
+
+        ForEach(LearningGoal.allCases) { goal in
+            choiceRow(goal.title, isSelected: model.isGoalSelected(goal.rawValue)) {
+                model.togglePredefinedGoal(goal)
+            }
+        }
+
+        ForEach(customGoals, id: \.self) { value in
+            HStack {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.tint)
+                Text(value)
+                Spacer()
+                Button {
+                    model.removeGoal(value)
+                } label: {
+                    Image(systemName: "minus.circle")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Remove \(value)")
+            }
+            .padding(.vertical, 8)
+        }
+
+        HStack {
+            TextField("Add your own goal", text: $customGoalText)
+                .textFieldStyle(.roundedBorder)
+                .submitLabel(.done)
+                .onSubmit(addCustomGoal)
+                .accessibilityIdentifier("onboarding-custom-goal-field")
+            Button("Add", action: addCustomGoal)
+                .buttonStyle(.bordered)
+                .disabled(customGoalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("onboarding-custom-goal-add")
+        }
+        .padding(.top, 4)
+
+        if let customGoalError {
+            Text(customGoalError)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("onboarding-custom-goal-error")
+        }
+    }
+
+    private var customGoals: [String] {
+        model.selectedGoals.filter(GoalSelection.isCustom)
+    }
+
+    private var goalsSummary: String {
+        let titles = model.selectedGoals.map(GoalSelection.displayTitle)
+        return titles.isEmpty ? "—" : titles.joined(separator: ", ")
+    }
+
+    private func addCustomGoal() {
+        if let error = model.addCustomGoal(customGoalText) {
+            customGoalError = message(for: error)
+        } else {
+            customGoalText = ""
+            customGoalError = nil
+        }
+    }
+
+    private func message(for error: GoalSelection.CustomGoalError) -> String {
+        switch error {
+        case .empty:
+            return "Enter a goal."
+        case let .tooLong(max):
+            return "Keep goals under \(max) characters."
+        case .duplicate:
+            return "You've already added that goal."
+        case let .limitReached(max):
+            return "You can add up to \(max) custom goals."
+        }
+    }
+
+    // MARK: - Controls
 
     private var controls: some View {
         HStack {
@@ -108,7 +187,7 @@ public struct OnboardingView: View {
         case .welcome, .placement: return true
         case .targetLanguage: return !(model.draft.targetLanguage ?? "").isEmpty
         case .nativeLanguage: return !(model.draft.nativeLanguage ?? "").isEmpty
-        case .goal: return model.draft.goal != nil
+        case .goal: return !model.selectedGoals.isEmpty
         case .time: return model.draft.minutesPerDay != nil
         case .summary: return true
         }
@@ -151,10 +230,12 @@ public struct OnboardingView: View {
     }
 
     private func summaryRow(_ label: String, _ value: String) -> some View {
-        HStack {
+        HStack(alignment: .top) {
             Text(label).foregroundStyle(.secondary)
             Spacer()
-            Text(value).fontWeight(.medium)
+            Text(value)
+                .fontWeight(.medium)
+                .multilineTextAlignment(.trailing)
         }
         .padding(.vertical, 4)
     }

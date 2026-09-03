@@ -33,7 +33,7 @@ final class VoxaBackendOnboardingServiceTests: XCTestCase {
         try await service.submit(OnboardingProfile(
             targetLanguage: "French",
             nativeLanguage: "English",
-            goal: .travel,
+            goals: ["travel", "Order coffee"],
             minutesPerDay: 20,
             placementLevel: .b1
         ))
@@ -48,7 +48,7 @@ final class VoxaBackendOnboardingServiceTests: XCTestCase {
         XCTAssertEqual(body?["targetLanguage"] as? String, "French")
         XCTAssertEqual(body?["nativeLanguage"] as? String, "English")
         XCTAssertEqual(body?["proficiencyLevel"] as? String, "B1")
-        XCTAssertEqual(body?["goals"] as? [String], ["travel"])
+        XCTAssertEqual(body?["goals"] as? [String], ["travel", "Order coffee"])
         XCTAssertEqual(body?["dailyMinutes"] as? Int, 20)
     }
 
@@ -67,7 +67,7 @@ final class VoxaBackendOnboardingServiceTests: XCTestCase {
 
         XCTAssertEqual(profile?.targetLanguage, "French")
         XCTAssertEqual(profile?.nativeLanguage, "English")
-        XCTAssertEqual(profile?.goal, .travel)
+        XCTAssertEqual(profile?.goals, ["travel"])
         XCTAssertEqual(profile?.minutesPerDay, 20)
         XCTAssertEqual(profile?.placementLevel, .b1)
     }
