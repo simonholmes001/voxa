@@ -224,4 +224,38 @@ final class TalkSessionViewModelTests: XCTestCase {
 
         XCTAssertEqual(service.createdWith.first?.0.proficiencyBand, "B1-B2")
     }
+
+    func testTokenPropagatesIfAvailableDuringPermissionRequest() async {
+        // Simulate sign-in occurring while the permission prompt is presented.
+        final class TokenBox { var value: String? }
+        final class PermissionWithSideEffect: MicrophonePermission, @unchecked Sendable {
+            var current: MicrophonePermissionStatus
+            var sideEffect: (() -> Void)?
+            init(current: MicrophonePermissionStatus, sideEffect: (() -> Void)? = nil) {
+                self.current = current
+                self.sideEffect = sideEffect
+            }
+            func currentStatus() -> MicrophonePermissionStatus { current }
+            func request() async -> MicrophonePermissionStatus {
+                sideEffect?()
+                return .granted
+            }
+        }
+
+        let box = TokenBox()
+        box.value = nil
+
+        let permission = PermissionWithSideEffect(current: .undetermined, sideEffect: { box.value = "dynamic-token" })
+        let service = FakeRealtimeSessionService(result: .success(credential()))
+        let model = TalkSessionViewModel(
+            settings: settings,
+            permission: permission,
+            service: service,
+            accessTokenProvider: { box.value }
+        )
+
+        await model.start()
+
+        XCTAssertEqual(service.createdWith.first?.1, "dynamic-token")
+    }
 }
