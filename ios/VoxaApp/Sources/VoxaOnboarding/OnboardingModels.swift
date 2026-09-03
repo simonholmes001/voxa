@@ -27,20 +27,20 @@ public enum LearningGoal: String, CaseIterable, Sendable, Codable, Identifiable 
 public struct OnboardingProfile: Sendable, Equatable, Codable {
     public var targetLanguage: String
     public var nativeLanguage: String
-    public var goal: LearningGoal
+    public var goals: [String]
     public var minutesPerDay: Int
     public var placementLevel: CEFRLevel
 
     public init(
         targetLanguage: String,
         nativeLanguage: String,
-        goal: LearningGoal,
+        goals: [String],
         minutesPerDay: Int,
         placementLevel: CEFRLevel
     ) {
         self.targetLanguage = targetLanguage
         self.nativeLanguage = nativeLanguage
-        self.goal = goal
+        self.goals = goals
         self.minutesPerDay = minutesPerDay
         self.placementLevel = placementLevel
     }
@@ -51,7 +51,7 @@ public struct OnboardingProfile: Sendable, Equatable, Codable {
 public struct OnboardingDraft: Sendable, Equatable, Codable {
     public var targetLanguage: String?
     public var nativeLanguage: String?
-    public var goal: LearningGoal?
+    public var goals: [String]
     public var minutesPerDay: Int?
     public var placementLevel: CEFRLevel?
     public var placementAnswers: [Bool]
@@ -61,7 +61,7 @@ public struct OnboardingDraft: Sendable, Equatable, Codable {
     public init(
         targetLanguage: String? = nil,
         nativeLanguage: String? = nil,
-        goal: LearningGoal? = nil,
+        goals: [String] = [],
         minutesPerDay: Int? = nil,
         placementLevel: CEFRLevel? = nil,
         placementAnswers: [Bool] = [],
@@ -70,7 +70,7 @@ public struct OnboardingDraft: Sendable, Equatable, Codable {
     ) {
         self.targetLanguage = targetLanguage
         self.nativeLanguage = nativeLanguage
-        self.goal = goal
+        self.goals = goals
         self.minutesPerDay = minutesPerDay
         self.placementLevel = placementLevel
         self.placementAnswers = placementAnswers

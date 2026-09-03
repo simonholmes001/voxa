@@ -80,7 +80,7 @@ enum AppComposition {
         return LearnerProfileSummary(
             languageName: profile.targetLanguage,
             levelName: profile.placementLevel.displayName,
-            goalName: profile.goal.title,
+            goalName: profile.goals.map(GoalSelection.displayTitle).joined(separator: ", "),
             dailyMinutes: profile.minutesPerDay,
             isStale: isStale
         )

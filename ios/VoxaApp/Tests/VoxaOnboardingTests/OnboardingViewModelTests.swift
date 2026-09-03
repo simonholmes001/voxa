@@ -27,7 +27,7 @@ final class OnboardingViewModelTests: XCTestCase {
         OnboardingDraft(
             targetLanguage: "French",
             nativeLanguage: "English",
-            goal: .travel,
+            goals: ["travel"],
             minutesPerDay: 15,
             placementAnswers: [true, true, false, false, false],
             stepIndex: OnboardingStep.summary.rawValue
@@ -174,7 +174,7 @@ final class OnboardingViewModelTests: XCTestCase {
             resumeProfile: OnboardingProfile(
                 targetLanguage: "Spanish",
                 nativeLanguage: "English",
-                goal: .work,
+                goals: ["work"],
                 minutesPerDay: 30,
                 placementLevel: .c2
             )

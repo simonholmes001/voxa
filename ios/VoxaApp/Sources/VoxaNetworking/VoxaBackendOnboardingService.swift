@@ -37,7 +37,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
             targetLanguage: profile.targetLanguage,
             nativeLanguage: profile.nativeLanguage,
             proficiencyLevel: profile.placementLevel.displayName,
-            goals: [profile.goal.rawValue],
+            goals: profile.goals,
             dailyMinutes: profile.minutesPerDay
         )
 
@@ -56,18 +56,10 @@ public struct VoxaBackendOnboardingService: OnboardingService {
                 throw OnboardingServiceError.invalidResponse
             }
 
-            // Map goals array to LearningGoal enum (use first goal or default to .general)
-            let goal: LearningGoal
-            if let firstGoal = response.profile.goals.first {
-                goal = LearningGoal(rawValue: firstGoal) ?? .general
-            } else {
-                goal = .general
-            }
-
             return OnboardingProfile(
                 targetLanguage: response.profile.targetLanguage,
                 nativeLanguage: response.profile.nativeLanguage,
-                goal: goal,
+                goals: response.profile.goals,
                 minutesPerDay: response.profile.dailyMinutes,
                 placementLevel: cefrLevel
             )
