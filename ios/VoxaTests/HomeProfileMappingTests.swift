@@ -21,18 +21,40 @@ final class HomeProfileMappingTests: XCTestCase {
             languageName: "French",
             levelName: "B1",
             goalName: "Travel",
-            dailyMinutes: 15
+            dailyMinutes: 15,
+            isStale: false
         ))
+    }
+
+    func testMapsLocalFallbackProfileToStaleSummary() {
+        let profile = OnboardingProfile(
+            targetLanguage: "French",
+            nativeLanguage: "English",
+            goal: .travel,
+            minutesPerDay: 15,
+            placementLevel: .b1
+        )
+
+        let summary = AppComposition.learnerSummary(from: profile, isStale: true)
+
+        XCTAssertEqual(summary?.isStale, true)
     }
 
     func testNilProfileMapsToNil() {
         XCTAssertNil(AppComposition.learnerSummary(from: nil))
     }
 
-    func testHomeProfileFallbackOnlyAllowsTransportUnavailable() {
+    func testHomeProfileFallbackAllowsTemporaryBackendFailures() {
         XCTAssertTrue(AppComposition.isHomeProfileFallbackEligible(OnboardingServiceError.transportUnavailable))
+        XCTAssertTrue(AppComposition.isHomeProfileFallbackEligible(OnboardingServiceError.serverUnavailable))
         XCTAssertFalse(AppComposition.isHomeProfileFallbackEligible(OnboardingServiceError.authenticationRequired))
         XCTAssertFalse(AppComposition.isHomeProfileFallbackEligible(OnboardingServiceError.invalidResponse))
-        XCTAssertFalse(AppComposition.isHomeProfileFallbackEligible(OnboardingServiceError.serverUnavailable))
+    }
+
+    func testHomeProfileAuthenticationFailureOnlyAllowsAuthRequired() {
+        XCTAssertTrue(AppComposition.isHomeProfileAuthenticationFailure(OnboardingServiceError.authenticationRequired))
+        XCTAssertFalse(AppComposition.isHomeProfileAuthenticationFailure(OnboardingServiceError.transportUnavailable))
+        XCTAssertFalse(AppComposition.isHomeProfileAuthenticationFailure(OnboardingServiceError.serverUnavailable))
+        XCTAssertFalse(AppComposition.isHomeProfileAuthenticationFailure(OnboardingServiceError.invalidResponse))
     }
 }

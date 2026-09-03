@@ -7,6 +7,9 @@ private struct StubProvider: LearnerProfileProviding {
 }
 
 private struct BoomError: Error {}
+private enum AuthRequiredError: Error {
+    case authenticationRequired
+}
 
 @MainActor
 final class HomeViewModelTests: XCTestCase {
@@ -30,6 +33,43 @@ final class HomeViewModelTests: XCTestCase {
         let model = HomeViewModel(provider: StubProvider(result: .failure(BoomError())))
         await model.load()
         guard case .failed = model.state else { return XCTFail("expected failed") }
+    }
+
+    func testLoadAuthFailureUsesSignInMessage() async {
+        var authFailureCount = 0
+        let model = HomeViewModel(
+            provider: StubProvider(result: .failure(AuthRequiredError.authenticationRequired)),
+            messageForError: { error in
+                error as? AuthRequiredError == .authenticationRequired
+                    ? "Please sign in again to load your learning home."
+                    : "fallback"
+            },
+            isAuthenticationFailure: { error in
+                error as? AuthRequiredError == .authenticationRequired
+            },
+            onAuthenticationFailure: {
+                authFailureCount += 1
+            }
+        )
+        await model.load()
+        XCTAssertEqual(model.state, .failed("Please sign in again to load your learning home."))
+        XCTAssertEqual(authFailureCount, 1)
+    }
+
+    func testLoadNonAuthFailureDoesNotTriggerAuthenticationFailure() async {
+        var authFailureCount = 0
+        let model = HomeViewModel(
+            provider: StubProvider(result: .failure(BoomError())),
+            isAuthenticationFailure: { error in
+                error as? AuthRequiredError == .authenticationRequired
+            },
+            onAuthenticationFailure: {
+                authFailureCount += 1
+            }
+        )
+        await model.load()
+        guard case .failed = model.state else { return XCTFail("expected failed") }
+        XCTAssertEqual(authFailureCount, 0)
     }
 
     func testRetryRecovers() async {
