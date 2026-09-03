@@ -1,15 +1,18 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import VoxaRealtime
 
 /// The Home / Today surface shown after onboarding. It presents a compact
 /// profile summary and a "today" card whose primary action routes into the
 /// Talk (voice tutor) screen.
 public struct HomeView: View {
     @Bindable private var model: HomeViewModel
+    private let talkModel: TalkSessionViewModel?
     private let onStartTalk: () -> Void
 
-    public init(model: HomeViewModel, onStartTalk: @escaping () -> Void) {
+    public init(model: HomeViewModel, talkModel: TalkSessionViewModel? = nil, onStartTalk: @escaping () -> Void) {
         self.model = model
+        self.talkModel = talkModel
         self.onStartTalk = onStartTalk
     }
 
@@ -87,13 +90,23 @@ public struct HomeView: View {
             Text("\(summary.levelName) · about \(summary.dailyMinutes) min today")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Button(action: onStartTalk) {
-                Label("Start talking", systemImage: "mic.fill")
-                    .frame(maxWidth: .infinity)
+            HStack(spacing: 12) {
+                Button(action: onStartTalk) {
+                    Label("Start talking", systemImage: "mic.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .accessibilityIdentifier("home-start-talk")
+
+                if let talk = talkModel, case .connected = talk.state {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 12, height: 12)
+                        .accessibilityIdentifier("home_talk_connected")
+                        .help("Talk is connected")
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .accessibilityIdentifier("home-start-talk")
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)

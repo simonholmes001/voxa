@@ -149,9 +149,29 @@ private struct TabLayout: View {
                     )
                 }
                 .tabItem {
-                    Label(route.title, systemImage: route.systemImageName)
+                    TabItemLabel(route: route, talkModel: talkModel)
                 }
                 .tag(route)
+            }
+        }
+    }
+
+    // Small view used for tab items that can show an inline active indicator
+    // when the Talk session is connected. Kept minimal for easy testing.
+    private struct TabItemLabel: View {
+        let route: AppRoute
+        let talkModel: TalkSessionViewModel?
+
+        var body: some View {
+            ZStack(alignment: .topTrailing) {
+                Label(route.title, systemImage: route.systemImageName)
+                if route == .talk, let state = talkModel?.state, state == .connected {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 8, height: 8)
+                        .offset(x: 12, y: -6)
+                        .accessibilityIdentifier("talk-active-indicator")
+                }
             }
         }
     }

@@ -168,6 +168,19 @@ final class TalkSessionViewModelTests: XCTestCase {
         XCTAssertEqual(model.state, .failed("no webrtc"))
     }
 
+    func testTransportConnectionFailedIncludesReason() async {
+        let transport = FakeRealtimeTransport(connectResult: .failure(RealtimeTransportError.connectionFailed("ICE failed")))
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            transport: transport
+        )
+
+        await model.start()
+
+        XCTAssertEqual(model.state, .failed("We couldn't connect to your tutor: ICE failed"))
+    }
+
     func testEndDisconnectsAndEnds() async {
         let transport = FakeRealtimeTransport()
         let model = makeModel(
