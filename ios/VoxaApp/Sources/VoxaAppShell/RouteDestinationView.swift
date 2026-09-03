@@ -26,17 +26,23 @@ struct RouteDestinationView: View {
     }
 
     private var placeholder: some View {
-        VStack(spacing: 12) {
+        let content = route.placeholderContent()
+        return VStack(spacing: 12) {
             Image(systemName: route.systemImageName)
                 .font(.largeTitle)
                 .foregroundStyle(.tint)
                 .accessibilityHidden(true)
-            Text(route.title)
+            Text(content.headline)
                 .font(.title2)
                 .fontWeight(.semibold)
-            Text("Coming soon")
+            Text(content.subheadline)
                 .font(.body)
                 .foregroundStyle(.secondary)
+            if let action = content.actionTitle {
+                Button(action) { }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("placeholder-action-\(route.rawValue)")
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)

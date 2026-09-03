@@ -37,3 +37,52 @@ public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
         }
     }
 }
+
+/// Lightweight struct describing the placeholder content shown for routes
+/// that don't yet have full feature implementations. This keeps UI placeholder
+/// text meaningful and testable without rendering SwiftUI views in unit tests.
+public struct RoutePlaceholderContent: Sendable, Equatable {
+    public let headline: String
+    public let subheadline: String
+    public let actionTitle: String?
+
+    public init(headline: String, subheadline: String, actionTitle: String? = nil) {
+        self.headline = headline
+        self.subheadline = subheadline
+        self.actionTitle = actionTitle
+    }
+}
+
+public extension AppRoute {
+    /// Returns purposeful placeholder content for device testing and demos.
+    /// These are intentionally minimal but descriptive so testers can exercise
+    /// each tab and verify navigation/state without the full feature.
+    func placeholderContent() -> RoutePlaceholderContent {
+        switch self {
+        case .learn:
+            return RoutePlaceholderContent(
+                headline: "Learn",
+                subheadline: "Start a short lesson to practice vocabulary and grammar.",
+                actionTitle: "Start Lesson"
+            )
+        case .review:
+            return RoutePlaceholderContent(
+                headline: "Review",
+                subheadline: "Practice quick review sessions tailored to your recent lessons.",
+                actionTitle: "Start Review"
+            )
+        case .settings:
+            return RoutePlaceholderContent(
+                headline: "More",
+                subheadline: "Manage account, preferences, and app settings.",
+                actionTitle: "Open Settings"
+            )
+        default:
+            return RoutePlaceholderContent(
+                headline: title,
+                subheadline: "Coming soon",
+                actionTitle: nil
+            )
+        }
+    }
+}
