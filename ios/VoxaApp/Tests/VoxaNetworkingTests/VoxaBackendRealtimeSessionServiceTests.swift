@@ -53,6 +53,8 @@ final class VoxaBackendRealtimeSessionServiceTests: XCTestCase {
         let request = try XCTUnwrap(StubURLProtocol.lastRequest)
         XCTAssertEqual(request.url?.path, "/api/realtime/session")
         XCTAssertEqual(request.httpMethod, "POST")
+        // Authorization must be the caller's bearer token
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
         XCTAssertEqual(request.value(forHTTPHeaderField: "X-Correlation-Id"), "corr-test")
         let body = try JSONSerialization.jsonObject(with: try XCTUnwrap(StubURLProtocol.lastBody)) as? [String: Any]
