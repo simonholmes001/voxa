@@ -10,7 +10,6 @@ public struct OnboardingView: View {
     @State private var customGoalError: String?
 
     private static let languages = OnboardingLanguages.displayNames
-    private static let minuteOptions = [5, 10, 15, 30]
 
     public init(model: OnboardingViewModel) {
         self.model = model
@@ -49,12 +48,7 @@ public struct OnboardingView: View {
         case .goal:
             goalStep
         case .time:
-            header("How much time per day?", "You can change this anytime.")
-            ForEach(Self.minuteOptions, id: \.self) { minutes in
-                choiceRow("\(minutes) minutes", isSelected: model.draft.minutesPerDay == minutes) {
-                    model.setMinutesPerDay(minutes)
-                }
-            }
+            timeStep
         case .placement:
             header("Quick placement", "Tick everything you can already do.")
             ForEach(Array(PlacementEstimator.questions.enumerated()), id: \.element.id) { index, question in
@@ -154,6 +148,61 @@ public struct OnboardingView: View {
             return "You've already added that goal."
         case let .limitReached(max):
             return "You can add up to \(max) custom goals."
+        }
+    }
+
+    // MARK: - Time step (presets + custom)
+
+    @ViewBuilder
+    private var timeStep: some View {
+        header("How much time per day?", "You can change this anytime.")
+
+        ForEach(DailyTimeSelection.presetMinutes, id: \.self) { minutes in
+            choiceRow("\(minutes) minutes", isSelected: !model.isCustomTimeMode && model.draft.minutesPerDay == minutes) {
+                model.setMinutesPerDay(minutes)
+            }
+        }
+
+        choiceRow("Custom…", isSelected: model.isCustomTimeMode) {
+            model.enterCustomTimeMode()
+        }
+
+        if model.isCustomTimeMode {
+            HStack {
+                TextField("Minutes per day", text: customTimeBinding)
+                    .textFieldStyle(.roundedBorder)
+                    #if os(iOS)
+                    .keyboardType(.numberPad)
+                    #endif
+                    .accessibilityIdentifier("onboarding-custom-time-field")
+            }
+            .padding(.top, 4)
+
+            if let error = model.customTimeError {
+                Text(message(for: error))
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("onboarding-custom-time-error")
+            } else {
+                Text("Between \(DailyTimeSelection.minMinutes) and \(DailyTimeSelection.maxMinutes) minutes.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var customTimeBinding: Binding<String> {
+        Binding(get: { model.customTimeText }, set: { model.updateCustomTime($0) })
+    }
+
+    private func message(for error: DailyTimeSelection.DailyTimeError) -> String {
+        switch error {
+        case .empty:
+            return "Enter your daily practice time."
+        case .notANumber:
+            return "Enter a whole number of minutes."
+        case let .outOfRange(min, max):
+            return "Choose between \(min) and \(max) minutes."
         }
     }
 

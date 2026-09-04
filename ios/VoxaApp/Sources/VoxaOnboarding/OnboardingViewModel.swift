@@ -17,6 +17,11 @@ public final class OnboardingViewModel {
     public private(set) var draft: OnboardingDraft
     public private(set) var phase: Phase = .inProgress
 
+    /// Whether the time step is in "custom minutes" mode (vs a preset).
+    public private(set) var isCustomTimeMode: Bool = false
+    /// The text shown in the custom-minutes field.
+    public private(set) var customTimeText: String = ""
+
     private var store: any OnboardingDraftStore
     private let service: any OnboardingService
     private let scopedStoreFactory: (_ tenantId: String, _ userId: String) -> any OnboardingDraftStore
@@ -36,6 +41,20 @@ public final class OnboardingViewModel {
         if self.draft.isCompleted {
             phase = .completed
         }
+        syncCustomTimeState()
+    }
+
+    /// Reconstructs the transient custom-time UI state from the persisted draft
+    /// (e.g. on launch, scope change, or resume), so a saved custom value shows
+    /// in the field.
+    private func syncCustomTimeState() {
+        if let minutes = draft.minutesPerDay, !DailyTimeSelection.isPreset(minutes) {
+            isCustomTimeMode = true
+            customTimeText = String(minutes)
+        } else {
+            isCustomTimeMode = false
+            customTimeText = ""
+        }
     }
 
     public func scope(toTenantId tenantId: String, userId: String) {
@@ -46,6 +65,7 @@ public final class OnboardingViewModel {
         draft = (try? store.load()) ?? OnboardingDraft()
         phase = draft.isCompleted ? .completed : .inProgress
         currentScope = nextScope
+        syncCustomTimeState()
 
         // Try to resume from backend if local draft is not completed
         if !draft.isCompleted {
@@ -65,6 +85,7 @@ public final class OnboardingViewModel {
                 draft.placementLevel = profile.placementLevel
                 draft.isCompleted = true
                 try? store.save(draft)
+                syncCustomTimeState()
                 phase = .completed
             }
         } catch {
@@ -90,7 +111,49 @@ public final class OnboardingViewModel {
 
     public func setTargetLanguage(_ value: String) { mutate { $0.targetLanguage = value } }
     public func setNativeLanguage(_ value: String) { mutate { $0.nativeLanguage = value } }
-    public func setMinutesPerDay(_ value: Int) { mutate { $0.minutesPerDay = value } }
+    /// Selects a preset daily time and leaves custom mode.
+    public func setMinutesPerDay(_ value: Int) {
+        isCustomTimeMode = false
+        customTimeText = ""
+        mutate { $0.minutesPerDay = value }
+    }
+
+    /// Switches the time step to custom mode. Keeps an existing custom value, or
+    /// clears the committed minutes so Continue stays disabled until a valid
+    /// custom value is entered.
+    public func enterCustomTimeMode() {
+        isCustomTimeMode = true
+        if let minutes = draft.minutesPerDay, !DailyTimeSelection.isPreset(minutes) {
+            customTimeText = String(minutes)
+        } else {
+            customTimeText = ""
+            mutate { $0.minutesPerDay = nil }
+        }
+    }
+
+    /// Live-updates the custom minutes from the field. A valid value is
+    /// committed to `minutesPerDay`; anything invalid clears it so Continue is
+    /// disabled.
+    public func updateCustomTime(_ text: String) {
+        customTimeText = text
+        switch DailyTimeSelection.validate(text) {
+        case let .success(value):
+            mutate { $0.minutesPerDay = value }
+        case .failure:
+            mutate { $0.minutesPerDay = nil }
+        }
+    }
+
+    /// The current custom-time validation error to surface, or `nil` when the
+    /// field is empty or valid.
+    public var customTimeError: DailyTimeSelection.DailyTimeError? {
+        let trimmed = customTimeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isCustomTimeMode, !trimmed.isEmpty else { return nil }
+        if case let .failure(error) = DailyTimeSelection.validate(customTimeText) {
+            return error
+        }
+        return nil
+    }
 
     /// The learner's selected goals (predefined raw values and custom text).
     public var selectedGoals: [String] { draft.goals }
@@ -177,6 +240,7 @@ public final class OnboardingViewModel {
         draft = OnboardingDraft()
         phase = .inProgress
         currentScope = nil
+        syncCustomTimeState()
     }
 
     public func makeProfile() -> OnboardingProfile? {

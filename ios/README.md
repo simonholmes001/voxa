@@ -133,6 +133,10 @@ Language and goal inputs:
   5 customs — see `GoalSelection`). Continue requires at least one goal.
 - Goals persist and submit as a `goals` array (`OnboardingProfile.goals: [String]`,
   predefined raw values + custom text).
+- **Daily time** offers presets (5/10/15/30) plus a **Custom…** numeric entry,
+  validated to a whole number of minutes in `DailyTimeSelection.minMinutes ...
+  maxMinutes` (5–180). Continue requires a valid value; the selection persists
+  in the draft and survives resume.
 
 `PlacementEstimator` produces a deterministic initial CEFR estimate from a short
 "can-do" self-assessment ladder. In the app composition, completed onboarding is
