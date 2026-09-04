@@ -69,6 +69,7 @@ enum AppComposition {
             fallback: local,
             shouldFallback: { error in isHomeProfileFallbackEligible(error) }
         ), resumer: resumer, messageForError: homeProfileErrorMessage,
+        isFallbackEligible: isHomeProfileFallbackEligible,
         isAuthenticationFailure: isHomeProfileAuthenticationFailure,
         onAuthenticationFailure: { [weak authModel] in
             await authModel?.signOut()

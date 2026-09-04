@@ -11,6 +11,14 @@ private enum AuthRequiredError: Error {
     case authenticationRequired
 }
 
+private struct StubResumer: LearnerProfileResuming {
+    let result: Result<LearnerProfileSummary?, Error>
+
+    func resumeSession() async throws -> LearnerProfileSummary? {
+        try result.get()
+    }
+}
+
 @MainActor
 final class HomeViewModelTests: XCTestCase {
     private let summary = LearnerProfileSummary(
@@ -88,6 +96,32 @@ final class HomeViewModelTests: XCTestCase {
         provider.result = .success(summary)
         await model.retry()
         XCTAssertEqual(model.state, .ready(summary))
+    }
+
+    func testResumeWithoutResumerLoadsProvider() async {
+        let model = HomeViewModel(provider: StubProvider(result: .success(summary)))
+
+        await model.resumeIfAvailable()
+
+        XCTAssertEqual(model.state, .ready(summary))
+    }
+
+    func testResumeTransportFailureUsesLocalProviderFallback() async {
+        let localSummary = LearnerProfileSummary(
+            languageName: "French", levelName: "B1", goalName: "Travel", dailyMinutes: 15, isStale: true
+        )
+        let model = HomeViewModel(
+            provider: StubProvider(result: .success(localSummary)),
+            resumer: StubResumer(result: .failure(BoomError())),
+            isFallbackEligible: { _ in true },
+            isAuthenticationFailure: { error in
+                error is AuthRequiredError
+            }
+        )
+
+        await model.resumeIfAvailable()
+
+        XCTAssertEqual(model.state, .ready(localSummary))
     }
 }
 
