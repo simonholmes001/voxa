@@ -7,6 +7,7 @@ import Observation
 public final class HomeViewModel {
     public enum State: Sendable, Equatable {
         case loading
+        case resuming
         case ready(LearnerProfileSummary)
         case needsOnboarding
         case failed(String)
@@ -15,12 +16,14 @@ public final class HomeViewModel {
     public private(set) var state: State = .loading
 
     private let provider: any LearnerProfileProviding
+    private let resumer: (any LearnerProfileResuming)?
     private let messageForError: @Sendable (Error) -> String
     private let isAuthenticationFailure: @Sendable (Error) -> Bool
     private let onAuthenticationFailure: @MainActor @Sendable () async -> Void
 
     public init(
         provider: any LearnerProfileProviding,
+        resumer: (any LearnerProfileResuming)? = nil,
         messageForError: @escaping @Sendable (Error) -> String = { _ in
             "We couldn't load your learning home. Check your connection and try again."
         },
@@ -28,6 +31,7 @@ public final class HomeViewModel {
         onAuthenticationFailure: @escaping @MainActor @Sendable () async -> Void = {}
     ) {
         self.provider = provider
+        self.resumer = resumer
         self.messageForError = messageForError
         self.isAuthenticationFailure = isAuthenticationFailure
         self.onAuthenticationFailure = onAuthenticationFailure
@@ -53,5 +57,28 @@ public final class HomeViewModel {
 
     public func retry() async {
         await load()
+    }
+
+    // MARK: - Resume
+
+    /// If a resumer has been provided by composition, attempt to resume a
+    /// remote learner profile/session. On success the state transitions to
+    /// `ready(_)`. If no resume is available the normal `load()` path is used.
+    public func resumeIfAvailable() async {
+        guard let resumer = resumer else { return }
+        state = .resuming
+        do {
+            if let summary = try await resumer.resumeSession() {
+                state = .ready(summary)
+            } else {
+                // No remote resume available: fall back to the normal load path
+                await load()
+            }
+        } catch {
+            state = .failed(messageForError(error))
+            if isAuthenticationFailure(error) {
+                await onAuthenticationFailure()
+            }
+        }
     }
 }
