@@ -136,4 +136,16 @@ final class OnboardingCustomTimeViewModelTests: XCTestCase {
         XCTAssertEqual(model.customTimeText, "")
         XCTAssertEqual(model.draft.minutesPerDay, 10)
     }
+
+    func testResetFirstRunClearsCustomTimeState() {
+        let model = OnboardingViewModel(store: InMemoryOnboardingDraftStore())
+        model.enterCustomTimeMode()
+        model.updateCustomTime("42")
+
+        model.resetForFirstRunReview()
+
+        XCTAssertFalse(model.isCustomTimeMode)
+        XCTAssertEqual(model.customTimeText, "")
+        XCTAssertNil(model.draft.minutesPerDay)
+    }
 }

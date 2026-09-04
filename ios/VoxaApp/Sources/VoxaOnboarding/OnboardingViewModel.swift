@@ -240,6 +240,7 @@ public final class OnboardingViewModel {
         draft = OnboardingDraft()
         phase = .inProgress
         currentScope = nil
+        syncCustomTimeState()
     }
 
     public func makeProfile() -> OnboardingProfile? {
