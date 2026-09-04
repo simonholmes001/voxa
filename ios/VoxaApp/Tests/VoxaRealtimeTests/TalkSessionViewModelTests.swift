@@ -168,6 +168,19 @@ final class TalkSessionViewModelTests: XCTestCase {
         XCTAssertEqual(model.state, .failed("no webrtc"))
     }
 
+    func testTransportConnectionFailedIncludesReason() async {
+        let transport = FakeRealtimeTransport(connectResult: .failure(RealtimeTransportError.connectionFailed("ICE failed")))
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            transport: transport
+        )
+
+        await model.start()
+
+        XCTAssertEqual(model.state, .failed("We couldn't connect to your tutor: ICE failed"))
+    }
+
     func testEndDisconnectsAndEnds() async {
         let transport = FakeRealtimeTransport()
         let model = makeModel(
@@ -223,5 +236,39 @@ final class TalkSessionViewModelTests: XCTestCase {
         await model.start()
 
         XCTAssertEqual(service.createdWith.first?.0.proficiencyBand, "B1-B2")
+    }
+
+    func testTokenPropagatesIfAvailableDuringPermissionRequest() async {
+        // Simulate sign-in occurring while the permission prompt is presented.
+        final class TokenBox { var value: String? }
+        final class PermissionWithSideEffect: MicrophonePermission, @unchecked Sendable {
+            var current: MicrophonePermissionStatus
+            var sideEffect: (() -> Void)?
+            init(current: MicrophonePermissionStatus, sideEffect: (() -> Void)? = nil) {
+                self.current = current
+                self.sideEffect = sideEffect
+            }
+            func currentStatus() -> MicrophonePermissionStatus { current }
+            func request() async -> MicrophonePermissionStatus {
+                sideEffect?()
+                return .granted
+            }
+        }
+
+        let box = TokenBox()
+        box.value = nil
+
+        let permission = PermissionWithSideEffect(current: .undetermined, sideEffect: { box.value = "dynamic-token" })
+        let service = FakeRealtimeSessionService(result: .success(credential()))
+        let model = TalkSessionViewModel(
+            settings: settings,
+            permission: permission,
+            service: service,
+            accessTokenProvider: { box.value }
+        )
+
+        await model.start()
+
+        XCTAssertEqual(service.createdWith.first?.1, "dynamic-token")
     }
 }

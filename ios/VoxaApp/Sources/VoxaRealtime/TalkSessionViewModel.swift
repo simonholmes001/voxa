@@ -101,16 +101,21 @@ public final class TalkSessionViewModel {
         switch error {
         case RealtimeSessionError.appSessionRequired:
             return "Your session expired. Please sign in again."
-        case RealtimeSessionError.notConfigured:
-            return "Voice sessions aren't configured for this build yet."
+        case let RealtimeSessionError.notConfigured(reason):
+            return reason
         case RealtimeSessionError.transport:
             return "We couldn't reach Voxa. Check your connection and try again."
+        case let RealtimeSessionError.validation(message):
+            return message
+        case let RealtimeSessionError.server(code, message):
+            return "Server error (\(code)): \(message)"
         case let RealtimeTransportError.unavailable(reason):
             return reason
-        case RealtimeTransportError.connectionFailed:
-            return "We couldn't connect to your tutor. Please try again."
+        case let RealtimeTransportError.connectionFailed(reason):
+            return "We couldn't connect to your tutor: \(reason)"
         default:
-            return "We couldn't start the session. Please try again."
+            // Fall back to error's description when available for easier diagnostics.
+            return (error as NSError).localizedDescription
         }
     }
 }
