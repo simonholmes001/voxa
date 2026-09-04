@@ -90,4 +90,42 @@ public sealed class OpenAiModelRouterTests
 
         Assert.Contains("not configured", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void ResolveAllowsSpeechGenerationOverrideWithoutReasoningEffort()
+    {
+        var router = OpenAiModelRouter.CreateDefault(_ => null);
+
+        var route = router.Resolve(new ModelRouteRequest(
+            AiCapability.SpeechGenerationModel,
+            AiCallKind.SpeechGeneration,
+            OverrideModel: "gpt-5.6-luna"));
+
+        Assert.Equal("gpt-5.6-luna", route.Model);
+        Assert.Null(route.ReasoningEffort);
+    }
+
+    [Fact]
+    public void ResolveRejectsReasoningEffortForSpeechGeneration()
+    {
+        var router = OpenAiModelRouter.CreateDefault(_ => null);
+
+        var exception = Assert.Throws<ModelRouteException>(() =>
+            router.Resolve(new ModelRouteRequest(
+                AiCapability.SpeechGenerationModel,
+                AiCallKind.SpeechGeneration,
+                OverrideModel: "gpt-5.6-luna",
+                ReasoningEffortOverride: "low")));
+
+        Assert.Contains("reasoning", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void DefaultConfigurationKeepsConfiguredModelsAllowlisted()
+    {
+        var configuration = ModelRouterConfiguration.LoadDefault();
+
+        Assert.All(configuration.Models.Values, model =>
+            Assert.Contains(model, configuration.AllowedModels));
+    }
 }
