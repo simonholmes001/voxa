@@ -28,7 +28,6 @@ public struct VoxaBackendRealtimeSessionService: RealtimeSessionService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue(correlationIDProvider(), forHTTPHeaderField: "X-Correlation-Id")
         request.httpBody = try JSONEncoder().encode(
             RealtimeSessionRequestDTO(
