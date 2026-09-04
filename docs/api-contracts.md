@@ -75,7 +75,11 @@ Revokes the supplied refresh token. Access tokens naturally expire; clients must
 
 `POST /api/onboarding`
 
-Creates or updates the learner profile and initial learning plan.
+Creates or updates the learner profile and initial learning plan for the
+authenticated learner's selected language profile. `targetLanguage` is a
+BCP-47 language tag and is the stable profile key (for example, `fr-FR` or
+`en-US`). The server may accept legacy ISO-639-1 values such as `fr` and
+normalize them to the canonical tag during migration.
 
 ```json
 {
@@ -107,6 +111,65 @@ Response `200`:
   "correlationId": "corr-123"
 }
 ```
+
+### Language profiles
+
+`GET /api/language-profiles`
+
+Lists the authenticated learner's language profiles. The response is scoped
+to the app-session subject; clients never send a user or tenant identifier.
+The active profile is server-owned and is returned as `activeLanguageKey`.
+
+Response `200`:
+
+```json
+{
+  "correlationId": "corr-123",
+  "activeLanguageKey": "fr-FR",
+  "profiles": [
+    {
+      "languageKey": "fr-FR",
+      "displayName": "French",
+      "isComplete": true,
+      "profile": {
+        "targetLanguage": "fr-FR",
+        "nativeLanguage": "en-US",
+        "proficiencyLevel": "A1",
+        "goals": ["travel"],
+        "dailyMinutes": 15
+      },
+      "version": 3
+    }
+  ]
+}
+```
+
+An empty `profiles` array is a valid response for a newly signed-in learner.
+Existing single-profile state is exposed as one profile, preserving the
+current onboarding and resume behavior.
+
+`POST /api/language-profiles/{languageKey}/select`
+
+Selects the authenticated learner's active language profile. The key must be
+one of the profiles returned by the list endpoint. Selecting a profile does
+not modify its progress or create a new profile.
+
+Response `200`:
+
+```json
+{
+  "correlationId": "corr-123",
+  "activeLanguageKey": "fr-FR"
+}
+```
+
+`POST /api/onboarding` is idempotent per authenticated learner and
+`targetLanguage`. Submitting onboarding for a new language creates that
+language profile; submitting it again updates only that language profile.
+It must not overwrite another language's goals, placement, plan, progress, or
+version. Clients should use the returned `version` as the concurrency token
+for subsequent updates. A stale version returns `409` with error code
+`learner_state_version_conflict`.
 
 ## Realtime Session Issuance
 
@@ -291,8 +354,8 @@ Response `200`:
   "correlationId": "corr-123",
   "version": 2,
   "profile": {
-    "targetLanguage": "fr",
-    "nativeLanguage": "en",
+  "targetLanguage": "fr-FR",
+  "nativeLanguage": "en-US",
     "proficiencyLevel": "A1",
     "goals": ["travel", "conversation"],
     "dailyMinutes": 15

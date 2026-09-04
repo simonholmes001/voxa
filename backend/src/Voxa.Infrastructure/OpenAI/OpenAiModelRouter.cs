@@ -125,13 +125,54 @@ public sealed class ModelRouterConfiguration
     public static ModelRouterConfiguration LoadDefault()
     {
         var assembly = typeof(ModelRouterConfiguration).Assembly;
-        var defaults = ReadJson<RouterDefaultsFile>(assembly, "Voxa.Infrastructure.config.router.defaults.json");
-        var allowed = ReadJson<RouterAllowedModelsFile>(assembly, "Voxa.Infrastructure.config.router.allowed-models.json");
+        try
+        {
+            var defaults = ReadJson<RouterDefaultsFile>(assembly, "Voxa.Infrastructure.config.router.defaults.json");
+            var allowed = ReadJson<RouterAllowedModelsFile>(assembly, "Voxa.Infrastructure.config.router.allowed-models.json");
+
+            return new ModelRouterConfiguration(
+                ParseCapabilityMap(defaults.Models),
+                ParseCapabilityMap(defaults.ReasoningEfforts),
+                allowed.Models.ToHashSet(StringComparer.Ordinal));
+        }
+        catch (Exception exception) when (exception is ModelRouteException or JsonException)
+        {
+            // Keep the API available if an embedded config resource is damaged;
+            // the fallback is still allowlisted and emits an operator-visible warning.
+            Console.Error.WriteLine($"OpenAI router config unavailable; using PRD fallback. {exception.Message}");
+            return CreatePrdFallback();
+        }
+    }
+
+    private static ModelRouterConfiguration CreatePrdFallback()
+    {
+        var models = new Dictionary<AiCapability, string>
+        {
+            [AiCapability.RealtimeTutorModel] = "gpt-realtime-2.1",
+            [AiCapability.RealtimeTutorModelLite] = "gpt-realtime-2.1-mini",
+            [AiCapability.TutorModel] = "gpt-5.6-terra",
+            [AiCapability.CurriculumModel] = "gpt-5.6-sol",
+            [AiCapability.AssessmentModel] = "gpt-5.6-sol",
+            [AiCapability.UtilityModel] = "gpt-5.6-luna",
+            [AiCapability.LiveTranscriptionModel] = "gpt-live-transcribe",
+            [AiCapability.TranscriptionModel] = "gpt-transcribe"
+        };
+        var reasoningEfforts = new Dictionary<AiCapability, string>
+        {
+            [AiCapability.RealtimeTutorModel] = "low",
+            [AiCapability.RealtimeTutorModelLite] = "low",
+            [AiCapability.TutorModel] = "medium",
+            [AiCapability.CurriculumModel] = "high",
+            [AiCapability.AssessmentModel] = "high",
+            [AiCapability.UtilityModel] = "low",
+            [AiCapability.LiveTranscriptionModel] = "low",
+            [AiCapability.TranscriptionModel] = "low"
+        };
 
         return new ModelRouterConfiguration(
-            ParseCapabilityMap(defaults.Models),
-            ParseCapabilityMap(defaults.ReasoningEfforts),
-            allowed.Models.ToHashSet(StringComparer.Ordinal));
+            models,
+            reasoningEfforts,
+            models.Values.ToHashSet(StringComparer.Ordinal));
     }
 
     private static T ReadJson<T>(Assembly assembly, string resourceName)
@@ -150,6 +191,11 @@ public sealed class ModelRouterConfiguration
             if (!Enum.TryParse<AiCapability>(capabilityName, out var capability))
             {
                 throw new ModelRouteException($"Unknown AI capability '{capabilityName}'.");
+            }
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new ModelRouteException($"AI capability '{capabilityName}' has an empty configuration value.");
             }
 
             parsed[capability] = value;
