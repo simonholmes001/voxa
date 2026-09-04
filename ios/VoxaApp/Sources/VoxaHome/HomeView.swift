@@ -64,8 +64,21 @@ public struct HomeView: View {
 
     private func profileCard(_ summary: LearnerProfileSummary) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Your plan")
-                .font(.headline)
+            HStack {
+                Text("Your plan")
+                    .font(.headline)
+                Spacer()
+                if summary.isStale {
+                    Text("Offline")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.secondary.opacity(0.12), in: Capsule())
+                        .accessibilityLabel("Offline profile")
+                }
+            }
             HStack(spacing: 16) {
                 label("Language", summary.languageName)
                 label("Level", summary.levelName)

@@ -8,11 +8,19 @@ public struct LearnerProfileSummary: Sendable, Equatable {
     public var levelName: String
     public var goalName: String
     public var dailyMinutes: Int
+    public var isStale: Bool
 
-    public init(languageName: String, levelName: String, goalName: String, dailyMinutes: Int) {
+    public init(
+        languageName: String,
+        levelName: String,
+        goalName: String,
+        dailyMinutes: Int,
+        isStale: Bool = false
+    ) {
         self.languageName = languageName
         self.levelName = levelName
         self.goalName = goalName
         self.dailyMinutes = dailyMinutes
+        self.isStale = isStale
     }
 }
