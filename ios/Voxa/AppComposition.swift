@@ -63,11 +63,13 @@ enum AppComposition {
         let local = MainActorProfileProvider { [weak onboardingModel] in
             learnerSummary(from: onboardingModel?.makeProfile(), isStale: true)
         }
+        let resumer = OnboardingResumerAdapter(service: onboardingService)
         return HomeViewModel(provider: FallbackProfileProvider(
             primary: server,
             fallback: local,
             shouldFallback: { error in isHomeProfileFallbackEligible(error) }
-        ), messageForError: homeProfileErrorMessage,
+        ), resumer: resumer, messageForError: homeProfileErrorMessage,
+        isFallbackEligible: isHomeProfileFallbackEligible,
         isAuthenticationFailure: isHomeProfileAuthenticationFailure,
         onAuthenticationFailure: { [weak authModel] in
             await authModel?.signOut()
@@ -84,6 +86,19 @@ enum AppComposition {
             dailyMinutes: profile.minutesPerDay,
             isStale: isStale
         )
+    }
+
+    /// Adapter that exposes OnboardingService.resume() as a LearnerProfileResuming
+    /// implementation for composition. Keeping this here avoids adding another
+    /// small source file in the worktree and keeps the adapter implementation
+    /// local to composition.
+    private struct OnboardingResumerAdapter: LearnerProfileResuming {
+        let service: any OnboardingService
+
+        func resumeSession() async throws -> LearnerProfileSummary? {
+            let profile = try await service.resume()
+            return AppComposition.learnerSummary(from: profile)
+        }
     }
 
     static func isHomeProfileFallbackEligible(_ error: Error) -> Bool {

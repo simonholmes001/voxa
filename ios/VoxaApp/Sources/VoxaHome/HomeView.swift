@@ -20,14 +20,14 @@ public struct HomeView: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle("Home")
-            .task { await model.load() }
+            .task { await model.resumeIfAvailable() }
     }
 
     @ViewBuilder
     private var content: some View {
         switch model.state {
-        case .loading:
-            ProgressView("Loading your home…")
+        case .loading, .resuming:
+            ProgressView(model.state == .resuming ? "Resuming your session…" : "Loading your home…")
         case let .ready(summary):
             ready(summary)
         case .needsOnboarding:
