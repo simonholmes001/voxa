@@ -42,7 +42,7 @@ let package = Package(
                 .product(name: "WebRTC", package: "WebRTC"),
             ]
         ),
-        .target(name: "VoxaHome", dependencies: ["VoxaDomain"]),
+        .target(name: "VoxaHome", dependencies: ["VoxaDomain", "VoxaRealtime"]),
         .target(
             name: "VoxaAppShell",
             dependencies: ["VoxaDomain", "VoxaNetworking", "VoxaPersistence", "VoxaAuth", "VoxaOnboarding", "VoxaRealtime", "VoxaHome"]
