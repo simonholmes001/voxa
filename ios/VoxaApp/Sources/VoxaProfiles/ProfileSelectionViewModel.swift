@@ -24,7 +24,7 @@ public final class ProfileSelectionViewModel {
     public private(set) var activeLanguageKey: String?
 
     private let service: any LanguageProfilesService
-    private var loadAttempt = 0
+    private var inFlight: Task<Void, Never>?
 
     public init(service: any LanguageProfilesService) {
         self.service = service
@@ -34,15 +34,32 @@ public final class ProfileSelectionViewModel {
     /// language key to open, or `nil` when onboarding is needed.
     public var resolvedActiveKey: String? { activeLanguageKey }
 
+    /// Loads the language-profile list.
+    ///
+    /// Single-flight and cancellation-safe: a newer `load()` cancels an older
+    /// in-flight one, and the work runs in an unstructured task so it is **not**
+    /// torn down if the SwiftUI `.task` that triggered it is cancelled while the
+    /// request is in flight. This guarantees the UI is never stranded on
+    /// `.loading` after a successful response — the previous stale-guard could
+    /// discard the winning response and leave no terminal state.
     public func load() async {
-        loadAttempt += 1
-        let attempt = loadAttempt
+        inFlight?.cancel()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.performLoad()
+        }
+        inFlight = task
+        await task.value
+    }
+
+    private func performLoad() async {
         state = .loading
-        Self.logger.info("Profile list load started attempt=\(attempt, privacy: .public)")
+        Self.logger.info("profile.load.start")
         do {
             let list = try await service.list()
-            guard attempt == loadAttempt else {
-                Self.logger.info("Ignoring stale profile list result attempt=\(attempt, privacy: .public)")
+            // Superseded by a newer load — that one owns the terminal state.
+            if Task.isCancelled {
+                Self.logger.info("profile.load.superseded")
                 return
             }
             activeLanguageKey = list.activeLanguageKey ?? list.profiles.first?.languageKey
@@ -57,14 +74,16 @@ public final class ProfileSelectionViewModel {
             default:
                 state = .multiple(active: activeLanguageKey, profiles: list.profiles)
             }
-            Self.logger.info("Profile list load completed attempt=\(attempt, privacy: .public) count=\(list.profiles.count, privacy: .public) state=\(self.stateLabel, privacy: .public)")
+            Self.logger.info("profile.load.done count=\(list.profiles.count, privacy: .public) state=\(self.stateLabel, privacy: .public)")
         } catch {
-            guard attempt == loadAttempt else {
-                Self.logger.info("Ignoring stale profile list failure attempt=\(attempt, privacy: .public)")
+            // A cancelled load never overwrites state with a false failure; the
+            // superseding load (or a re-trigger) will drive the terminal state.
+            if Task.isCancelled || error is CancellationError {
+                Self.logger.info("profile.load.cancelled")
                 return
             }
             state = .failed(Self.message(for: error))
-            Self.logger.error("Profile list load failed attempt=\(attempt, privacy: .public) error=\(String(describing: error), privacy: .public)")
+            Self.logger.error("profile.load.failed error=\(String(describing: error), privacy: .public)")
         }
     }
 

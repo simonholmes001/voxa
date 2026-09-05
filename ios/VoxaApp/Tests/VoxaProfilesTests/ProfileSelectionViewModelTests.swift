@@ -160,6 +160,43 @@ final class ProfileSelectionViewModelTests: XCTestCase {
         XCTAssertFalse(selected)
         guard case .failed = model.state else { return XCTFail("expected failed") }
     }
+
+    // Real-device regression (the bug behind the stuck spinner): SwiftUI cancels
+    // the `.task` that triggered the load while the request is in flight. Even
+    // though HTTP succeeds, the response must still be applied — the UI must
+    // never be stranded on `.loading`. The previous stale-request guard could
+    // discard the winning response and set no terminal state.
+    func testSuccessfulLoadAppliesEvenWhenTriggeringTaskIsCancelled() async {
+        let fr = profile("fr-FR", "French")
+        let service = SequencedLanguageProfilesService(results: [
+            .delayed(.success(LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr]))),
+        ])
+        let model = ProfileSelectionViewModel(service: service)
+
+        let trigger = Task { await model.load() }
+        await Task.yield()
+        trigger.cancel() // SwiftUI tears down the triggering .task
+        _ = await trigger.value
+
+        XCTAssertEqual(model.state, .single(fr), "load must resolve, not strand on .loading")
+    }
+
+    // Real-device regression: repeated triggers (a common `.task(id:)` re-run)
+    // must always converge on a terminal state, never stuck on .loading.
+    func testRepeatedTriggersAlwaysReachTerminalState() async {
+        let fr = profile("fr-FR", "French")
+        let service = FakeLanguageProfilesService(
+            list: .success(LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr]))
+        )
+        let model = ProfileSelectionViewModel(service: service)
+
+        await model.load()
+        await model.load()
+        await model.load()
+
+        XCTAssertNotEqual(model.state, .loading)
+        XCTAssertEqual(model.state, .single(fr))
+    }
 }
 
 private final class SequencedLanguageProfilesService: LanguageProfilesService, @unchecked Sendable {

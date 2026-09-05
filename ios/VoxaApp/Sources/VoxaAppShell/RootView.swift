@@ -1,5 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import os
 import VoxaAuth
 import VoxaHome
 import VoxaNetworking
@@ -11,6 +12,8 @@ import VoxaRealtime
 /// navigation shell: first Sign in with Apple, then first-run onboarding, then
 /// the tab bar (compact width) or split view (regular width).
 public struct RootView: View {
+    private static let lifecycleLogger = Logger(subsystem: "com.simonholmes.voxa", category: "app-lifecycle")
+
     @State private var navigationModel: AppNavigationModel
     @State private var authModel: AuthViewModel
     @State private var onboardingModel: OnboardingViewModel
@@ -68,11 +71,21 @@ public struct RootView: View {
             }
         }
         #endif
-        .task { await authModel.restore() }
+        .task {
+            Self.lifecycleLogger.info("auth.restore.start")
+            await authModel.restore()
+            Self.lifecycleLogger.info("auth.restore.done signedIn=\(authModel.state.isSignedIn, privacy: .public)")
+        }
         .task(id: authenticatedUserScope) {
-            guard let session = authModel.state.session else { return }
+            guard let session = authModel.state.session else {
+                Self.lifecycleLogger.info("scope.change signedIn=false")
+                return
+            }
+            Self.lifecycleLogger.info("scope.change signedIn=true")
             onboardingModel.scope(toTenantId: session.tenantId, userId: session.userId)
+            Self.lifecycleLogger.info("profile.load.trigger")
             await profileModel?.load()
+            Self.lifecycleLogger.info("profile.load.returned")
         }
     }
 
