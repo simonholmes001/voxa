@@ -9,7 +9,7 @@ public struct OnboardingView: View {
     @State private var customGoalText = ""
     @State private var customGoalError: String?
 
-    private static let languages = OnboardingLanguages.displayNames
+    private static let languages = OnboardingLanguages.sorted
 
     public init(model: OnboardingViewModel) {
         self.model = model
@@ -57,7 +57,7 @@ public struct OnboardingView: View {
             }
         case .summary:
             header("You're all set", "Here's where we'll start.")
-            summaryRow("Learning", model.draft.targetLanguage ?? "—")
+            summaryRow("Learning", model.draft.targetLanguage.map(OnboardingLanguages.displayName(forKey:)) ?? "—")
             summaryRow("Goals", goalsSummary)
             summaryRow("Daily time", model.draft.minutesPerDay.map { "\($0) min" } ?? "—")
             summaryRow("Starting level", model.placementEstimate.displayName)
@@ -252,11 +252,11 @@ public struct OnboardingView: View {
         }
     }
 
-    private func picker(selection: Binding<String?>, options: [String]) -> some View {
+    private func picker(selection: Binding<String?>, options: [SupportedLanguage]) -> some View {
         Picker("", selection: selection) {
             Text("Select").tag(String?.none)
-            ForEach(options, id: \.self) { option in
-                Text(option).tag(String?.some(option))
+            ForEach(options) { language in
+                Text(language.displayName).tag(String?.some(language.key))
             }
         }
         .pickerStyle(.menu)

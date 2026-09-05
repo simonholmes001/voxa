@@ -6,11 +6,11 @@ import VoxaRealtime
 /// Verifies the onboarding-state -> Realtime settings mapping used to build the
 /// Talk session request, so device testing reflects the learner's choices.
 final class RealtimeSettingsMappingTests: XCTestCase {
-    func testLanguageCodeMapping() {
-        XCTAssertEqual(AppComposition.languageCode(for: "Japanese"), "ja-JP")
-        XCTAssertEqual(AppComposition.languageCode(for: "Spanish"), "es-ES")
-        XCTAssertEqual(AppComposition.languageCode(for: nil), "fr-FR")
-        XCTAssertEqual(AppComposition.languageCode(for: "Unknown"), "fr-FR")
+    func testCanonicalLanguageKeyMapping() {
+        XCTAssertEqual(AppComposition.canonicalLanguageKey(for: "Japanese"), "ja-JP")
+        XCTAssertEqual(AppComposition.canonicalLanguageKey(for: "Spanish"), "es-ES")
+        XCTAssertEqual(AppComposition.canonicalLanguageKey(for: "es-ES"), "es-ES") // passthrough for keys
+        XCTAssertEqual(AppComposition.canonicalLanguageKey(for: nil), "fr-FR")
     }
 
     func testProficiencyBandMapping() {
