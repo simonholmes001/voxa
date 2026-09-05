@@ -16,6 +16,9 @@ public final class OnboardingViewModel {
 
     public private(set) var draft: OnboardingDraft
     public private(set) var phase: Phase = .inProgress
+    /// The profile returned by the most recent successful backend submission.
+    /// Consumers use this authoritative value for post-submit activation.
+    public private(set) var lastSubmittedProfile: OnboardingProfile?
 
     /// Whether the time step is in "custom minutes" mode (vs a preset).
     public private(set) var isCustomTimeMode: Bool = false
@@ -227,8 +230,16 @@ public final class OnboardingViewModel {
         }
         phase = .submitting
         do {
-            try await service.submit(profile)
-            mutate { $0.isCompleted = true }
+            let savedProfile = try await service.submit(profile)
+            lastSubmittedProfile = savedProfile
+            draft.targetLanguage = savedProfile.targetLanguage
+            draft.nativeLanguage = savedProfile.nativeLanguage
+            draft.goals = savedProfile.goals
+            draft.minutesPerDay = savedProfile.minutesPerDay
+            draft.placementLevel = savedProfile.placementLevel
+            draft.isCompleted = true
+            try? store.save(draft)
+            syncCustomTimeState()
             phase = .completed
         } catch {
             phase = .failed("We couldn't save your profile. Please try again.")
@@ -249,6 +260,7 @@ public final class OnboardingViewModel {
     public func startNewLanguageOnboarding() {
         try? store.clear()
         draft = OnboardingDraft()
+        lastSubmittedProfile = nil
         phase = .inProgress
         syncCustomTimeState()
     }

@@ -4,7 +4,7 @@
 /// The wire contract is a backend responsibility (#14), so the default
 /// implementation fails until a real client is injected.
 public protocol OnboardingService: Sendable {
-    func submit(_ profile: OnboardingProfile) async throws
+    func submit(_ profile: OnboardingProfile) async throws -> OnboardingProfile
     func resume() async throws -> OnboardingProfile?
 }
 
@@ -23,7 +23,7 @@ public enum OnboardingServiceError: Error, Equatable {
 public struct LocalOnboardingService: OnboardingService {
     public init() {}
 
-    public func submit(_ profile: OnboardingProfile) async throws {}
+    public func submit(_ profile: OnboardingProfile) async throws -> OnboardingProfile { profile }
 
     public func resume() async throws -> OnboardingProfile? {
         return nil
@@ -34,7 +34,7 @@ public struct LocalOnboardingService: OnboardingService {
 public struct UnavailableOnboardingService: OnboardingService {
     public init() {}
 
-    public func submit(_ profile: OnboardingProfile) async throws {
+    public func submit(_ profile: OnboardingProfile) async throws -> OnboardingProfile {
         throw OnboardingServiceError.unavailable
     }
 

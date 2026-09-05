@@ -23,6 +23,8 @@ public struct RootView: View {
     private let developerResetService: (any DeveloperResetService)?
     @State private var isAddingLanguage = false
     @State private var didChooseLanguage = false
+    @State private var addLanguageActivationError: String?
+    @State private var submittedLanguageKey: String?
 
     public init(
         navigationModel: AppNavigationModel = AppNavigationModel(),
@@ -147,14 +149,39 @@ public struct RootView: View {
     @ViewBuilder
     private func addingLanguageFlow(_ profileModel: ProfileSelectionViewModel) -> some View {
         onboardingThenShell
-            .onChange(of: onboardingModel.isComplete) { _, complete in
-                guard complete, let key = onboardingModel.draft.targetLanguage else { return }
-                Task {
-                    guard await profileModel.selectLanguage(key) else { return }
-                    isAddingLanguage = false
-                    didChooseLanguage = true
-                }
+            .onChange(of: onboardingModel.lastSubmittedProfile) { _, profile in
+                guard let profile else { return }
+                submittedLanguageKey = profile.targetLanguage
+                Task { await activateSubmittedLanguage(profile.targetLanguage, using: profileModel) }
             }
+            .alert(
+                "Couldn't activate this language",
+                isPresented: Binding(
+                    get: { addLanguageActivationError != nil },
+                    set: { if !$0 { addLanguageActivationError = nil } }
+                )
+            ) {
+                Button("Retry") {
+                    guard let key = submittedLanguageKey else { return }
+                    Task { await activateSubmittedLanguage(key, using: profileModel) }
+                }
+                Button("Stay in onboarding", role: .cancel) {}
+            } message: {
+                Text(addLanguageActivationError ?? "Please try again.")
+            }
+    }
+
+    private func activateSubmittedLanguage(
+        _ languageKey: String,
+        using profileModel: ProfileSelectionViewModel
+    ) async {
+        guard await profileModel.selectLanguage(languageKey) else {
+            addLanguageActivationError = "Your profile was saved, but the language could not be activated."
+            return
+        }
+        addLanguageActivationError = nil
+        isAddingLanguage = false
+        didChooseLanguage = true
     }
 
     private var onboardingThenShell: some View {
