@@ -73,7 +73,9 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
             ReviewQueue.Empty,
             RecentSessionSummaries.Empty);
 
-        var saved = await repository.SaveAsync(state, command.ExpectedVersion, cancellationToken);
+        // A new language profile has no prior version to compare with. Any
+        // client token belongs to another profile and must not gate creation.
+        var saved = await repository.SaveAsync(state, expectedVersion: null, cancellationToken);
 
         await repository.SetActiveLanguageAsync(
             command.TenantId,
