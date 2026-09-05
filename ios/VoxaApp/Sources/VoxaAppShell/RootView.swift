@@ -119,11 +119,7 @@ public struct RootView: View {
                         profiles: profiles,
                         activeKey: active,
                         onContinue: { profile in
-                            Task {
-                                guard await profileModel.selectLanguage(profile.languageKey) else { return }
-                                onboardingModel.hydrate(from: profile.profile, completed: true)
-                                didChooseLanguage = true
-                            }
+                            Task { await openSelectedProfile(profile, using: profileModel) }
                         },
                         onAddLanguage: {
                             onboardingModel.startNewLanguageOnboarding()
@@ -142,6 +138,18 @@ public struct RootView: View {
             }
             .padding()
         }
+    }
+
+    /// Activates the server profile before exposing the shared main shell.
+    /// Home and Talk retain this same onboarding model reference and read its
+    /// current values when they load or start a session.
+    private func openSelectedProfile(
+        _ profile: LanguageProfile,
+        using profileModel: ProfileSelectionViewModel
+    ) async {
+        guard await profileModel.selectLanguage(profile.languageKey) else { return }
+        onboardingModel.hydrate(from: profile.profile, completed: true)
+        didChooseLanguage = true
     }
 
     /// Runs onboarding for a newly added language, then activates it so Home
