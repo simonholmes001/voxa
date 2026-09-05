@@ -1,4 +1,5 @@
 import Foundation
+import os
 import VoxaAuth
 
 /// Backend-backed implementation of `AuthenticationService` for the Voxa
@@ -9,6 +10,8 @@ import VoxaAuth
 /// URL — the app composition layer must supply one, and callers get a clear
 /// error if it is missing (see `NotConfiguredAuthenticationService`).
 public struct VoxaBackendAuthenticationService: AuthenticationService {
+    private static let logger = Logger(subsystem: "com.simonholmes.voxa", category: "authentication")
+
     private let baseURL: URL
     private let session: URLSession
     private let correlationIDProvider: @Sendable () -> String
@@ -56,26 +59,37 @@ public struct VoxaBackendAuthenticationService: AuthenticationService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(correlationIDProvider(), forHTTPHeaderField: "X-Correlation-Id")
+        let correlationID = correlationIDProvider()
+        request.setValue(correlationID, forHTTPHeaderField: "X-Correlation-Id")
         request.httpBody = try JSONEncoder().encode(body)
+
+        Self.logger.info("Auth request started endpoint=\(path, privacy: .public) url=\(request.url?.absoluteString ?? "", privacy: .public) correlationId=\(correlationID, privacy: .public)")
 
         let data: Data
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            let nsError = error as NSError
+            Self.logger.error("Auth request transport failure endpoint=\(path, privacy: .public) correlationId=\(correlationID, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
             throw AuthenticationServiceError.transport
         }
 
         guard let http = response as? HTTPURLResponse else {
+            Self.logger.error("Auth request returned a non-HTTP response endpoint=\(path, privacy: .public) correlationId=\(correlationID, privacy: .public)")
             throw AuthenticationServiceError.transport
         }
+        Self.logger.info("Auth response received endpoint=\(path, privacy: .public) status=\(http.statusCode, privacy: .public) bytes=\(data.count, privacy: .public) correlationId=\(correlationID, privacy: .public)")
         guard (200..<300).contains(http.statusCode) else {
-            throw Self.mapError(status: http.statusCode, data: data)
+            let error = Self.mapError(status: http.statusCode, data: data)
+            let code = (try? JSONDecoder().decode(ApiErrorDTO.self, from: data).code) ?? "unknown"
+            Self.logger.error("Auth request rejected endpoint=\(path, privacy: .public) status=\(http.statusCode, privacy: .public) apiCode=\(code, privacy: .public) correlationId=\(correlationID, privacy: .public)")
+            throw error
         }
         do {
             return try Self.decoder.decode(Response.self, from: data)
         } catch {
+            Self.logger.error("Auth response decode failure endpoint=\(path, privacy: .public) correlationId=\(correlationID, privacy: .public) error=\(String(describing: error), privacy: .public)")
             throw AuthenticationServiceError.transport
         }
     }

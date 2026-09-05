@@ -58,6 +58,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
+      - name: Cache Swift package artifacts
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ~/Library/org.swift.swiftpm
+            ios/VoxaApp/.build
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('ios/VoxaApp/Package.resolved') }}
+
       - name: Run Swift package tests
         shell: bash
         run: |
@@ -75,6 +84,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Cache Swift package artifacts
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ~/Library/org.swift.swiftpm
+            ios/VoxaApp/.build
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('ios/VoxaApp/Package.resolved') }}
+
+      - name: Record Xcode and simulator environment
+        shell: bash
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes
 
       - name: Pick an iPhone simulator device
         id: pick-iphone
@@ -98,6 +122,9 @@ jobs:
       - name: Run app target tests on iPhone Simulator
         shell: bash
         run: |
+          derived_data_path="${RUNNER_TEMP}/voxa-derived-data"
+          echo "Using iPhone simulator UDID: ${{ steps.pick-iphone.outputs.udid }}"
+          echo "Using shared DerivedData path: ${derived_data_path}"
           GIT_CONFIG_COUNT=1 \
             GIT_CONFIG_KEY_0=safe.bareRepository \
             GIT_CONFIG_VALUE_0=all \
@@ -105,6 +132,8 @@ jobs:
               -project ios/Voxa.xcodeproj \
               -scheme Voxa \
               -destination "id=${{ steps.pick-iphone.outputs.udid }}" \
+              -derivedDataPath "${derived_data_path}" \
+              -resultBundlePath "${RUNNER_TEMP}/voxa-iphone.xcresult" \
               -configuration Debug \
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
@@ -132,14 +161,28 @@ jobs:
       - name: Run app target tests on iPad Simulator
         shell: bash
         run: |
+          echo "Using iPad simulator UDID: ${{ steps.pick-ipad.outputs.udid }}"
+          echo "Reusing DerivedData path: ${RUNNER_TEMP}/voxa-derived-data"
           GIT_CONFIG_COUNT=1 \
             GIT_CONFIG_KEY_0=safe.bareRepository \
             GIT_CONFIG_VALUE_0=all \
-            xcodebuild test \
+            xcodebuild test-without-building \
               -project ios/Voxa.xcodeproj \
               -scheme Voxa \
               -destination "id=${{ steps.pick-ipad.outputs.udid }}" \
+              -derivedDataPath "${RUNNER_TEMP}/voxa-derived-data" \
+              -resultBundlePath "${RUNNER_TEMP}/voxa-ipad.xcresult" \
               -configuration Debug \
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
               CODE_SIGN_IDENTITY=""
+
+      - name: Upload simulator diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-simulator-diagnostics
+          path: |
+            ${{ runner.temp }}/voxa-iphone.xcresult
+            ${{ runner.temp }}/voxa-ipad.xcresult
+          if-no-files-found: warn

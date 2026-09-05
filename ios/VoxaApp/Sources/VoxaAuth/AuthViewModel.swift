@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 /// Orchestrates the Sign in with Apple session lifecycle: restore on launch,
 /// sign in, token refresh, and sign out. All backend interaction goes through
@@ -8,6 +9,8 @@ import Observation
 @MainActor
 @Observable
 public final class AuthViewModel {
+    private static let logger = Logger(subsystem: "com.simonholmes.voxa", category: "authentication")
+
     public private(set) var state: AuthState = .signedOut
 
     private let store: any SessionStore
@@ -56,6 +59,7 @@ public final class AuthViewModel {
             try store.save(session)
             state = .signedIn(session)
         } catch {
+            Self.logger.error("Sign-in failed error=\(String(describing: error), privacy: .public)")
             state = .failed(Self.message(for: error))
         }
     }

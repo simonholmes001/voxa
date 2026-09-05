@@ -2,10 +2,13 @@
 import SwiftUI
 import AuthenticationServices
 import CryptoKit
+import os
 import Security
 
 /// The Sign in with Apple screen shown when the app has no valid session.
 public struct SignInView: View {
+    private static let logger = Logger(subsystem: "com.simonholmes.voxa", category: "authentication")
+
     @Bindable private var model: AuthViewModel
     @State private var currentNonce = ""
 
@@ -56,13 +59,19 @@ public struct SignInView: View {
     }
 
     private func handle(_ result: Result<ASAuthorization, Error>) {
+        guard case let .success(authorization) = result else {
+            if case let .failure(error) = result {
+                Self.logger.error("Apple authorization failed domain=\((error as NSError).domain, privacy: .public) code=\((error as NSError).code, privacy: .public)")
+            }
+            return
+        }
         guard
-            case let .success(authorization) = result,
             let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
             let identityToken = credential.identityToken,
             let authorizationCode = credential.authorizationCode,
             !currentNonce.isEmpty
         else {
+            Self.logger.error("Apple authorization returned incomplete credentials")
             return
         }
 
