@@ -240,6 +240,13 @@ final class VoxaBackendAuthenticationServiceTests: XCTestCase {
         }
     }
 
+    func testMalformedSuccessResponseMapsTransport() async {
+        StubURLProtocol.handler = ok(#"{"unexpected":"shape"}"#)
+        await assertThrows(AuthenticationServiceError.transport) {
+            _ = try await service.exchange(proof)
+        }
+    }
+
     private func assertThrows(
         _ expected: AuthenticationServiceError,
         _ operation: () async throws -> Void,

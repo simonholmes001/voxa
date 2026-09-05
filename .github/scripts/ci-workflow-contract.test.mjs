@@ -55,6 +55,11 @@ test('iOS CI workflow uses a required sentinel and still covers Swift plus iPhon
   assert.match(workflow, /Pick an iPad simulator device/);
   assert.match(workflow, /Run app target tests on iPhone Simulator/);
   assert.match(workflow, /Run app target tests on iPad Simulator/);
+  assert.strictEqual(
+    (workflow.match(/actions\/cache@0057852bfaa89a56745cba8c7296529d2fc39830/g) ?? []).length,
+    2,
+  );
+  assert.doesNotMatch(workflow, /actions\/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a/);
 });
 
 test('iOS WebRTC package pin uses an upstream release with downloadable assets', () => {
