@@ -13,6 +13,7 @@ using Voxa.Application.Onboarding;
 using Voxa.Application.Realtime;
 using Voxa.Domain.Learners;
 using Voxa.Infrastructure.Authentication;
+using Voxa.Infrastructure.Persistence;
 
 namespace Voxa.Api.Tests;
 
@@ -114,6 +115,120 @@ public sealed class FunctionInvalidJsonTests
         Assert.Equal("invalid_json", document.RootElement.GetProperty("code").GetString());
     }
 
+    [Theory]
+    [InlineData("not-a-version")]
+    [InlineData("-1")]
+    [InlineData("*")]
+    [InlineData("\"1\"\"2\"")]
+    public async Task OnboardingRejectsInvalidIfMatchHeaders(string header)
+    {
+        var tokenIssuer = CreateTokenIssuer();
+        var functions = CreateFunctions(tokenIssuer);
+        var request = CreateAuthenticatedOnboardingRequest(tokenIssuer);
+        request.Headers.TryAddWithoutValidation("If-Match", header);
+
+        var response = await functions.SubmitOnboardingAsync(request, CancellationToken.None);
+
+        response.Body.Position = 0;
+        using var document = await JsonDocument.ParseAsync(response.Body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("invalid_if_match", document.RootElement.GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task OnboardingRejectsMultipleIfMatchHeaderValues()
+    {
+        var tokenIssuer = CreateTokenIssuer();
+        var functions = CreateFunctions(tokenIssuer);
+        var request = CreateAuthenticatedOnboardingRequest(tokenIssuer);
+        request.Headers.TryAddWithoutValidation("If-Match", "1");
+        request.Headers.TryAddWithoutValidation("If-Match", "2");
+
+        var response = await functions.SubmitOnboardingAsync(request, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OnboardingAcceptsOneQuotedIfMatchVersion()
+    {
+        var tokenIssuer = CreateTokenIssuer();
+        var repository = new InMemoryLearnerStateRepository();
+        var tenantId = TenantId.Create("tenant-default");
+        var userId = UserId.Create("user-a");
+        await repository.SaveAsync(
+            LearnerState.Create(
+                tenantId,
+                userId,
+                new LearnerProfile(tenantId, userId, "French", "English", "A1", ["travel"], 15),
+                ActiveLearningPlan.Empty,
+                LessonCheckpoint.None,
+                ReviewQueue.Empty,
+                RecentSessionSummaries.Empty),
+            expectedVersion: null,
+            CancellationToken.None);
+        var functions = CreateFunctions(tokenIssuer, repository);
+        var request = CreateAuthenticatedOnboardingRequest(tokenIssuer);
+        request.Headers.TryAddWithoutValidation("If-Match", "\"1\"");
+
+        var response = await functions.SubmitOnboardingAsync(request, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OnboardingReturnsConflictForStaleIfMatchVersion()
+    {
+        var tokenIssuer = CreateTokenIssuer();
+        var repository = new InMemoryLearnerStateRepository();
+        var tenantId = TenantId.Create("tenant-default");
+        var userId = UserId.Create("user-a");
+        await repository.SaveAsync(
+            LearnerState.Create(
+                tenantId,
+                userId,
+                new LearnerProfile(tenantId, userId, "French", "English", "A1", ["travel"], 15),
+                ActiveLearningPlan.Empty,
+                LessonCheckpoint.None,
+                ReviewQueue.Empty,
+                RecentSessionSummaries.Empty),
+            expectedVersion: null,
+            CancellationToken.None);
+
+        var functions = CreateFunctions(tokenIssuer, repository);
+        var request = CreateAuthenticatedOnboardingRequest(tokenIssuer);
+        request.Headers.TryAddWithoutValidation("If-Match", "0");
+
+        var response = await functions.SubmitOnboardingAsync(request, CancellationToken.None);
+
+        response.Body.Position = 0;
+        using var document = await JsonDocument.ParseAsync(response.Body);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("learner_state_version_conflict", document.RootElement.GetProperty("code").GetString());
+    }
+
+    private static TestHttpRequestData CreateAuthenticatedOnboardingRequest(HmacAppSessionTokenIssuer tokenIssuer)
+    {
+        var request = new TestHttpRequestData(
+            """
+            {
+              "targetLanguage": "French",
+              "nativeLanguage": "English",
+              "proficiencyLevel": "A1",
+              "goals": ["travel"],
+              "dailyMinutes": 15
+            }
+            """,
+            method: "POST",
+            route: "onboarding");
+        request.Headers.Add(
+            "Authorization",
+            $"Bearer {ValidAccessToken(tokenIssuer, TenantId.Create("tenant-default"), UserId.Create("user-a"))}");
+        return request;
+    }
+
     private static VoxaHttpFunctions CreateFunctions()
     {
         return CreateFunctions(CreateTokenIssuer());
@@ -121,15 +236,22 @@ public sealed class FunctionInvalidJsonTests
 
     private static VoxaHttpFunctions CreateFunctions(HmacAppSessionTokenIssuer tokenIssuer)
     {
+        return CreateFunctions(tokenIssuer, new StubLearnerStateRepository());
+    }
+
+    private static VoxaHttpFunctions CreateFunctions(
+        HmacAppSessionTokenIssuer tokenIssuer,
+        ILearnerStateRepository learnerStateRepository)
+    {
         return new VoxaHttpFunctions(
             new SignInWithAppleEndpoint(new StubAppSessionService(), NullLogger<SignInWithAppleEndpoint>.Instance),
             new RefreshAppSessionEndpoint(new StubAppSessionService()),
             new LogoutAppSessionEndpoint(new StubAppSessionService()),
             new RealtimeSessionEndpoint(new StubRealtimeSessionService()),
             new ResumeSessionEndpoint(new StubLearnerSessionQueries()),
-            new LanguageProfilesEndpoint(new LanguageProfileService(new StubLearnerStateRepository())),
-            new OnboardingSubmitEndpoint(new OnboardingService(new StubLearnerStateRepository())),
-            new DevResetEndpoint(new StubLearnerStateRepository(), enabled: true),
+            new LanguageProfilesEndpoint(new LanguageProfileService(learnerStateRepository)),
+            new OnboardingSubmitEndpoint(new OnboardingService(learnerStateRepository)),
+            new DevResetEndpoint(learnerStateRepository, enabled: true),
             tokenIssuer,
             new FixedClock(DateTimeOffset.Parse("2026-08-31T08:00:00Z")));
     }
