@@ -127,6 +127,7 @@ public sealed class FunctionInvalidJsonTests
             new LogoutAppSessionEndpoint(new StubAppSessionService()),
             new RealtimeSessionEndpoint(new StubRealtimeSessionService()),
             new ResumeSessionEndpoint(new StubLearnerSessionQueries()),
+            new LanguageProfilesEndpoint(new LanguageProfileService(new StubLearnerStateRepository())),
             new OnboardingSubmitEndpoint(new OnboardingService(new StubLearnerStateRepository())),
             new DevResetEndpoint(new StubLearnerStateRepository(), enabled: true),
             tokenIssuer,

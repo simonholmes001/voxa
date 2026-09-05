@@ -70,6 +70,7 @@ public static class VoxaApiServiceCollectionExtensions
         services.AddSingleton<ILearnerStateRepository, TableLearnerStateRepository>();
         services.AddSingleton<IRefreshSessionStore, TableRefreshSessionStore>();
         services.AddSingleton<ILearnerSessionQueries, LearnerSessionService>();
+        services.AddSingleton<LanguageProfileService>();
         services.AddSingleton<IAppSessionService, AppSessionService>();
         services.AddSingleton(new RealtimeSessionRateLimitOptions(12, TimeSpan.FromMinutes(1)));
         services.AddSingleton<IRealtimeSessionRateLimiter, TableRealtimeSessionRateLimiter>();
@@ -87,6 +88,7 @@ public static class VoxaApiServiceCollectionExtensions
         services.AddSingleton<LogoutAppSessionEndpoint>();
         services.AddSingleton<RealtimeSessionEndpoint>();
         services.AddSingleton<ResumeSessionEndpoint>();
+        services.AddSingleton<LanguageProfilesEndpoint>();
         services.AddSingleton<OnboardingService>();
         services.AddSingleton<OnboardingSubmitEndpoint>();
         services.AddSingleton(provider => new DevResetEndpoint(

@@ -10,7 +10,11 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
         CancellationToken cancellationToken)
     {
         // Check if learner state already exists
-        var existing = await repository.GetAsync(command.TenantId, command.UserId, cancellationToken);
+        var existing = await repository.GetAsync(
+            command.TenantId,
+            command.UserId,
+            command.TargetLanguage,
+            cancellationToken);
         if (existing is not null)
         {
             // Update existing profile (idempotent onboarding)
@@ -24,6 +28,12 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
             };
             var updated = existing with { Profile = updatedProfile };
             var savedUpdate = await repository.SaveAsync(updated, existing.Version, cancellationToken);
+
+            await repository.SetActiveLanguageAsync(
+                command.TenantId,
+                command.UserId,
+                savedUpdate.Profile.TargetLanguage,
+                cancellationToken);
 
             return new OnboardingSubmitResponse(
                 command.CorrelationId.Value,
@@ -63,6 +73,12 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
             RecentSessionSummaries.Empty);
 
         var saved = await repository.SaveAsync(state, null, cancellationToken);
+
+        await repository.SetActiveLanguageAsync(
+            command.TenantId,
+            command.UserId,
+            saved.Profile.TargetLanguage,
+            cancellationToken);
 
         return new OnboardingSubmitResponse(
             command.CorrelationId.Value,
