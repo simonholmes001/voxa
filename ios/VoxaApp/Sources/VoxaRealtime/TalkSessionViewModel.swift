@@ -16,6 +16,7 @@ public final class TalkSessionViewModel {
     private let service: any RealtimeSessionService
     private let transport: any RealtimeTransport
     private let accessTokenProvider: @MainActor @Sendable () -> String?
+    private let onAuthenticationRequired: @MainActor @Sendable () async -> Void
 
     /// Creates a Talk session model. `settingsProvider` is evaluated at
     /// `start()` time so the session reflects the learner's current
@@ -25,13 +26,15 @@ public final class TalkSessionViewModel {
         permission: any MicrophonePermission,
         service: any RealtimeSessionService,
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
-        accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil }
+        accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil },
+        onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {}
     ) {
         self.settingsProvider = settingsProvider
         self.permission = permission
         self.service = service
         self.transport = transport
         self.accessTokenProvider = accessTokenProvider
+        self.onAuthenticationRequired = onAuthenticationRequired
     }
 
     /// Convenience for fixed settings (previews/tests).
@@ -40,14 +43,16 @@ public final class TalkSessionViewModel {
         permission: any MicrophonePermission,
         service: any RealtimeSessionService,
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
-        accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil }
+        accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil },
+        onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {}
     ) {
         self.init(
             settingsProvider: { settings },
             permission: permission,
             service: service,
             transport: transport,
-            accessTokenProvider: accessTokenProvider
+            accessTokenProvider: accessTokenProvider,
+            onAuthenticationRequired: onAuthenticationRequired
         )
     }
 
@@ -77,6 +82,9 @@ public final class TalkSessionViewModel {
             credential = try await service.createSession(settings, accessToken: token)
         } catch {
             state = .failed(Self.message(for: error))
+            if case RealtimeSessionError.appSessionRequired = error {
+                await onAuthenticationRequired()
+            }
             return
         }
 

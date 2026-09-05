@@ -32,6 +32,18 @@ private final class FakeRealtimeSessionService: RealtimeSessionService, @uncheck
     }
 }
 
+private actor RecoveryRecorder {
+    private var called = false
+
+    func record() {
+        called = true
+    }
+
+    func wasCalled() -> Bool {
+        called
+    }
+}
+
 private final class FakeRealtimeTransport: RealtimeTransport, @unchecked Sendable {
     var connectResult: Result<Void, Error>
     private(set) var connectCount = 0
@@ -153,6 +165,23 @@ final class TalkSessionViewModelTests: XCTestCase {
         await model.start()
 
         XCTAssertEqual(model.state, .failed("Your session expired. Please sign in again."))
+    }
+
+    func testUnauthorizedSessionTriggersAuthenticationRecovery() async {
+        let recovery = RecoveryRecorder()
+        let model = TalkSessionViewModel(
+            settings: settings,
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .failure(RealtimeSessionError.appSessionRequired)),
+            accessTokenProvider: { "valid-token" },
+            onAuthenticationRequired: { await recovery.record() }
+        )
+
+        await model.start()
+
+        XCTAssertEqual(model.state, .failed("Your session expired. Please sign in again."))
+        let recoveryWasCalled = await recovery.wasCalled()
+        XCTAssertTrue(recoveryWasCalled)
     }
 
     func testTransportFailureSurfaces() async {
