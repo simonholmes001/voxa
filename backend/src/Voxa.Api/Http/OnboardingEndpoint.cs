@@ -10,6 +10,7 @@ public sealed class OnboardingSubmitEndpoint(OnboardingService onboardingService
         TenantId tenantId,
         UserId userId,
         string? correlationId,
+        LearnerStateVersion? expectedVersion,
         CancellationToken cancellationToken)
     {
         var requestCorrelationId = CorrelationId.Create(correlationId);
@@ -24,7 +25,8 @@ public sealed class OnboardingSubmitEndpoint(OnboardingService onboardingService
                 ValidateRequired(request.ProficiencyLevel, "proficiencyLevel"),
                 request.Goals ?? Array.Empty<string>(),
                 request.DailyMinutes ?? 15,
-                requestCorrelationId);
+                requestCorrelationId,
+                expectedVersion);
 
             var response = await onboardingService.SubmitAsync(command, cancellationToken);
 
@@ -38,6 +40,15 @@ public sealed class OnboardingSubmitEndpoint(OnboardingService onboardingService
                 exception.Message,
                 requestCorrelationId,
                 400,
+                retryable: false);
+        }
+        catch (StaleLearnerStateVersionException exception)
+        {
+            return Failure<OnboardingSubmitHttpResponse>(
+                "learner_state_version_conflict",
+                exception.Message,
+                requestCorrelationId,
+                409,
                 retryable: false);
         }
     }

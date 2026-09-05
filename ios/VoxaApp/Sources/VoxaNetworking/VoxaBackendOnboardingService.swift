@@ -28,7 +28,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         self.accessTokenProvider = accessTokenProvider
     }
 
-    public func submit(_ profile: OnboardingProfile) async throws {
+    public func submit(_ profile: OnboardingProfile) async throws -> OnboardingProfile {
         guard let accessToken = await accessTokenProvider() else {
             throw OnboardingServiceError.authenticationRequired
         }
@@ -41,7 +41,16 @@ public struct VoxaBackendOnboardingService: OnboardingService {
             dailyMinutes: profile.minutesPerDay
         )
 
-        let _: OnboardingSubmitResponseDTO = try await post("api/onboarding", body: body, accessToken: accessToken)
+        let response: OnboardingSubmitResponseDTO = try await post("api/onboarding", body: body, accessToken: accessToken)
+        guard let placementLevel = CEFRLevel(rawValue: response.profile.proficiencyLevel.lowercased()) else {
+            throw OnboardingServiceError.invalidResponse
+        }
+        return OnboardingProfile(
+            targetLanguage: response.profile.targetLanguage,
+            nativeLanguage: response.profile.nativeLanguage,
+            goals: response.profile.goals,
+            minutesPerDay: response.profile.dailyMinutes,
+            placementLevel: placementLevel)
     }
 
     public func resume() async throws -> OnboardingProfile? {

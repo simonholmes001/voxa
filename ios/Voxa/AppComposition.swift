@@ -5,6 +5,7 @@ import VoxaAuth
 import VoxaHome
 import VoxaNetworking
 import VoxaOnboarding
+import VoxaProfiles
 import VoxaRealtime
 import VoxaRealtimeWebRTC
 
@@ -29,7 +30,37 @@ enum AppComposition {
                 onboardingModel: onboardingModel
             ),
             talkModel: makeTalkModel(authModel: authModel, onboardingModel: onboardingModel),
+            profileModel: makeProfileModel(authModel: authModel),
             developerResetService: makeDeveloperResetService()
+        )
+    }
+
+    @MainActor
+    static func makeProfileModel(authModel: AuthViewModel) -> ProfileSelectionViewModel {
+        ProfileSelectionViewModel(service: makeLanguageProfilesService(authModel: authModel))
+    }
+
+    @MainActor
+    static func makeLanguageProfilesService(authModel: AuthViewModel) -> any LanguageProfilesService {
+        guard let baseURL = backendBaseURL() else {
+            return NotConfiguredLanguageProfilesService()
+        }
+        return VoxaBackendLanguageProfilesService(
+            baseURL: baseURL,
+            accessTokenProvider: { @MainActor in authModel.state.session?.accessToken }
+        )
+    }
+
+    /// Builds the per-language settings service (#84) for the More/Settings
+    /// surface to save edits to the active language profile.
+    @MainActor
+    static func makeLanguageSettingsService(authModel: AuthViewModel) -> any LanguageSettingsService {
+        guard let baseURL = backendBaseURL() else {
+            return NotConfiguredLanguageSettingsService()
+        }
+        return VoxaBackendLanguageSettingsService(
+            baseURL: baseURL,
+            accessTokenProvider: { @MainActor in authModel.state.session?.accessToken }
         )
     }
 
@@ -80,7 +111,7 @@ enum AppComposition {
     static func learnerSummary(from profile: OnboardingProfile?, isStale: Bool = false) -> LearnerProfileSummary? {
         guard let profile else { return nil }
         return LearnerProfileSummary(
-            languageName: profile.targetLanguage,
+            languageName: OnboardingLanguages.displayName(forKey: profile.targetLanguage),
             levelName: profile.placementLevel.displayName,
             goalName: profile.goals.map(GoalSelection.displayTitle).joined(separator: ", "),
             dailyMinutes: profile.minutesPerDay,
@@ -175,7 +206,7 @@ enum AppComposition {
     static func realtimeSettings(from onboardingModel: OnboardingViewModel?) -> RealtimeCoachingSettings {
         RealtimeCoachingSettings(
             proficiencyBand: proficiencyBand(for: onboardingModel?.placementEstimate),
-            targetLanguage: languageCode(for: onboardingModel?.draft.targetLanguage)
+            targetLanguage: canonicalLanguageKey(for: onboardingModel?.draft.targetLanguage)
         )
     }
 
@@ -222,20 +253,12 @@ enum AppComposition {
         return URL(string: trimmed)
     }
 
-    /// Maps an onboarding language display name to a BCP-47 tag. Defaults to
-    /// French until the learner has chosen a language.
-    static func languageCode(for displayName: String?) -> String {
-        switch displayName {
-        case "French": return "fr-FR"
-        case "Spanish": return "es-ES"
-        case "German": return "de-DE"
-        case "Italian": return "it-IT"
-        case "Japanese": return "ja-JP"
-        case "English": return "en-US"
-        case "Mandarin": return "zh-CN"
-        case "Portuguese": return "pt-PT"
-        default: return "fr-FR"
-        }
+    /// Resolves a canonical BCP-47 language key from either a stored key or a
+    /// legacy display name, defaulting to French when unset. Idempotent for keys.
+    static func canonicalLanguageKey(for value: String?) -> String {
+        guard let value, !value.isEmpty else { return "fr-FR" }
+        if let key = OnboardingLanguages.key(forDisplayName: value) { return key }
+        return value
     }
 
     /// Maps a CEFR estimate to a coaching proficiency band.

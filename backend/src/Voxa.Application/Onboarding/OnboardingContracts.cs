@@ -10,7 +10,8 @@ public sealed record OnboardingSubmitCommand(
     string ProficiencyLevel,
     IReadOnlyList<string> Goals,
     int DailyMinutes,
-    CorrelationId CorrelationId);
+    CorrelationId CorrelationId,
+    LearnerStateVersion? ExpectedVersion = null);
 
 public sealed record OnboardingSubmitResponse(
     string CorrelationId,

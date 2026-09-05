@@ -1,4 +1,5 @@
 using System.Net;
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -6,6 +7,7 @@ using Voxa.Api.Http;
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
 using Voxa.Application.Onboarding;
+using Voxa.Domain.Learners;
 using Voxa.Infrastructure.Authentication;
 
 namespace Voxa.Api.Functions;
@@ -111,6 +113,12 @@ public sealed class VoxaHttpFunctions(
             return await WriteInvalidJsonAsync(request, cancellationToken);
         }
 
+        var expectedVersion = ParseExpectedVersion(request);
+        if (expectedVersion.IsPresent && !expectedVersion.IsValid)
+        {
+            return await WriteInvalidIfMatchAsync(request, cancellationToken);
+        }
+
         return await WriteAsync(
             request,
             await onboardingSubmit.PostAsync(
@@ -118,6 +126,7 @@ public sealed class VoxaHttpFunctions(
                 principal.TenantId,
                 principal.UserId,
                 CorrelationId(request),
+                expectedVersion.Value,
                 cancellationToken),
             cancellationToken);
     }
@@ -288,6 +297,30 @@ public sealed class VoxaHttpFunctions(
             : null;
     }
 
+    private static ExpectedVersionResult ParseExpectedVersion(HttpRequestData request)
+    {
+        if (!request.Headers.TryGetValues("If-Match", out var values))
+        {
+            return ExpectedVersionResult.Absent;
+        }
+
+        var headers = values.ToArray();
+        if (headers.Length != 1)
+        {
+            return ExpectedVersionResult.Invalid;
+        }
+
+        var value = headers[0].Trim();
+        if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
+        {
+            value = value[1..^1];
+        }
+
+        return long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var version) && version >= 0
+            ? new ExpectedVersionResult(true, LearnerStateVersion.Create(version), true)
+            : ExpectedVersionResult.Invalid;
+    }
+
     private static async Task<JsonReadResult<T>> ReadJsonAsync<T>(
         HttpRequestData request,
         CancellationToken cancellationToken)
@@ -317,6 +350,23 @@ public sealed class VoxaHttpFunctions(
                 new ApiErrorResponse(
                     "invalid_json",
                     "Request body is not valid JSON.",
+                    correlationId.Value,
+                    false)),
+            cancellationToken);
+    }
+
+    private static Task<HttpResponseData> WriteInvalidIfMatchAsync(
+        HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var correlationId = Domain.Learners.CorrelationId.Create(CorrelationId(request));
+        return WriteAsync(
+            request,
+            ApiResponse<object>.Failure(
+                400,
+                new ApiErrorResponse(
+                    "invalid_if_match",
+                    "If-Match must contain exactly one non-negative numeric version token.",
                     correlationId.Value,
                     false)),
             cancellationToken);
@@ -359,6 +409,16 @@ public sealed class VoxaHttpFunctions(
         public static JsonReadResult<T> Ok(T? value) => new(value, false);
 
         public static JsonReadResult<T> Invalid() => new(default, true);
+    }
+
+    private sealed record ExpectedVersionResult(
+        bool IsPresent,
+        LearnerStateVersion? Value,
+        bool IsValid)
+    {
+        public static ExpectedVersionResult Absent { get; } = new(false, null, true);
+
+        public static ExpectedVersionResult Invalid { get; } = new(true, null, false);
     }
 
     private sealed record DeploymentMarkerResponse(

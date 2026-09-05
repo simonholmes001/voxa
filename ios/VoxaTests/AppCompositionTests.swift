@@ -1,5 +1,6 @@
 import XCTest
 @testable import Voxa
+import VoxaOnboarding
 
 /// Smoke tests for the Voxa app target.
 ///
@@ -31,6 +32,24 @@ final class AppCompositionTests: XCTestCase {
         // The default (unconfigured) build must resolve to nil so network calls
         // fail clearly rather than hitting an unintended host.
         XCTAssertNil(AppComposition.backendBaseURL())
+    }
+
+    @MainActor
+    func testRealtimeSettingsReflectHydratedSelectedLanguageProfile() {
+        let onboardingModel = OnboardingViewModel(store: InMemoryOnboardingDraftStore())
+        onboardingModel.hydrate(
+            from: OnboardingProfile(
+                targetLanguage: "es-ES",
+                nativeLanguage: "fr-FR",
+                goals: ["work"],
+                minutesPerDay: 30,
+                placementLevel: .c2),
+            completed: true)
+
+        let settings = AppComposition.realtimeSettings(from: onboardingModel)
+
+        XCTAssertEqual(settings.targetLanguage, "es-ES")
+        XCTAssertEqual(settings.proficiencyBand, "C1-C2")
     }
 
     func testInfoPlistDeclaresMicrophoneUsage() {

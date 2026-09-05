@@ -2,18 +2,23 @@ import XCTest
 @testable import VoxaOnboarding
 
 private final class FakeOnboardingService: OnboardingService, @unchecked Sendable {
-    var result: Result<Void, Error>
+    var result: Result<OnboardingProfile, Error>
     var resumeProfile: OnboardingProfile?
     private(set) var submitted: [OnboardingProfile] = []
 
-    init(result: Result<Void, Error> = .success(()), resumeProfile: OnboardingProfile? = nil) {
-        self.result = result
+    init(result: Result<OnboardingProfile, Error>? = nil, resumeProfile: OnboardingProfile? = nil) {
+        self.result = result ?? .success(OnboardingProfile(
+            targetLanguage: "French",
+            nativeLanguage: "English",
+            goals: ["travel"],
+            minutesPerDay: 15,
+            placementLevel: .a1))
         self.resumeProfile = resumeProfile
     }
 
-    func submit(_ profile: OnboardingProfile) async throws {
+    func submit(_ profile: OnboardingProfile) async throws -> OnboardingProfile {
         submitted.append(profile)
-        try result.get()
+        return try result.get()
     }
 
     func resume() async throws -> OnboardingProfile? {
@@ -98,7 +103,7 @@ final class OnboardingViewModelTests: XCTestCase {
 
     func testFinishWithCompleteProfileSubmitsAndCompletes() async throws {
         let store = InMemoryOnboardingDraftStore(draft: completeDraft())
-        let service = FakeOnboardingService(result: .success(()))
+        let service = FakeOnboardingService()
         let model = OnboardingViewModel(store: store, service: service)
 
         await model.finish()
@@ -108,6 +113,25 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(service.submitted.count, 1)
         XCTAssertEqual(service.submitted.first?.placementLevel, .a2)
         XCTAssertEqual(try store.load()?.isCompleted, true)
+    }
+
+    func testFinishUsesAuthoritativeSubmittedProfileForDraftAndActivation() async throws {
+        let store = InMemoryOnboardingDraftStore(draft: completeDraft())
+        let savedProfile = OnboardingProfile(
+            targetLanguage: "Spanish",
+            nativeLanguage: "French",
+            goals: ["work"],
+            minutesPerDay: 30,
+            placementLevel: .c2)
+        let service = FakeOnboardingService(result: .success(savedProfile))
+        let model = OnboardingViewModel(store: store, service: service)
+
+        await model.finish()
+
+        XCTAssertEqual(model.lastSubmittedProfile, savedProfile)
+        XCTAssertEqual(model.draft.targetLanguage, "Spanish")
+        XCTAssertEqual(model.draft.placementLevel, .c2)
+        XCTAssertEqual(try store.load()?.targetLanguage, "Spanish")
     }
 
     func testFinishWithServiceFailureSetsFailed() async throws {

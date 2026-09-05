@@ -7,7 +7,7 @@ final class OnboardingLanguagesTests: XCTestCase {
     }
 
     func testDisplayNamesContainSameSetAsSource() {
-        XCTAssertEqual(Set(OnboardingLanguages.displayNames), Set(OnboardingLanguages.all))
+        XCTAssertEqual(Set(OnboardingLanguages.displayNames), Set(OnboardingLanguages.all.map(\.displayName)))
     }
 }
 

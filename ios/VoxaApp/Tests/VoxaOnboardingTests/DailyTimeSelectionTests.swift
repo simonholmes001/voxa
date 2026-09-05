@@ -34,7 +34,7 @@ final class DailyTimeSelectionTests: XCTestCase {
 
 private final class SubmitCapturingOnboardingService: OnboardingService, @unchecked Sendable {
     private(set) var submitted: [OnboardingProfile] = []
-    func submit(_ profile: OnboardingProfile) async throws { submitted.append(profile) }
+    func submit(_ profile: OnboardingProfile) async throws -> OnboardingProfile { submitted.append(profile); return profile }
     func resume() async throws -> OnboardingProfile? { nil }
 }
 

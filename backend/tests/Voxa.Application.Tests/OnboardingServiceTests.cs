@@ -33,6 +33,54 @@ public sealed class OnboardingServiceTests
         Assert.Equal(20, response.Profile.DailyMinutes);
     }
 
+    [Fact]
+    public async Task SubmitAsyncRejectsAStaleClientVersion()
+    {
+        var tenantId = TenantId.Create("tenant-a");
+        var userId = UserId.Create("user-a");
+        var repository = new RecordingLearnerStateRepository();
+        await repository.SaveAsync(CreateState(tenantId, userId), expectedVersion: null, CancellationToken.None);
+        var service = new OnboardingService(repository);
+
+        await Assert.ThrowsAsync<StaleLearnerStateVersionException>(() => service.SubmitAsync(
+            new OnboardingSubmitCommand(
+                tenantId,
+                userId,
+                "Spanish",
+                "English",
+                "A2",
+                ["travel"],
+                20,
+                CorrelationId.Create("corr-stale"),
+                LearnerStateVersion.Create(0)),
+            CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SubmitAsyncDoesNotApplyVersionTokenWhenCreatingNewLanguageProfile()
+    {
+        var tenantId = TenantId.Create("tenant-a");
+        var userId = UserId.Create("user-a");
+        var repository = new RecordingLearnerStateRepository();
+        var service = new OnboardingService(repository);
+
+        var response = await service.SubmitAsync(
+            new OnboardingSubmitCommand(
+                tenantId,
+                userId,
+                "Spanish",
+                "English",
+                "A1",
+                ["travel"],
+                15,
+                CorrelationId.Create("corr-new-language"),
+                LearnerStateVersion.Create(99)),
+            CancellationToken.None);
+
+        Assert.Equal(1, response.Version);
+        Assert.Null(repository.LastExpectedVersion);
+    }
+
     private static LearnerState CreateState(TenantId tenantId, UserId userId)
     {
         return LearnerState.Create(
@@ -49,6 +97,8 @@ public sealed class OnboardingServiceTests
     {
         private readonly Dictionary<string, LearnerState> states = new();
 
+        public LearnerStateVersion? LastExpectedVersion { get; private set; }
+
         public Task<LearnerState?> GetAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
         {
             states.TryGetValue(Key(tenantId, userId), out var state);
@@ -57,6 +107,7 @@ public sealed class OnboardingServiceTests
 
         public Task<LearnerState> SaveAsync(LearnerState state, LearnerStateVersion? expectedVersion, CancellationToken cancellationToken)
         {
+            LastExpectedVersion = expectedVersion;
             var key = Key(state.TenantId, state.UserId);
             states.TryGetValue(key, out var current);
 
