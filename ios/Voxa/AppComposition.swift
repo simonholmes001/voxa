@@ -51,6 +51,19 @@ enum AppComposition {
         )
     }
 
+    /// Builds the per-language settings service (#84) for the More/Settings
+    /// surface to save edits to the active language profile.
+    @MainActor
+    static func makeLanguageSettingsService(authModel: AuthViewModel) -> any LanguageSettingsService {
+        guard let baseURL = backendBaseURL() else {
+            return NotConfiguredLanguageSettingsService()
+        }
+        return VoxaBackendLanguageSettingsService(
+            baseURL: baseURL,
+            accessTokenProvider: { @MainActor in authModel.state.session?.accessToken }
+        )
+    }
+
     @MainActor
     static func makeAuthModel() -> AuthViewModel {
         AuthViewModel(store: KeychainSessionStore(), service: makeAuthService())
