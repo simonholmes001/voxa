@@ -4,6 +4,7 @@ import VoxaAuth
 import VoxaHome
 import VoxaNetworking
 import VoxaOnboarding
+import VoxaProfiles
 import VoxaRealtime
 
 /// The root of the Voxa app. It composes the app's gates around the adaptive
@@ -18,7 +19,10 @@ public struct RootView: View {
     #endif
     private let homeModel: HomeViewModel?
     private let talkModel: TalkSessionViewModel?
+    private let profileModel: ProfileSelectionViewModel?
     private let developerResetService: (any DeveloperResetService)?
+    @State private var isAddingLanguage = false
+    @State private var didChooseLanguage = false
 
     public init(
         navigationModel: AppNavigationModel = AppNavigationModel(),
@@ -26,6 +30,7 @@ public struct RootView: View {
         onboardingModel: OnboardingViewModel? = nil,
         homeModel: HomeViewModel? = nil,
         talkModel: TalkSessionViewModel? = nil,
+        profileModel: ProfileSelectionViewModel? = nil,
         developerResetService: (any DeveloperResetService)? = nil
     ) {
         _navigationModel = State(initialValue: navigationModel)
@@ -33,14 +38,13 @@ public struct RootView: View {
         _onboardingModel = State(initialValue: onboardingModel ?? OnboardingViewModel())
         self.homeModel = homeModel
         self.talkModel = talkModel
+        self.profileModel = profileModel
         self.developerResetService = developerResetService
     }
 
     public var body: some View {
         AuthGate(model: authModel) {
-            OnboardingGate(model: onboardingModel) {
-                MainShellView(model: navigationModel, homeModel: homeModel, talkModel: talkModel)
-            }
+            signedInContent
         }
         #if DEBUG
         .safeAreaInset(edge: .bottom, alignment: .trailing) {
@@ -72,6 +76,90 @@ public struct RootView: View {
     private var authenticatedUserScope: String? {
         guard let session = authModel.state.session else { return nil }
         return "\(session.tenantId)|\(session.userId)"
+    }
+
+    /// Post-sign-in content. When a profile model is provided, it drives the
+    /// zero/one/multiple language decision; otherwise it falls back to the
+    /// single-profile onboarding flow.
+    @ViewBuilder
+    private var signedInContent: some View {
+        if let profileModel {
+            profileFlow(profileModel)
+        } else {
+            onboardingThenShell
+        }
+    }
+
+    @ViewBuilder
+    private func profileFlow(_ profileModel: ProfileSelectionViewModel) -> some View {
+        switch profileModel.state {
+        case .loading:
+            ProgressView("Loading your languages…")
+                .task { await profileModel.load() }
+        case .needsOnboarding:
+            onboardingThenShell
+        case let .single(profile):
+            if profile.isComplete {
+                mainShell
+            } else {
+                onboardingThenShell
+            }
+        case let .multiple(active, profiles):
+            if isAddingLanguage {
+                addingLanguageFlow(profileModel)
+            } else if didChooseLanguage {
+                mainShell
+            } else {
+                NavigationStack {
+                    LanguageChoiceView(
+                        profiles: profiles,
+                        activeKey: active,
+                        onContinue: { profile in
+                            Task {
+                                await profileModel.selectLanguage(profile.languageKey)
+                                didChooseLanguage = true
+                            }
+                        },
+                        onAddLanguage: {
+                            onboardingModel.startNewLanguageOnboarding()
+                            isAddingLanguage = true
+                        }
+                    )
+                }
+            }
+        case let .failed(message):
+            VStack(spacing: 16) {
+                Text(message)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                Button("Try again") { Task { await profileModel.retry() } }
+                    .buttonStyle(.bordered)
+            }
+            .padding()
+        }
+    }
+
+    /// Runs onboarding for a newly added language, then activates it so Home
+    /// opens the new language rather than the previous active one.
+    @ViewBuilder
+    private func addingLanguageFlow(_ profileModel: ProfileSelectionViewModel) -> some View {
+        onboardingThenShell
+            .onChange(of: onboardingModel.isComplete) { _, complete in
+                guard complete, let key = onboardingModel.draft.targetLanguage else { return }
+                Task {
+                    await profileModel.selectLanguage(key)
+                    isAddingLanguage = false
+                    didChooseLanguage = true
+                }
+            }
+    }
+
+    private var onboardingThenShell: some View {
+        OnboardingGate(model: onboardingModel) { mainShell }
+    }
+
+    private var mainShell: some View {
+        MainShellView(model: navigationModel, homeModel: homeModel, talkModel: talkModel)
     }
 
     #if DEBUG

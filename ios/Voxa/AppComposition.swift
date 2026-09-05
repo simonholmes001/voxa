@@ -5,6 +5,7 @@ import VoxaAuth
 import VoxaHome
 import VoxaNetworking
 import VoxaOnboarding
+import VoxaProfiles
 import VoxaRealtime
 import VoxaRealtimeWebRTC
 
@@ -29,7 +30,24 @@ enum AppComposition {
                 onboardingModel: onboardingModel
             ),
             talkModel: makeTalkModel(authModel: authModel, onboardingModel: onboardingModel),
+            profileModel: makeProfileModel(authModel: authModel),
             developerResetService: makeDeveloperResetService()
+        )
+    }
+
+    @MainActor
+    static func makeProfileModel(authModel: AuthViewModel) -> ProfileSelectionViewModel {
+        ProfileSelectionViewModel(service: makeLanguageProfilesService(authModel: authModel))
+    }
+
+    @MainActor
+    static func makeLanguageProfilesService(authModel: AuthViewModel) -> any LanguageProfilesService {
+        guard let baseURL = backendBaseURL() else {
+            return NotConfiguredLanguageProfilesService()
+        }
+        return VoxaBackendLanguageProfilesService(
+            baseURL: baseURL,
+            accessTokenProvider: { @MainActor in authModel.state.session?.accessToken }
         )
     }
 

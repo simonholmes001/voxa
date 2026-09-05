@@ -243,6 +243,16 @@ public final class OnboardingViewModel {
         syncCustomTimeState()
     }
 
+    /// Resets onboarding to begin a new language profile. Other languages'
+    /// server-side data is preserved because onboarding creation is idempotent
+    /// per language (see docs/api-contracts.md).
+    public func startNewLanguageOnboarding() {
+        try? store.clear()
+        draft = OnboardingDraft()
+        phase = .inProgress
+        syncCustomTimeState()
+    }
+
     public func makeProfile() -> OnboardingProfile? {
         guard
             let targetLanguage = draft.targetLanguage, !targetLanguage.isEmpty,

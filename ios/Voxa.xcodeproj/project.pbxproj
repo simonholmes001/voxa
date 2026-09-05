@@ -15,6 +15,7 @@
 		53EC3352C6F51B85062077E1 /* VoxaNetworking in Frameworks */ = {isa = PBXBuildFile; productRef = EBF5BFC12BD3B9391534476E /* VoxaNetworking */; };
 		59F5F52AA86A3D297D949065 /* VoxaAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 99E9556609810287793F6F44 /* VoxaAuth */; };
 		7E0313AE3DFD63B8A32DC5FF /* VoxaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E8F971582777A3E0EADED22 /* VoxaApp.swift */; };
+		8BCF7B4C185B7AA9CF3F79CC /* VoxaProfiles in Frameworks */ = {isa = PBXBuildFile; productRef = 99EB21345C1A9E8706C3C5D2 /* VoxaProfiles */; };
 		8DC055754B2F3B4ABB6F5AC7 /* HomeProfileMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D64FF160DD6BCD5F65F27C6 /* HomeProfileMappingTests.swift */; };
 		B9F7A8AC082C7109A89564D6 /* VoxaOnboarding in Frameworks */ = {isa = PBXBuildFile; productRef = 737743FD285FE9CDB5765342 /* VoxaOnboarding */; };
 		BA87795CD4D2A2CFC93E5D09 /* Debug.local.xcconfig.example in Resources */ = {isa = PBXBuildFile; fileRef = A84342D47C001C539D577F0B /* Debug.local.xcconfig.example */; };
@@ -37,18 +38,18 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		02101B695C2D9996A1930DC7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		02101B695C2D9996A1930DC7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		0D64FF160DD6BCD5F65F27C6 /* HomeProfileMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeProfileMappingTests.swift; sourceTree = "<group>"; };
 		1921741EEB8549757C85F0F1 /* RealtimeSettingsMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeSettingsMappingTests.swift; sourceTree = "<group>"; };
-		36DF9CAB0B3F9064BD39886D /* VoxaApp */ = {isa = PBXFileReference; lastKnownFileType = folder; path = VoxaApp; sourceTree = SOURCE_ROOT; };
+		36DF9CAB0B3F9064BD39886D /* VoxaApp */ = {isa = PBXFileReference; lastKnownFileType = folder; name = VoxaApp; path = VoxaApp; sourceTree = SOURCE_ROOT; };
 		5A5E00DCF6BB580377C78446 /* VoxaTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = VoxaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9E8F971582777A3E0EADED22 /* VoxaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoxaApp.swift; sourceTree = "<group>"; };
-		A84342D47C001C539D577F0B /* Debug.local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text; path = Debug.local.xcconfig.example; sourceTree = "<group>"; };
+		A84342D47C001C539D577F0B /* Debug.local.xcconfig.example */ = {isa = PBXFileReference; path = Debug.local.xcconfig.example; sourceTree = "<group>"; };
 		ABCEF065F0D8F8BD03C32E27 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		B28A7372282125867EC6D720 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B51017412D55A184C39B1444 /* AppComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppComposition.swift; sourceTree = "<group>"; };
 		B99402AD2F3FBC19978C0D27 /* Voxa.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Voxa.entitlements; sourceTree = "<group>"; };
-		C19EC1FC8BBC2C5090B92A07 /* Voxa.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Voxa.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C19EC1FC8BBC2C5090B92A07 /* Voxa.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Voxa.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C4F2A05CCFE2E2214A4310FC /* AppCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCompositionTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -64,6 +65,7 @@
 				41B75AA47BC36DEEECD0D29F /* VoxaRealtime in Frameworks */,
 				DDFF784F5C425EC84A136170 /* VoxaRealtimeWebRTC in Frameworks */,
 				D79EA145BD6230D344B59301 /* VoxaHome in Frameworks */,
+				8BCF7B4C185B7AA9CF3F79CC /* VoxaProfiles in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -193,6 +195,7 @@
 				B7642F2D9B58B87218A6FB4D /* VoxaRealtime */,
 				0F8552691CF58B2C069AA76C /* VoxaRealtimeWebRTC */,
 				16FA577B6B64382B92E00620 /* VoxaHome */,
+				99EB21345C1A9E8706C3C5D2 /* VoxaProfiles */,
 			);
 			productName = Voxa;
 			productReference = C19EC1FC8BBC2C5090B92A07 /* Voxa.app */;
@@ -354,7 +357,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Voxa/Voxa.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 2PA85SU4UQ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Voxa/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -467,7 +469,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Voxa/Voxa.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 2PA85SU4UQ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Voxa/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -548,6 +549,10 @@
 		99E9556609810287793F6F44 /* VoxaAuth */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = VoxaAuth;
+		};
+		99EB21345C1A9E8706C3C5D2 /* VoxaProfiles */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoxaProfiles;
 		};
 		B7642F2D9B58B87218A6FB4D /* VoxaRealtime */ = {
 			isa = XCSwiftPackageProductDependency;

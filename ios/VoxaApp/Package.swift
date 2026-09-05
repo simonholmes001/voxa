@@ -47,7 +47,7 @@ let package = Package(
         .target(name: "VoxaHome", dependencies: ["VoxaDomain", "VoxaRealtime"]),
         .target(
             name: "VoxaAppShell",
-            dependencies: ["VoxaDomain", "VoxaNetworking", "VoxaPersistence", "VoxaAuth", "VoxaOnboarding", "VoxaRealtime", "VoxaHome"]
+            dependencies: ["VoxaDomain", "VoxaNetworking", "VoxaPersistence", "VoxaAuth", "VoxaOnboarding", "VoxaRealtime", "VoxaHome", "VoxaProfiles"]
         ),
         .testTarget(name: "VoxaAppShellTests", dependencies: ["VoxaAppShell"]),
         .testTarget(name: "VoxaAuthTests", dependencies: ["VoxaAuth"]),
