@@ -122,6 +122,25 @@ public sealed class TableLearnerStateRepositoryTests
         Assert.NotNull(await repository.GetAsync(TenantId.Create("tenant-b"), userId, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task ListAsyncIgnoresActiveLanguageMarkersForOtherUsers()
+    {
+        var table = new InMemoryLearnerStateTable();
+        var repository = new TableLearnerStateRepository(table);
+        var tenant = TenantId.Create("tenant-a");
+        var user = UserId.Create("user-a");
+        var otherUser = UserId.Create("user-b");
+
+        await repository.SaveAsync(CreateState(tenant, user), null, CancellationToken.None);
+        await repository.SaveAsync(CreateState(tenant, otherUser), null, CancellationToken.None);
+        await repository.SetActiveLanguageAsync(tenant, otherUser, "fr", CancellationToken.None);
+
+        var profiles = await repository.ListAsync(tenant, user, CancellationToken.None);
+
+        Assert.Single(profiles);
+        Assert.Equal("fr", profiles[0].Profile.TargetLanguage);
+    }
+
     private static LearnerState CreateState(TenantId tenantId, UserId userId)
     {
         return LearnerState.Create(

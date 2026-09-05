@@ -20,6 +20,22 @@ public sealed record LearnerProfileContract(
     IReadOnlyList<string> Goals,
     int DailyMinutes);
 
+public sealed record LanguageProfileContract(
+    string LanguageKey,
+    string DisplayName,
+    bool IsComplete,
+    LearnerProfileContract Profile,
+    long Version);
+
+public sealed record LanguageProfilesResponse(
+    string CorrelationId,
+    string? ActiveLanguageKey,
+    IReadOnlyList<LanguageProfileContract> Profiles);
+
+public sealed record SelectLanguageProfileResponse(
+    string CorrelationId,
+    string ActiveLanguageKey);
+
 public sealed record ActiveLearningPlanContract(
     string PlanId,
     string Title,

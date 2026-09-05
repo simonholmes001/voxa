@@ -16,6 +16,7 @@ public sealed class VoxaHttpFunctions(
     LogoutAppSessionEndpoint logout,
     RealtimeSessionEndpoint realtimeSession,
     ResumeSessionEndpoint resumeSession,
+    LanguageProfilesEndpoint languageProfiles,
     OnboardingSubmitEndpoint onboardingSubmit,
     DevResetEndpoint devReset,
     IAppSessionTokenValidator tokenValidator,
@@ -173,6 +174,50 @@ public sealed class VoxaHttpFunctions(
             cancellationToken);
     }
 
+    [Function("language-profiles-list")]
+    public async Task<HttpResponseData> ListLanguageProfilesAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "language-profiles")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var principal = Principal(request);
+        if (principal is null)
+        {
+            return await UnauthorizedAsync<LanguageProfilesResponse>(request, cancellationToken);
+        }
+
+        return await WriteAsync(
+            request,
+            await languageProfiles.GetAsync(
+                principal.TenantId,
+                principal.UserId,
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("language-profile-select")]
+    public async Task<HttpResponseData> SelectLanguageProfileAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "language-profiles/{languageKey}/select")] HttpRequestData request,
+        string languageKey,
+        CancellationToken cancellationToken)
+    {
+        var principal = Principal(request);
+        if (principal is null)
+        {
+            return await UnauthorizedAsync<SelectLanguageProfileResponse>(request, cancellationToken);
+        }
+
+        return await WriteAsync(
+            request,
+            await languageProfiles.SelectAsync(
+                languageKey,
+                principal.TenantId,
+                principal.UserId,
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
     [Function("health-deployment")]
     public async Task<HttpResponseData> DeploymentHealthAsync(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "health/deployment")] HttpRequestData request,
@@ -272,6 +317,23 @@ public sealed class VoxaHttpFunctions(
                 new ApiErrorResponse(
                     "invalid_json",
                     "Request body is not valid JSON.",
+                    correlationId.Value,
+                    false)),
+            cancellationToken);
+    }
+
+    private static Task<HttpResponseData> UnauthorizedAsync<T>(
+        HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var correlationId = Domain.Learners.CorrelationId.Create(CorrelationId(request));
+        return WriteAsync(
+            request,
+            ApiResponse<T>.Failure(
+                401,
+                new ApiErrorResponse(
+                    "app_session_required",
+                    "An authenticated app session is required.",
                     correlationId.Value,
                     false)),
             cancellationToken);

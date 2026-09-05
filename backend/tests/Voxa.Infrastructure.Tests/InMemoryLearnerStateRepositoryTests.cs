@@ -41,6 +41,45 @@ public sealed class InMemoryLearnerStateRepositoryTests
             repository.SaveAsync(state, LearnerStateVersion.Create(1), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task SaveAsyncKeepsDifferentLanguageProfilesSeparate()
+    {
+        var repository = new InMemoryLearnerStateRepository();
+        var tenant = TenantId.Create("tenant-a");
+        var user = UserId.Create("user-a");
+
+        await repository.SaveAsync(CreateState(tenant, user) with
+        {
+            Profile = CreateState(tenant, user).Profile with { TargetLanguage = "fr-FR" }
+        }, null, CancellationToken.None);
+        await repository.SaveAsync(CreateState(tenant, user) with
+        {
+            Profile = CreateState(tenant, user).Profile with { TargetLanguage = "es-ES" }
+        }, null, CancellationToken.None);
+
+        var profiles = await repository.ListAsync(tenant, user, CancellationToken.None);
+
+        Assert.Equal(["es-ES", "fr-FR"], profiles.Select(state => state.Profile.TargetLanguage));
+        Assert.Equal("es-ES", (await repository.GetAsync(tenant, user, "ES-es", CancellationToken.None))!.Profile.TargetLanguage);
+    }
+
+    [Fact]
+    public async Task DeleteAsyncRemovesAllLanguageProfilesForTheRequestedUser()
+    {
+        var repository = new InMemoryLearnerStateRepository();
+        var tenant = TenantId.Create("tenant-a");
+        var user = UserId.Create("user-a");
+        await repository.SaveAsync(CreateState(tenant, user), null, CancellationToken.None);
+        await repository.SaveAsync(CreateState(tenant, user) with
+        {
+            Profile = CreateState(tenant, user).Profile with { TargetLanguage = "es-ES" }
+        }, null, CancellationToken.None);
+
+        await repository.DeleteAsync(tenant, user, CancellationToken.None);
+
+        Assert.Empty(await repository.ListAsync(tenant, user, CancellationToken.None));
+    }
+
     private static LearnerState CreateState(TenantId tenantId, UserId userId)
     {
         return LearnerState.Create(

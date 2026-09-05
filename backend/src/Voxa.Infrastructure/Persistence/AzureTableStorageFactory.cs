@@ -108,6 +108,26 @@ public sealed class AzureLearnerStateTable(TableClient tableClient) : ILearnerSt
         {
         }
     }
+
+    public async Task<IReadOnlyList<LearnerStateTableEntity>> ListAsync(
+        string partitionKey,
+        CancellationToken cancellationToken)
+    {
+        var results = new List<LearnerStateTableEntity>();
+        await foreach (var entity in tableClient.QueryAsync<TableEntity>(
+                           table => table.PartitionKey == partitionKey,
+                           cancellationToken: cancellationToken))
+        {
+            results.Add(new LearnerStateTableEntity(
+                entity.PartitionKey,
+                entity.RowKey,
+                entity.ETag.ToString(),
+                entity.GetInt64("Version") ?? throw new InvalidOperationException("Learner state table entity is missing Version."),
+                entity.GetString("PayloadJson") ?? throw new InvalidOperationException("Learner state table entity is missing PayloadJson.")));
+        }
+
+        return results;
+    }
 }
 
 public sealed class AzureRefreshSessionTable(TableClient tableClient) : IRefreshSessionTable
