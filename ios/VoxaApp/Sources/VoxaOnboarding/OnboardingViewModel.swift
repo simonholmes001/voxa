@@ -253,6 +253,23 @@ public final class OnboardingViewModel {
         syncCustomTimeState()
     }
 
+    /// Hydrates the local draft from the selected server profile so every
+    /// feature that consumes onboarding state uses the same active language.
+    public func hydrate(from profile: OnboardingProfile, completed: Bool) {
+        draft.targetLanguage = profile.targetLanguage
+        draft.nativeLanguage = profile.nativeLanguage
+        draft.goals = profile.goals
+        draft.minutesPerDay = profile.minutesPerDay
+        draft.placementLevel = profile.placementLevel
+        draft.isCompleted = completed
+        if completed {
+            draft.stepIndex = OnboardingStep.summary.rawValue
+        }
+        phase = completed ? .completed : .inProgress
+        try? store.save(draft)
+        syncCustomTimeState()
+    }
+
     public func makeProfile() -> OnboardingProfile? {
         guard
             let targetLanguage = draft.targetLanguage, !targetLanguage.isEmpty,

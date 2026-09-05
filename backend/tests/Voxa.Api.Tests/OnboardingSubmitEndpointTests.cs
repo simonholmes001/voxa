@@ -21,7 +21,8 @@ public sealed class OnboardingSubmitEndpointTests
             TenantId.Create("tenant-default"),
             UserId.Create("user-a"),
             "corr-123",
-            CancellationToken.None);
+            expectedVersion: null,
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(200, response.StatusCode);
         Assert.NotNull(response.Body);

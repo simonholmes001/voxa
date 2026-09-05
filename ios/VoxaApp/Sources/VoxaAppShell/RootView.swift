@@ -70,6 +70,7 @@ public struct RootView: View {
         .task(id: authenticatedUserScope) {
             guard let session = authModel.state.session else { return }
             onboardingModel.scope(toTenantId: session.tenantId, userId: session.userId)
+            await profileModel?.load()
         }
     }
 
@@ -95,14 +96,15 @@ public struct RootView: View {
         switch profileModel.state {
         case .loading:
             ProgressView("Loading your languages…")
-                .task { await profileModel.load() }
         case .needsOnboarding:
             onboardingThenShell
         case let .single(profile):
             if profile.isComplete {
                 mainShell
+                    .onAppear { onboardingModel.hydrate(from: profile.profile, completed: true) }
             } else {
                 onboardingThenShell
+                    .onAppear { onboardingModel.hydrate(from: profile.profile, completed: false) }
             }
         case let .multiple(active, profiles):
             if isAddingLanguage {
@@ -116,7 +118,8 @@ public struct RootView: View {
                         activeKey: active,
                         onContinue: { profile in
                             Task {
-                                await profileModel.selectLanguage(profile.languageKey)
+                                guard await profileModel.selectLanguage(profile.languageKey) else { return }
+                                onboardingModel.hydrate(from: profile.profile, completed: true)
                                 didChooseLanguage = true
                             }
                         },
@@ -147,7 +150,7 @@ public struct RootView: View {
             .onChange(of: onboardingModel.isComplete) { _, complete in
                 guard complete, let key = onboardingModel.draft.targetLanguage else { return }
                 Task {
-                    await profileModel.selectLanguage(key)
+                    guard await profileModel.selectLanguage(key) else { return }
                     isAddingLanguage = false
                     didChooseLanguage = true
                 }

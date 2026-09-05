@@ -27,7 +27,8 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
                 DailyMinutes = command.DailyMinutes
             };
             var updated = existing with { Profile = updatedProfile };
-            var savedUpdate = await repository.SaveAsync(updated, existing.Version, cancellationToken);
+            var expectedVersion = command.ExpectedVersion ?? existing.Version;
+            var savedUpdate = await repository.SaveAsync(updated, expectedVersion, cancellationToken);
 
             await repository.SetActiveLanguageAsync(
                 command.TenantId,
@@ -72,7 +73,7 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
             ReviewQueue.Empty,
             RecentSessionSummaries.Empty);
 
-        var saved = await repository.SaveAsync(state, null, cancellationToken);
+        var saved = await repository.SaveAsync(state, command.ExpectedVersion, cancellationToken);
 
         await repository.SetActiveLanguageAsync(
             command.TenantId,

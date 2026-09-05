@@ -123,4 +123,19 @@ final class ProfileSelectionViewModelTests: XCTestCase {
 
         guard case .failed = model.state else { return XCTFail("expected failed") }
     }
+
+    func testSelectionFailureDoesNotReportSuccess() async {
+        let fr = profile("fr-FR", "French")
+        let service = FakeLanguageProfilesService(
+            list: .success(LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr, profile("es-ES", "Spanish")])),
+            select: .failure(LanguageProfilesError.transport)
+        )
+        let model = ProfileSelectionViewModel(service: service)
+        await model.load()
+
+        let selected = await model.selectLanguage("es-ES")
+
+        XCTAssertFalse(selected)
+        guard case .failed = model.state else { return XCTFail("expected failed") }
+    }
 }

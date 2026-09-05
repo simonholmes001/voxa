@@ -54,15 +54,18 @@ public final class ProfileSelectionViewModel {
 
     /// Switches the active language. On success `activeLanguageKey` reflects the
     /// server's new active key and the profile list is preserved.
-    public func selectLanguage(_ languageKey: String) async {
+    @discardableResult
+    public func selectLanguage(_ languageKey: String) async -> Bool {
         do {
             let newActive = try await service.selectActive(languageKey: languageKey)
             activeLanguageKey = newActive
             if case let .multiple(_, profiles) = state {
                 state = .multiple(active: newActive, profiles: profiles)
             }
+            return true
         } catch {
             state = .failed(Self.message(for: error))
+            return false
         }
     }
 

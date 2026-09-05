@@ -6,6 +6,7 @@ using Voxa.Api.Http;
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
 using Voxa.Application.Onboarding;
+using Voxa.Domain.Learners;
 using Voxa.Infrastructure.Authentication;
 
 namespace Voxa.Api.Functions;
@@ -118,6 +119,7 @@ public sealed class VoxaHttpFunctions(
                 principal.TenantId,
                 principal.UserId,
                 CorrelationId(request),
+                ExpectedVersion(request),
                 cancellationToken),
             cancellationToken);
     }
@@ -285,6 +287,19 @@ public sealed class VoxaHttpFunctions(
     {
         return request.Headers.TryGetValues("X-Correlation-Id", out var values)
             ? values.FirstOrDefault()
+            : null;
+    }
+
+    private static LearnerStateVersion? ExpectedVersion(HttpRequestData request)
+    {
+        if (!request.Headers.TryGetValues("If-Match", out var values))
+        {
+            return null;
+        }
+
+        var value = values.FirstOrDefault()?.Trim().Trim('"');
+        return long.TryParse(value, out var version) && version >= 0
+            ? LearnerStateVersion.Create(version)
             : null;
     }
 

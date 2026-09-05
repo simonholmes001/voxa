@@ -3,6 +3,24 @@ import XCTest
 
 @MainActor
 final class StartNewLanguageTests: XCTestCase {
+    func testHydrateSelectedProfileUpdatesSharedOnboardingState() {
+        let store = InMemoryOnboardingDraftStore()
+        let model = OnboardingViewModel(store: store)
+        let profile = OnboardingProfile(
+            targetLanguage: "es-ES",
+            nativeLanguage: "en-US",
+            goals: ["travel"],
+            minutesPerDay: 42,
+            placementLevel: .b1
+        )
+
+        model.hydrate(from: profile, completed: true)
+
+        XCTAssertEqual(model.makeProfile(), profile)
+        XCTAssertTrue(model.isComplete)
+        XCTAssertEqual(model.draft.stepIndex, OnboardingStep.summary.rawValue)
+    }
+
     func testStartNewLanguageResetsDraftForFreshOnboarding() {
         // A completed profile for one language...
         let store = InMemoryOnboardingDraftStore(

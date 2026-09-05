@@ -8,6 +8,7 @@ public struct LanguageSettingsView: View {
     @Bindable private var model: LanguageSettingsViewModel
     @State private var customGoalText = ""
     @State private var customGoalError: String?
+    @State private var customMinutesText = ""
 
     private static let languages = OnboardingLanguages.sorted
 
@@ -56,12 +57,22 @@ public struct LanguageSettingsView: View {
             Section("Daily time") {
                 Picker("Minutes per day", selection: Binding(
                     get: { model.minutesPerDay ?? DailyTimeSelection.presetMinutes.first! },
-                    set: { model.setMinutesPerDay($0) }
+                    set: {
+                        model.setMinutesPerDay($0)
+                        customMinutesText = ""
+                    }
                 )) {
                     ForEach(DailyTimeSelection.presetMinutes, id: \.self) { minutes in
                         Text("\(minutes) min").tag(minutes)
                     }
                 }
+                TextField("Custom minutes (5-180)", text: $customMinutesText)
+#if os(iOS)
+                    .keyboardType(.numberPad)
+#endif
+                    .onChange(of: customMinutesText) { _, value in
+                        _ = model.setCustomMinutes(value)
+                    }
             }
 
             Section("Level") {
@@ -83,6 +94,12 @@ public struct LanguageSettingsView: View {
             }
         }
         .navigationTitle("\(model.displayName) settings")
+        .onAppear {
+            if let minutes = model.minutesPerDay,
+               !DailyTimeSelection.isPreset(minutes) {
+                customMinutesText = String(minutes)
+            }
+        }
     }
 
     @ViewBuilder

@@ -33,6 +33,29 @@ public sealed class OnboardingServiceTests
         Assert.Equal(20, response.Profile.DailyMinutes);
     }
 
+    [Fact]
+    public async Task SubmitAsyncRejectsAStaleClientVersion()
+    {
+        var tenantId = TenantId.Create("tenant-a");
+        var userId = UserId.Create("user-a");
+        var repository = new RecordingLearnerStateRepository();
+        await repository.SaveAsync(CreateState(tenantId, userId), expectedVersion: null, CancellationToken.None);
+        var service = new OnboardingService(repository);
+
+        await Assert.ThrowsAsync<StaleLearnerStateVersionException>(() => service.SubmitAsync(
+            new OnboardingSubmitCommand(
+                tenantId,
+                userId,
+                "Spanish",
+                "English",
+                "A2",
+                ["travel"],
+                20,
+                CorrelationId.Create("corr-stale"),
+                LearnerStateVersion.Create(0)),
+            CancellationToken.None));
+    }
+
     private static LearnerState CreateState(TenantId tenantId, UserId userId)
     {
         return LearnerState.Create(
