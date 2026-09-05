@@ -1,4 +1,5 @@
 import Observation
+import os
 
 /// Drives the post-sign-in language-profile decision: zero profiles start
 /// onboarding, one profile opens directly, and multiple profiles let the
@@ -7,6 +8,7 @@ import Observation
 @MainActor
 @Observable
 public final class ProfileSelectionViewModel {
+    private static let logger = Logger(subsystem: "com.simonholmes.voxa", category: "profile-selection")
     public enum State: Sendable, Equatable {
         case loading
         /// No language profiles yet — begin first-language onboarding.
@@ -22,6 +24,7 @@ public final class ProfileSelectionViewModel {
     public private(set) var activeLanguageKey: String?
 
     private let service: any LanguageProfilesService
+    private var loadAttempt = 0
 
     public init(service: any LanguageProfilesService) {
         self.service = service
@@ -32,9 +35,16 @@ public final class ProfileSelectionViewModel {
     public var resolvedActiveKey: String? { activeLanguageKey }
 
     public func load() async {
+        loadAttempt += 1
+        let attempt = loadAttempt
         state = .loading
+        Self.logger.info("Profile list load started attempt=\(attempt, privacy: .public)")
         do {
             let list = try await service.list()
+            guard attempt == loadAttempt else {
+                Self.logger.info("Ignoring stale profile list result attempt=\(attempt, privacy: .public)")
+                return
+            }
             activeLanguageKey = list.activeLanguageKey ?? list.profiles.first?.languageKey
             switch list.profiles.count {
             case 0:
@@ -47,8 +57,14 @@ public final class ProfileSelectionViewModel {
             default:
                 state = .multiple(active: activeLanguageKey, profiles: list.profiles)
             }
+            Self.logger.info("Profile list load completed attempt=\(attempt, privacy: .public) count=\(list.profiles.count, privacy: .public) state=\(self.stateLabel, privacy: .public)")
         } catch {
+            guard attempt == loadAttempt else {
+                Self.logger.info("Ignoring stale profile list failure attempt=\(attempt, privacy: .public)")
+                return
+            }
             state = .failed(Self.message(for: error))
+            Self.logger.error("Profile list load failed attempt=\(attempt, privacy: .public) error=\(String(describing: error), privacy: .public)")
         }
     }
 
@@ -71,6 +87,16 @@ public final class ProfileSelectionViewModel {
 
     public func retry() async {
         await load()
+    }
+
+    private var stateLabel: String {
+        switch state {
+        case .loading: return "loading"
+        case .needsOnboarding: return "needsOnboarding"
+        case .single: return "single"
+        case .multiple: return "multiple"
+        case .failed: return "failed"
+        }
     }
 
     private static func message(for error: Error) -> String {
