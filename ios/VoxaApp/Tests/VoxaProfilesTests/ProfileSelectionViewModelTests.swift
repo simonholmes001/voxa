@@ -124,6 +124,28 @@ final class ProfileSelectionViewModelTests: XCTestCase {
         guard case .failed = model.state else { return XCTFail("expected failed") }
     }
 
+    // Scenario: a slow earlier request must not overwrite a newer successful
+    // profile load after the signed-in scope is retried.
+    func testOlderLoadCannotOverwriteNewerSuccessfulLoad() async {
+        let fr = profile("fr-FR", "French")
+        let es = profile("es-ES", "Spanish")
+        let service = SequencedLanguageProfilesService(
+            results: [
+                .delayed(.success(LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr]))),
+                .immediate(.success(LanguageProfileList(activeLanguageKey: "es-ES", profiles: [es])))
+            ]
+        )
+        let model = ProfileSelectionViewModel(service: service)
+
+        let firstLoad = Task { await model.load() }
+        await Task.yield()
+        await model.load()
+        await firstLoad.value
+
+        XCTAssertEqual(model.state, .single(es))
+        XCTAssertEqual(model.activeLanguageKey, "es-ES")
+    }
+
     func testSelectionFailureDoesNotReportSuccess() async {
         let fr = profile("fr-FR", "French")
         let service = FakeLanguageProfilesService(
@@ -137,5 +159,38 @@ final class ProfileSelectionViewModelTests: XCTestCase {
 
         XCTAssertFalse(selected)
         guard case .failed = model.state else { return XCTFail("expected failed") }
+    }
+}
+
+private final class SequencedLanguageProfilesService: LanguageProfilesService, @unchecked Sendable {
+    enum ResultMode {
+        case immediate(Result<LanguageProfileList, Error>)
+        case delayed(Result<LanguageProfileList, Error>)
+    }
+
+    private let results: [ResultMode]
+    private let lock = NSLock()
+    private var nextIndex = 0
+
+    init(results: [ResultMode]) {
+        self.results = results
+    }
+
+    func list() async throws -> LanguageProfileList {
+        let mode: ResultMode = lock.withLock {
+            defer { nextIndex += 1 }
+            return results[min(nextIndex, results.count - 1)]
+        }
+        if case .delayed = mode {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        switch mode {
+        case let .immediate(result), let .delayed(result):
+            return try result.get()
+        }
+    }
+
+    func selectActive(languageKey: String) async throws -> String {
+        languageKey
     }
 }
