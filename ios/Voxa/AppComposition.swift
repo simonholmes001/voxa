@@ -186,7 +186,10 @@ enum AppComposition {
             permission: SystemMicrophonePermission(),
             service: makeRealtimeSessionService(),
             transport: makeRealtimeTransport(),
-            accessTokenProvider: { [weak authModel] in authModel?.state.session?.accessToken }
+            accessTokenProvider: { [weak authModel] in authModel?.state.session?.accessToken },
+            onAuthenticationRequired: { [weak authModel] in
+                await authModel?.signOut()
+            }
         )
     }
 
