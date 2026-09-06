@@ -75,10 +75,21 @@ public final class ProfileSelectionViewModel {
         }
         inFlight = task
         await task.value
+        // Clear bookkeeping once the winning load finishes, so a later load()
+        // never cancels an already-completed task. A superseded load (whose id
+        // is stale) must not clear a newer task, so only the current id clears.
+        if currentLoadID == id {
+            inFlight = nil
+        }
     }
 
     /// Whether `id` is still the newest load; only then may state be mutated.
     private func isCurrentLoad(_ id: UInt64) -> Bool { id == currentLoadID }
+
+    #if DEBUG
+    /// Test hook: whether a load task is currently being tracked.
+    var hasInFlightLoadForTesting: Bool { inFlight != nil }
+    #endif
 
     private func performLoad(_ id: UInt64) async {
         // Superseded before this task even started — do not touch state.

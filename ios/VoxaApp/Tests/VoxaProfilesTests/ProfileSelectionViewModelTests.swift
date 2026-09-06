@@ -294,6 +294,22 @@ final class ProfileSelectionViewModelTests: XCTestCase {
             return XCTFail("expected a terminal .failed state, got \(model.state)")
         }
     }
+
+    // The winning load must clear its in-flight bookkeeping when it completes,
+    // so a later load() never cancels an already-finished task.
+    func testClearsInFlightBookkeepingAfterWinningLoadCompletes() async {
+        let fr = profile("fr-FR", "French")
+        let service = FakeLanguageProfilesService(
+            list: .success(LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr])))
+        let model = ProfileSelectionViewModel(service: service)
+
+        await model.load()
+        XCTAssertFalse(model.hasInFlightLoadForTesting, "in-flight task must be cleared after load completes")
+
+        // A subsequent load also completes and clears its bookkeeping.
+        await model.refresh()
+        XCTAssertFalse(model.hasInFlightLoadForTesting)
+    }
 }
 
 private final class SequencedLanguageProfilesService: LanguageProfilesService, @unchecked Sendable {
