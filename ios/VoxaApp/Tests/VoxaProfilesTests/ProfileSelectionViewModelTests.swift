@@ -125,21 +125,27 @@ final class ProfileSelectionViewModelTests: XCTestCase {
     }
 
     // Scenario: a slow earlier request must not overwrite a newer successful
-    // profile load after the signed-in scope is retried.
+    // profile load after the signed-in scope is retried. Deterministic: the
+    // older load is blocked inside list() until after the newer one resolves.
     func testOlderLoadCannotOverwriteNewerSuccessfulLoad() async {
         let fr = profile("fr-FR", "French")
         let es = profile("es-ES", "Spanish")
-        let service = SequencedLanguageProfilesService(
-            results: [
-                .delayed(.success(LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr]))),
-                .immediate(.success(LanguageProfileList(activeLanguageKey: "es-ES", profiles: [es])))
-            ]
+        let service = GatedFirstProfilesService(
+            first: LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr]),
+            second: LanguageProfileList(activeLanguageKey: "es-ES", profiles: [es])
         )
         let model = ProfileSelectionViewModel(service: service)
 
+        // Older load starts and blocks inside list().
         let firstLoad = Task { await model.load() }
-        await Task.yield()
+        await service.waitUntilFirstListStarted()
+
+        // Newer load resolves immediately and must win.
         await model.load()
+        XCTAssertEqual(model.state, .single(es))
+
+        // Release the older load; its result must not overwrite the newer one.
+        service.releaseFirst()
         await firstLoad.value
 
         XCTAssertEqual(model.state, .single(es))
@@ -245,6 +251,34 @@ final class ProfileSelectionViewModelTests: XCTestCase {
         XCTAssertEqual(model.allProfiles, [frUpdated, es])
         XCTAssertEqual(model.activeLanguageKey, "es-ES")
     }
+
+    // A superseded older load whose service ignores cancellation and resumes
+    // *after* a newer load has already reached a terminal state must not clobber
+    // that state (identity guard, not cancellation).
+    func testSupersededOlderLoadCannotOverwriteNewerTerminalState() async {
+        let fr = profile("fr-FR", "French")
+        let es = profile("es-ES", "Spanish")
+        let service = GatedFirstProfilesService(
+            first: LanguageProfileList(activeLanguageKey: "es-ES", profiles: [fr, es]),
+            second: LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr])
+        )
+        let model = ProfileSelectionViewModel(service: service)
+
+        // Load #1 starts and blocks inside list().
+        let firstLoad = Task { await model.load() }
+        await service.waitUntilFirstListStarted()
+
+        // Load #2 runs to completion -> terminal .single(fr).
+        await model.load()
+        XCTAssertEqual(model.state, .single(fr))
+
+        // Release load #1; its superseded result must not clobber the newer state.
+        service.releaseFirst()
+        await firstLoad.value
+
+        XCTAssertEqual(model.state, .single(fr))
+        XCTAssertEqual(model.activeLanguageKey, "fr-FR")
+    }
 }
 
 private final class SequencedLanguageProfilesService: LanguageProfilesService, @unchecked Sendable {
@@ -278,4 +312,47 @@ private final class SequencedLanguageProfilesService: LanguageProfilesService, @
     func selectActive(languageKey: String) async throws -> String {
         languageKey
     }
+}
+
+/// A profiles service whose first `list()` call blocks (ignoring cancellation)
+/// until explicitly released, so a test can interleave a superseding load. All
+/// access is on the main actor (the view model is `@MainActor`).
+private final class GatedFirstProfilesService: LanguageProfilesService, @unchecked Sendable {
+    private let first: LanguageProfileList
+    private let second: LanguageProfileList
+    private var callIndex = 0
+    private var firstStarted = false
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+    init(first: LanguageProfileList, second: LanguageProfileList) {
+        self.first = first
+        self.second = second
+    }
+
+    /// Resolves once the first `list()` call has begun and is blocked.
+    func waitUntilFirstListStarted() async {
+        if firstStarted { return }
+        await withCheckedContinuation { startedContinuation = $0 }
+    }
+
+    /// Unblocks the first `list()` call.
+    func releaseFirst() {
+        releaseContinuation?.resume()
+        releaseContinuation = nil
+    }
+
+    func list() async throws -> LanguageProfileList {
+        callIndex += 1
+        if callIndex == 1 {
+            firstStarted = true
+            startedContinuation?.resume()
+            startedContinuation = nil
+            await withCheckedContinuation { releaseContinuation = $0 }
+            return first
+        }
+        return second
+    }
+
+    func selectActive(languageKey: String) async throws -> String { languageKey }
 }

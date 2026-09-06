@@ -25,6 +25,9 @@ public final class ProfileSelectionViewModel {
 
     private let service: any LanguageProfilesService
     private var inFlight: Task<Void, Never>?
+    /// Monotonic identity of the newest `load()`. Only the load whose id still
+    /// equals this may mutate `state` — see `performLoad(_:)`.
+    private var currentLoadID: UInt64 = 0
 
     public init(service: any LanguageProfilesService) {
         self.service = service
@@ -54,29 +57,41 @@ public final class ProfileSelectionViewModel {
 
     /// Loads the language-profile list.
     ///
-    /// Single-flight and cancellation-safe: a newer `load()` cancels an older
-    /// in-flight one, and the work runs in an unstructured task so it is **not**
-    /// torn down if the SwiftUI `.task` that triggered it is cancelled while the
-    /// request is in flight. This guarantees the UI is never stranded on
-    /// `.loading` after a successful response — the previous stale-guard could
-    /// discard the winning response and leave no terminal state.
+    /// Single-flight and identity-guarded. A newer `load()` cancels the older
+    /// in-flight one and takes a fresh identity; **only the newest load may
+    /// mutate `state`** (including the initial `.loading`). The work runs in an
+    /// unstructured task so it is not torn down if the SwiftUI `.task` that
+    /// triggered it is cancelled mid-flight. Guarding by identity rather than
+    /// `Task.isCancelled` closes the window where a superseded task — whose body
+    /// happens to run after a newer load already reached a terminal state — could
+    /// clobber that state back to `.loading` and strand the UI.
     public func load() async {
         inFlight?.cancel()
+        currentLoadID &+= 1
+        let id = currentLoadID
         let task = Task { [weak self] in
             guard let self else { return }
-            await self.performLoad()
+            await self.performLoad(id)
         }
         inFlight = task
         await task.value
     }
 
-    private func performLoad() async {
+    /// Whether `id` is still the newest load; only then may state be mutated.
+    private func isCurrentLoad(_ id: UInt64) -> Bool { id == currentLoadID }
+
+    private func performLoad(_ id: UInt64) async {
+        // Superseded before this task even started — do not touch state.
+        guard isCurrentLoad(id) else {
+            Self.logger.info("profile.load.superseded")
+            return
+        }
         state = .loading
         Self.logger.info("profile.load.start")
         do {
             let list = try await service.list()
             // Superseded by a newer load — that one owns the terminal state.
-            if Task.isCancelled {
+            guard isCurrentLoad(id) else {
                 Self.logger.info("profile.load.superseded")
                 return
             }
@@ -94,9 +109,13 @@ public final class ProfileSelectionViewModel {
             }
             Self.logger.info("profile.load.done count=\(list.profiles.count, privacy: .public) state=\(self.stateLabel, privacy: .public)")
         } catch {
-            // A cancelled load never overwrites state with a false failure; the
+            // A superseded or cancelled load never overwrites state; the
             // superseding load (or a re-trigger) will drive the terminal state.
-            if Task.isCancelled || error is CancellationError {
+            guard isCurrentLoad(id) else {
+                Self.logger.info("profile.load.superseded")
+                return
+            }
+            if error is CancellationError {
                 Self.logger.info("profile.load.cancelled")
                 return
             }
