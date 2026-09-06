@@ -21,6 +21,7 @@ enum AppComposition {
         let authModel = makeAuthModel()
         let onboardingService = makeOnboardingService(authModel: authModel)
         let onboardingModel = makeOnboardingModel(service: onboardingService)
+        let languageSettingsService = makeLanguageSettingsService(authModel: authModel)
         return RootView(
             authModel: authModel,
             onboardingModel: onboardingModel,
@@ -31,7 +32,9 @@ enum AppComposition {
             ),
             talkModel: makeTalkModel(authModel: authModel, onboardingModel: onboardingModel),
             profileModel: makeProfileModel(authModel: authModel),
-            developerResetService: makeDeveloperResetService()
+            makeLanguageSettingsModel: { profile in
+                LanguageSettingsViewModel(profile: profile, service: languageSettingsService)
+            }
         )
     }
 

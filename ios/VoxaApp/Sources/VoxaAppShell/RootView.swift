@@ -17,13 +17,10 @@ public struct RootView: View {
     @State private var navigationModel: AppNavigationModel
     @State private var authModel: AuthViewModel
     @State private var onboardingModel: OnboardingViewModel
-    #if DEBUG
-    @State private var debugResetError: String?
-    #endif
     private let homeModel: HomeViewModel?
     private let talkModel: TalkSessionViewModel?
     private let profileModel: ProfileSelectionViewModel?
-    private let developerResetService: (any DeveloperResetService)?
+    private let makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)?
     @State private var isAddingLanguage = false
     @State private var didChooseLanguage = false
     @State private var addLanguageActivationError: String?
@@ -36,7 +33,7 @@ public struct RootView: View {
         homeModel: HomeViewModel? = nil,
         talkModel: TalkSessionViewModel? = nil,
         profileModel: ProfileSelectionViewModel? = nil,
-        developerResetService: (any DeveloperResetService)? = nil
+        makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)? = nil
     ) {
         _navigationModel = State(initialValue: navigationModel)
         _authModel = State(initialValue: authModel ?? AuthViewModel())
@@ -44,33 +41,13 @@ public struct RootView: View {
         self.homeModel = homeModel
         self.talkModel = talkModel
         self.profileModel = profileModel
-        self.developerResetService = developerResetService
+        self.makeLanguageSettingsModel = makeLanguageSettingsModel
     }
 
     public var body: some View {
         AuthGate(model: authModel) {
             signedInContent
         }
-        #if DEBUG
-        .safeAreaInset(edge: .bottom, alignment: .trailing) {
-            if developerResetService != nil {
-                VStack(alignment: .trailing, spacing: 8) {
-                    if let debugResetError {
-                        Text(debugResetError)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    Button("Reset first run") {
-                        Task { await resetFirstRunForReview() }
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("debug-reset-first-run")
-                }
-                .padding()
-            }
-        }
-        #endif
         .task {
             Self.lifecycleLogger.info("auth.restore.start")
             await authModel.restore()
@@ -108,49 +85,58 @@ public struct RootView: View {
 
     @ViewBuilder
     private func profileFlow(_ profileModel: ProfileSelectionViewModel) -> some View {
-        switch profileModel.state {
-        case .loading:
-            ProgressView("Loading your languages…")
-        case .needsOnboarding:
-            onboardingThenShell
-        case let .single(profile):
-            if profile.isComplete {
-                mainShell
-                    .onAppear { onboardingModel.hydrate(from: profile.profile, completed: true) }
-            } else {
+        if isAddingLanguage {
+            // Adding a language takes over the screen (like first onboarding),
+            // then returns to the shell with the new course active. Triggerable
+            // from the initial chooser or the in-app Languages manager.
+            addingLanguageFlow(profileModel)
+        } else {
+            switch profileModel.state {
+            case .loading:
+                ProgressView("Loading your languages…")
+            case .needsOnboarding:
                 onboardingThenShell
-                    .onAppear { onboardingModel.hydrate(from: profile.profile, completed: false) }
-            }
-        case let .multiple(active, profiles):
-            if isAddingLanguage {
-                addingLanguageFlow(profileModel)
-            } else if didChooseLanguage {
-                mainShell
-            } else {
-                NavigationStack {
-                    LanguageChoiceView(
-                        profiles: profiles,
-                        activeKey: active,
-                        onContinue: { profile in
-                            Task { await openSelectedProfile(profile, using: profileModel) }
-                        },
-                        onAddLanguage: {
-                            onboardingModel.startNewLanguageOnboarding()
-                            isAddingLanguage = true
-                        }
-                    )
+            case let .single(profile):
+                if profile.isComplete {
+                    mainShell
+                        .onAppear { onboardingModel.hydrate(from: profile.profile, completed: true) }
+                } else {
+                    onboardingThenShell
+                        .onAppear { onboardingModel.hydrate(from: profile.profile, completed: false) }
                 }
+            case let .multiple(active, profiles):
+                if didChooseLanguage {
+                    mainShell
+                } else {
+                    NavigationStack {
+                        LanguageChoiceView(
+                            profiles: profiles,
+                            activeKey: active,
+                            onContinue: { profile in
+                                Task { await openSelectedProfile(profile, using: profileModel) }
+                            },
+                            onAddLanguage: { startAddingLanguage() }
+                        )
+                    }
+                }
+            case let .failed(message):
+                VStack(spacing: 16) {
+                    Text(message)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                    Button("Try again") { Task { await profileModel.retry() } }
+                        .buttonStyle(.bordered)
+                }
+                .padding()
             }
-        case let .failed(message):
-            VStack(spacing: 16) {
-                Text(message)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                Button("Try again") { Task { await profileModel.retry() } }
-                    .buttonStyle(.bordered)
-            }
-            .padding()
         }
+    }
+
+    /// Begins onboarding for a brand-new language (a new parallel course),
+    /// preserving every existing language's progress.
+    private func startAddingLanguage() {
+        onboardingModel.startNewLanguageOnboarding()
+        isAddingLanguage = true
     }
 
     /// Activates the server profile before exposing the shared main shell.
@@ -200,6 +186,9 @@ public struct RootView: View {
             addLanguageActivationError = "Your profile was saved, but the language could not be activated."
             return
         }
+        // Reload so a former single-language learner becomes multi-language and
+        // the shell opens the new course instead of re-hydrating the old one.
+        await profileModel.refresh()
         addLanguageActivationError = nil
         isAddingLanguage = false
         didChooseLanguage = true
@@ -210,26 +199,50 @@ public struct RootView: View {
     }
 
     private var mainShell: some View {
-        MainShellView(model: navigationModel, homeModel: homeModel, talkModel: talkModel)
+        MainShellView(
+            model: navigationModel,
+            homeModel: homeModel,
+            talkModel: talkModel,
+            languageManager: languageManagerContext
+        )
     }
 
-    #if DEBUG
+    /// Bundles the data and actions the More/Languages surface needs, when a
+    /// profile model and a settings-model factory are available.
+    private var languageManagerContext: LanguageManagerContext? {
+        guard let profileModel, let makeLanguageSettingsModel else { return nil }
+        return LanguageManagerContext(
+            profileModel: profileModel,
+            makeSettingsModel: makeLanguageSettingsModel,
+            onSwitch: { profile in
+                Task {
+                    await openSelectedProfile(profile, using: profileModel)
+                    navigationModel.selectedRoute = .home
+                }
+            },
+            onAddLanguage: { startAddingLanguage() },
+            onSignOut: { Task { await signOut() } }
+        )
+    }
+
     @MainActor
-    private func resetFirstRunForReview() async {
-        debugResetError = nil
-        if let accessToken = authModel.state.session?.accessToken {
-            do {
-                try await developerResetService?.resetLearnerState(accessToken: accessToken)
-            } catch {
-                debugResetError = "Reset failed. Check backend dev reset is deployed."
-                return
-            }
-        }
+    private func signOut() async {
         await authModel.signOut()
-        onboardingModel.resetForFirstRunReview()
+        didChooseLanguage = false
+        isAddingLanguage = false
         navigationModel.selectedRoute = .home
     }
-    #endif
+}
+
+/// Data and actions the in-app Languages manager (More surface) needs. Held by
+/// `RootView` and passed down through the shell so the manager stays wired to
+/// the single shared `ProfileSelectionViewModel`.
+struct LanguageManagerContext {
+    let profileModel: ProfileSelectionViewModel
+    let makeSettingsModel: @MainActor (LanguageProfile) -> LanguageSettingsViewModel
+    let onSwitch: (LanguageProfile) -> Void
+    let onAddLanguage: () -> Void
+    let onSignOut: () -> Void
 }
 
 /// The adaptive navigation shell shown once the learner is signed in.
@@ -243,6 +256,7 @@ struct MainShellView: View {
     var model: AppNavigationModel
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
+    var languageManager: LanguageManagerContext?
 
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -251,9 +265,9 @@ struct MainShellView: View {
     var body: some View {
         switch AdaptiveLayoutResolver.layout(for: resolvedSizeClass) {
         case .tabBar:
-            TabLayout(model: model, homeModel: homeModel, talkModel: talkModel)
+            TabLayout(model: model, homeModel: homeModel, talkModel: talkModel, languageManager: languageManager)
         case .splitView:
-            SplitLayout(model: model, homeModel: homeModel, talkModel: talkModel)
+            SplitLayout(model: model, homeModel: homeModel, talkModel: talkModel, languageManager: languageManager)
         }
     }
 
@@ -275,6 +289,7 @@ private struct TabLayout: View {
     @Bindable var model: AppNavigationModel
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
+    var languageManager: LanguageManagerContext?
 
     var body: some View {
         TabView(selection: $model.selectedRoute) {
@@ -284,6 +299,7 @@ private struct TabLayout: View {
                         route: route,
                         homeModel: homeModel,
                         talkModel: talkModel,
+                        languageManager: languageManager,
                         onStartTalk: { model.selectedRoute = .talk }
                     )
                 }
@@ -321,6 +337,7 @@ private struct SplitLayout: View {
     @Bindable var model: AppNavigationModel
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
+    var languageManager: LanguageManagerContext?
 
     var body: some View {
         NavigationSplitView {
@@ -335,6 +352,7 @@ private struct SplitLayout: View {
                     route: model.selectedRoute,
                     homeModel: homeModel,
                     talkModel: talkModel,
+                    languageManager: languageManager,
                     onStartTalk: { model.selectedRoute = .talk }
                 )
             }

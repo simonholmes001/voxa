@@ -34,6 +34,24 @@ public final class ProfileSelectionViewModel {
     /// language key to open, or `nil` when onboarding is needed.
     public var resolvedActiveKey: String? { activeLanguageKey }
 
+    /// Every language profile the learner has, across any resolved state. Used
+    /// by the in-app language manager (More surface) to list and switch between
+    /// parallel courses.
+    public var allProfiles: [LanguageProfile] {
+        switch state {
+        case let .single(profile): return [profile]
+        case let .multiple(_, profiles): return profiles
+        default: return []
+        }
+    }
+
+    /// Whether the learner has at least one language profile.
+    public var hasProfiles: Bool { !allProfiles.isEmpty }
+
+    /// Reloads the profile list — call after editing a language's settings or
+    /// adding a new language so versions and membership stay current.
+    public func refresh() async { await load() }
+
     /// Loads the language-profile list.
     ///
     /// Single-flight and cancellation-safe: a newer `load()` cancels an older

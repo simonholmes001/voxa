@@ -197,6 +197,54 @@ final class ProfileSelectionViewModelTests: XCTestCase {
         XCTAssertNotEqual(model.state, .loading)
         XCTAssertEqual(model.state, .single(fr))
     }
+
+    // MARK: - In-app language manager accessors
+
+    func testAllProfilesEmptyWhenNeedsOnboarding() async {
+        let service = FakeLanguageProfilesService(list: .success(LanguageProfileList(activeLanguageKey: nil, profiles: [])))
+        let model = ProfileSelectionViewModel(service: service)
+        await model.load()
+        XCTAssertTrue(model.allProfiles.isEmpty)
+        XCTAssertFalse(model.hasProfiles)
+    }
+
+    func testAllProfilesReturnsTheSingleProfile() async {
+        let fr = profile("fr-FR", "French")
+        let service = FakeLanguageProfilesService(list: .success(LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr])))
+        let model = ProfileSelectionViewModel(service: service)
+        await model.load()
+        XCTAssertEqual(model.allProfiles, [fr])
+        XCTAssertTrue(model.hasProfiles)
+    }
+
+    func testAllProfilesReturnsEveryParallelCourse() async {
+        let fr = profile("fr-FR", "French")
+        let es = profile("es-ES", "Spanish")
+        let service = FakeLanguageProfilesService(
+            list: .success(LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr, es])))
+        let model = ProfileSelectionViewModel(service: service)
+        await model.load()
+        XCTAssertEqual(model.allProfiles, [fr, es])
+        XCTAssertEqual(model.activeLanguageKey, "fr-FR")
+    }
+
+    // Editing a language bumps its version; refresh() must surface the new list.
+    func testRefreshReloadsTheUpdatedList() async {
+        let fr = profile("fr-FR", "French", version: 1)
+        let service = FakeLanguageProfilesService(
+            list: .success(LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr])))
+        let model = ProfileSelectionViewModel(service: service)
+        await model.load()
+        XCTAssertEqual(model.allProfiles, [fr])
+
+        let frUpdated = profile("fr-FR", "French", version: 2)
+        let es = profile("es-ES", "Spanish")
+        service.listResult = .success(LanguageProfileList(activeLanguageKey: "es-ES", profiles: [frUpdated, es]))
+        await model.refresh()
+
+        XCTAssertEqual(model.allProfiles, [frUpdated, es])
+        XCTAssertEqual(model.activeLanguageKey, "es-ES")
+    }
 }
 
 private final class SequencedLanguageProfilesService: LanguageProfilesService, @unchecked Sendable {
