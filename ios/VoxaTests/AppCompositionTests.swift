@@ -1,6 +1,15 @@
 import XCTest
 @testable import Voxa
+import VoxaAuth
 import VoxaOnboarding
+
+private final class StubAuthenticationService: AuthenticationService, @unchecked Sendable {
+    let session: AuthSession
+    init(session: AuthSession) { self.session = session }
+    func exchange(_ proof: AppleIdentityProof) async throws -> AuthSession { session }
+    func refresh(_ session: AuthSession) async throws -> AuthSession { session }
+    func invalidate(_ session: AuthSession) async throws {}
+}
 
 /// Smoke tests for the Voxa app target.
 ///
@@ -13,6 +22,45 @@ final class AppCompositionTests: XCTestCase {
     func testCompositionRootBuildsRootView() {
         // The composition root must return the shell's adaptive root view.
         _ = AppComposition.makeRootView()
+    }
+
+    /// Regression guard for the post-sign-in "no access token" device bug.
+    ///
+    /// Every authenticated backend service must read its token from the live,
+    /// shared `AuthViewModel` behind the auth gate. Before sign-in the provider
+    /// yields `nil`; after the same model signs in, it must yield that session's
+    /// access token. If a service is ever wired to a different `AuthViewModel`
+    /// (as happened when `makeRootView()` was re-invoked per SwiftUI render and
+    /// rewired `RootView`'s non-`@State` child models to a fresh signed-out
+    /// model), this invariant breaks and every request loses its token.
+    @MainActor
+    func testAccessTokenProviderReflectsSharedAuthModelSignIn() async {
+        let session = AuthSession(
+            accessToken: "access-123",
+            refreshToken: "refresh-123",
+            expiresAt: Date().addingTimeInterval(3600),
+            refreshTokenExpiresAt: Date().addingTimeInterval(7200),
+            userId: "user-1",
+            tenantId: "tenant-1")
+        let authModel = AuthViewModel(
+            store: EphemeralSessionStore(),
+            service: StubAuthenticationService(session: session))
+        let provider = AppComposition.accessTokenProvider(for: authModel)
+
+        let tokenBeforeSignIn = await provider()
+        XCTAssertNil(tokenBeforeSignIn, "Signed-out model must not expose a token")
+
+        await authModel.signIn(with: AppleIdentityProof(
+            identityToken: Data("id".utf8),
+            authorizationCode: Data("code".utf8),
+            nonce: "nonce",
+            userID: "user-1"))
+
+        let tokenAfterSignIn = await provider()
+        XCTAssertEqual(
+            tokenAfterSignIn,
+            "access-123",
+            "Provider must read the token from the same model the auth gate signed in")
     }
 
     func testResolveBaseURLRejectsMissingAndBlankValues() {

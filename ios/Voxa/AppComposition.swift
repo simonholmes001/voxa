@@ -40,6 +40,18 @@ enum AppComposition {
         ProfileSelectionViewModel(service: makeLanguageProfilesService(authModel: authModel))
     }
 
+    /// The single source of truth for the app-session access token used by every
+    /// authenticated backend service. Every service must read its token from the
+    /// *same* `AuthViewModel` instance the auth gate signs in; if a service is
+    /// wired to a different (or freshly re-created, signed-out) `AuthViewModel`,
+    /// its requests silently lose the token and the backend answers 401. Routing
+    /// all services through this helper keeps that wiring in one place.
+    static func accessTokenProvider(
+        for authModel: AuthViewModel
+    ) -> @MainActor @Sendable () -> String? {
+        { @MainActor in authModel.state.session?.accessToken }
+    }
+
     @MainActor
     static func makeLanguageProfilesService(authModel: AuthViewModel) -> any LanguageProfilesService {
         guard let baseURL = backendBaseURL() else {
@@ -47,7 +59,7 @@ enum AppComposition {
         }
         return VoxaBackendLanguageProfilesService(
             baseURL: baseURL,
-            accessTokenProvider: { @MainActor in authModel.state.session?.accessToken }
+            accessTokenProvider: accessTokenProvider(for: authModel)
         )
     }
 
@@ -60,7 +72,7 @@ enum AppComposition {
         }
         return VoxaBackendLanguageSettingsService(
             baseURL: baseURL,
-            accessTokenProvider: { @MainActor in authModel.state.session?.accessToken }
+            accessTokenProvider: accessTokenProvider(for: authModel)
         )
     }
 
