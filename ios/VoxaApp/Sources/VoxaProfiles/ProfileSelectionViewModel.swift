@@ -109,15 +109,16 @@ public final class ProfileSelectionViewModel {
             }
             Self.logger.info("profile.load.done count=\(list.profiles.count, privacy: .public) state=\(self.stateLabel, privacy: .public)")
         } catch {
-            // A superseded or cancelled load never overwrites state; the
-            // superseding load (or a re-trigger) will drive the terminal state.
+            // Superseded loads never touch state — the newer (current) load owns
+            // the terminal state. But the *current* load must ALWAYS resolve to a
+            // terminal state, even on cooperative cancellation (e.g. URLSession
+            // throwing on cancel), so the UI can never strand on `.loading`.
             guard isCurrentLoad(id) else {
                 Self.logger.info("profile.load.superseded")
                 return
             }
             if error is CancellationError {
-                Self.logger.info("profile.load.cancelled")
-                return
+                Self.logger.info("profile.load.cancelled-current")
             }
             state = .failed(Self.message(for: error))
             Self.logger.error("profile.load.failed error=\(String(describing: error), privacy: .public)")

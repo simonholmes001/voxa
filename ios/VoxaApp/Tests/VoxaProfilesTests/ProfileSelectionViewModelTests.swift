@@ -279,6 +279,21 @@ final class ProfileSelectionViewModelTests: XCTestCase {
         XCTAssertEqual(model.state, .single(fr))
         XCTAssertEqual(model.activeLanguageKey, "fr-FR")
     }
+
+    // A *current* load whose service cooperatively throws CancellationError
+    // (e.g. URLSession throwing on cancel) must still reach a terminal state —
+    // it must never strand on .loading.
+    func testCurrentLoadThrowingCancellationResolvesToTerminalState() async {
+        let service = FakeLanguageProfilesService(list: .failure(CancellationError()))
+        let model = ProfileSelectionViewModel(service: service)
+
+        await model.load()
+
+        XCTAssertNotEqual(model.state, .loading, "current load must not strand on .loading")
+        guard case .failed = model.state else {
+            return XCTFail("expected a terminal .failed state, got \(model.state)")
+        }
+    }
 }
 
 private final class SequencedLanguageProfilesService: LanguageProfilesService, @unchecked Sendable {
