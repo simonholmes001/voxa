@@ -21,8 +21,26 @@ public sealed class RealtimeSessionServiceTests
         Assert.Equal("tutor", issuer.Settings?.CoachingMode);
         Assert.Equal("B1-B2", issuer.Settings?.ProficiencyBand);
         Assert.Equal("fr-FR", issuer.Settings?.TargetLanguage);
+        Assert.Null(issuer.Settings?.SessionIntent);
         Assert.Equal("user-a", rateLimiter.CheckedUserId);
         Assert.Equal("issued", audit.Events.Single().Outcome);
+    }
+
+    [Fact]
+    public async Task IssueClientSecretCarriesLearningIntentToIssuer()
+    {
+        var issuer = new StubRealtimeClientSecretIssuer();
+        var service = new RealtimeSessionService(
+            issuer,
+            new RecordingRealtimeSessionRateLimiter(),
+            new RecordingRealtimeSessionAuditLog());
+
+        await service.IssueClientSecretAsync(
+            CreateCommand(sessionIntent: "lesson", focusTitle: "Survival German"),
+            CancellationToken.None);
+
+        Assert.Equal("lesson", issuer.Settings?.SessionIntent);
+        Assert.Equal("Survival German", issuer.Settings?.FocusTitle);
     }
 
     [Fact]
@@ -55,7 +73,11 @@ public sealed class RealtimeSessionServiceTests
         Assert.Equal("rate_limited", audit.Events.Single().Outcome);
     }
 
-    private static RealtimeSessionCommand CreateCommand(string coachingMode = "tutor")
+    private static RealtimeSessionCommand CreateCommand(
+        string coachingMode = "tutor",
+        string? sessionIntent = null,
+        string? focusTitle = null,
+        int? dueReviewCount = null)
     {
         return RealtimeSessionCommand.Create(
             "tenant-default",
@@ -63,6 +85,9 @@ public sealed class RealtimeSessionServiceTests
             coachingMode,
             "B1-B2",
             "fr-FR",
+            sessionIntent,
+            focusTitle,
+            dueReviewCount,
             CorrelationId.Create("corr-123"));
     }
 

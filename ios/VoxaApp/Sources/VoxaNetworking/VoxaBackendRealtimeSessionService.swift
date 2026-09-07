@@ -33,7 +33,10 @@ public struct VoxaBackendRealtimeSessionService: RealtimeSessionService {
             RealtimeSessionRequestDTO(
                 coachingMode: settings.coachingMode,
                 proficiencyBand: settings.proficiencyBand,
-                targetLanguage: settings.targetLanguage
+                targetLanguage: settings.targetLanguage,
+                sessionIntent: settings.sessionIntent,
+                focusTitle: settings.focusTitle,
+                dueReviewCount: settings.dueReviewCount
             )
         )
 

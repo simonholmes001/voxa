@@ -260,7 +260,26 @@ final class TalkSessionViewModelTests: XCTestCase {
 
         await model.start()
 
-        XCTAssertEqual(service.createdWith.first?.0, custom)
+        XCTAssertEqual(service.createdWith.first?.0.coachingMode, custom.coachingMode)
+        XCTAssertEqual(service.createdWith.first?.0.proficiencyBand, custom.proficiencyBand)
+        XCTAssertEqual(service.createdWith.first?.0.targetLanguage, custom.targetLanguage)
+        XCTAssertEqual(service.createdWith.first?.0.sessionIntent, "practice")
+    }
+
+    func testPreparedLessonIntentIsSentToService() async {
+        let service = FakeRealtimeSessionService(result: .success(credential()))
+        let model = TalkSessionViewModel(
+            settings: settings,
+            permission: FakeMicrophonePermission(current: .granted),
+            service: service,
+            accessTokenProvider: { "t" }
+        )
+        model.prepare(.lesson(title: "Survival German"))
+
+        await model.start()
+
+        XCTAssertEqual(service.createdWith.first?.0.sessionIntent, "lesson")
+        XCTAssertEqual(service.createdWith.first?.0.focusTitle, "Survival German")
     }
 
     func testSettingsProviderIsEvaluatedAtStart() async {

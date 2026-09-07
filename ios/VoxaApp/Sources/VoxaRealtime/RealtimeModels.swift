@@ -43,11 +43,43 @@ public struct RealtimeCoachingSettings: Sendable, Equatable {
     public var coachingMode: String
     public var proficiencyBand: String
     public var targetLanguage: String
+    public var sessionIntent: String?
+    public var focusTitle: String?
+    public var dueReviewCount: Int?
 
-    public init(coachingMode: String = "tutor", proficiencyBand: String, targetLanguage: String) {
+    public init(
+        coachingMode: String = "tutor",
+        proficiencyBand: String,
+        targetLanguage: String,
+        sessionIntent: String? = nil,
+        focusTitle: String? = nil,
+        dueReviewCount: Int? = nil
+    ) {
         self.coachingMode = coachingMode
         self.proficiencyBand = proficiencyBand
         self.targetLanguage = targetLanguage
+        self.sessionIntent = sessionIntent
+        self.focusTitle = focusTitle
+        self.dueReviewCount = dueReviewCount
+    }
+
+    public func applying(_ intent: RealtimeTutorIntent) -> RealtimeCoachingSettings {
+        var copy = self
+        switch intent {
+        case .openPractice:
+            copy.sessionIntent = "practice"
+            copy.focusTitle = nil
+            copy.dueReviewCount = nil
+        case let .lesson(title):
+            copy.sessionIntent = "lesson"
+            copy.focusTitle = title
+            copy.dueReviewCount = nil
+        case let .review(dueCount):
+            copy.sessionIntent = "review"
+            copy.focusTitle = nil
+            copy.dueReviewCount = dueCount
+        }
+        return copy
     }
 }
 

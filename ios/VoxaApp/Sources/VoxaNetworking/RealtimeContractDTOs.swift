@@ -8,12 +8,18 @@ struct RealtimeSessionRequestDTO: Encodable {
     let coachingMode: String
     let proficiencyBand: String
     let targetLanguage: String
+    let sessionIntent: String?
+    let focusTitle: String?
+    let dueReviewCount: Int?
 }
 
 struct RealtimeSessionSettingsDTO: Codable {
     let coachingMode: String
     let proficiencyBand: String
     let targetLanguage: String
+    let sessionIntent: String?
+    let focusTitle: String?
+    let dueReviewCount: Int?
 }
 
 struct RealtimeSessionResponseDTO: Decodable {
@@ -33,7 +39,10 @@ struct RealtimeSessionResponseDTO: Decodable {
             settings: RealtimeCoachingSettings(
                 coachingMode: settings.coachingMode,
                 proficiencyBand: settings.proficiencyBand,
-                targetLanguage: settings.targetLanguage
+                targetLanguage: settings.targetLanguage,
+                sessionIntent: settings.sessionIntent,
+                focusTitle: settings.focusTitle,
+                dueReviewCount: settings.dueReviewCount
             )
         )
     }

@@ -83,7 +83,7 @@ public final class TalkSessionViewModel {
             return
         }
 
-        let settings = settingsProvider()
+        let settings = settingsProvider().applying(pendingIntent)
         state = .requestingSession
         let credential: RealtimeSessionCredential
         do {

@@ -42,7 +42,8 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
                 new OpenAiRealtimeSessionRequest(
                     "realtime",
                     route.Model,
-                    new OpenAiRealtimeReasoning(route.ReasoningEffort))))
+                    new OpenAiRealtimeReasoning(route.ReasoningEffort),
+                    BuildInstructions(request.Settings))))
         };
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
 
@@ -84,6 +85,42 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
             DateTimeOffset.FromUnixTimeSeconds(expiresAt.Value),
             request.Settings);
     }
+
+    private static string BuildInstructions(RealtimeSessionSettingsContract settings)
+    {
+        var baseInstructions = string.Join(
+            " ",
+            "You are Voxa, a spoken language-learning tutor.",
+            $"Target language: {settings.TargetLanguage}.",
+            $"Learner level: {settings.ProficiencyBand}.",
+            "Keep replies short enough for a voice conversation.",
+            "Coach through natural conversation, ask one question at a time, and correct gently after the learner answers.");
+
+        return settings.SessionIntent?.ToLowerInvariant() switch
+        {
+            "lesson" => string.Join(
+                " ",
+                baseInstructions,
+                $"Run an assistant-led lesson focused on {TextOrDefault(settings.FocusTitle, "today's learning plan")}.",
+                "Structure the session as warm-up, key phrases, short roleplay, correction, and retry."),
+            "review" => string.Join(
+                " ",
+                baseInstructions,
+                settings.DueReviewCount is > 0
+                    ? $"Prioritize the {settings.DueReviewCount.Value} review items currently due."
+                    : "Run a review conversation using recent mistakes, weak words, and pronunciation targets.",
+                "Ask the learner to produce language before explaining."),
+            _ => string.Join(
+                " ",
+                baseInstructions,
+                "Run open speaking practice adapted to the learner's goal and current level.")
+        };
+    }
+
+    private static string TextOrDefault(string? value, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+    }
 }
 
 internal sealed record OpenAiRealtimeClientSecretRequest(
@@ -92,7 +129,8 @@ internal sealed record OpenAiRealtimeClientSecretRequest(
 internal sealed record OpenAiRealtimeSessionRequest(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("model")] string Model,
-    [property: JsonPropertyName("reasoning")] OpenAiRealtimeReasoning Reasoning);
+    [property: JsonPropertyName("reasoning")] OpenAiRealtimeReasoning Reasoning,
+    [property: JsonPropertyName("instructions")] string Instructions);
 
 internal sealed record OpenAiRealtimeReasoning(
     [property: JsonPropertyName("effort")] string Effort);

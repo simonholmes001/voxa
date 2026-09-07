@@ -22,7 +22,10 @@ public sealed class RealtimeSessionService(
         var settings = new RealtimeSessionSettingsContract(
             command.CoachingMode,
             command.ProficiencyBand,
-            command.TargetLanguage);
+            command.TargetLanguage,
+            command.SessionIntent,
+            command.FocusTitle,
+            command.DueReviewCount);
 
         try
         {

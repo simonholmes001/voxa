@@ -37,7 +37,10 @@ final class VoxaBackendRealtimeSessionServiceTests: XCTestCase {
       "settings": {
         "coachingMode": "tutor",
         "proficiencyBand": "B1-B2",
-        "targetLanguage": "fr-FR"
+        "targetLanguage": "fr-FR",
+        "sessionIntent": "lesson",
+        "focusTitle": "Survival French",
+        "dueReviewCount": null
       }
     }
     """
@@ -55,7 +58,6 @@ final class VoxaBackendRealtimeSessionServiceTests: XCTestCase {
         XCTAssertEqual(request.httpMethod, "POST")
         // Authorization must be the caller's bearer token
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
         XCTAssertEqual(request.value(forHTTPHeaderField: "X-Correlation-Id"), "corr-test")
         let body = try JSONSerialization.jsonObject(with: try XCTUnwrap(StubURLProtocol.lastBody)) as? [String: Any]
         XCTAssertEqual(body?["coachingMode"] as? String, "tutor")
@@ -67,6 +69,26 @@ final class VoxaBackendRealtimeSessionServiceTests: XCTestCase {
         XCTAssertEqual(credential.reasoningEffort, "low")
         XCTAssertEqual(credential.settings.targetLanguage, "fr-FR")
         XCTAssertEqual(credential.expiresAt, ISO8601DateFormatter().date(from: "2026-08-29T08:20:00Z"))
+    }
+
+    func testCreateSessionPostsLearningIntentFields() async throws {
+        StubURLProtocol.handler = { request, _ in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(self.responseJSON.utf8))
+        }
+
+        let lessonSettings = RealtimeCoachingSettings(
+            proficiencyBand: "B1-B2",
+            targetLanguage: "fr-FR",
+            sessionIntent: "lesson",
+            focusTitle: "Survival French"
+        )
+
+        _ = try await service.createSession(lessonSettings, accessToken: "access-token")
+
+        let body = try JSONSerialization.jsonObject(with: try XCTUnwrap(StubURLProtocol.lastBody)) as? [String: Any]
+        XCTAssertEqual(body?["sessionIntent"] as? String, "lesson")
+        XCTAssertEqual(body?["focusTitle"] as? String, "Survival French")
     }
 
     func testUnauthorizedMapsAppSessionRequired() async {
