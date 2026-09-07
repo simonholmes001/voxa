@@ -5,7 +5,7 @@ import Foundation
 public enum RealtimeTutorIntent: Sendable, Equatable {
     case openPractice
     case lesson(title: String?)
-    case review(dueCount: Int)
+    case review(dueCount: Int, focusTitle: String? = nil)
 
     public var title: String {
         switch self {
@@ -13,8 +13,8 @@ public enum RealtimeTutorIntent: Sendable, Equatable {
             return "Speaking practice"
         case .lesson:
             return "Voice lesson"
-        case .review:
-            return "Review session"
+        case let .review(_, focusTitle):
+            return focusTitle ?? "Review session"
         }
     }
 
@@ -27,7 +27,10 @@ public enum RealtimeTutorIntent: Sendable, Equatable {
                 return "Ready for your voice lesson?"
             }
             return "Ready for \(title)?"
-        case let .review(dueCount):
+        case let .review(dueCount, focusTitle):
+            if let focusTitle, !focusTitle.isEmpty {
+                return "Ready to practise \(focusTitle.lowercased())?"
+            }
             guard dueCount > 0 else {
                 return "Ready to review with your tutor?"
             }
@@ -84,9 +87,9 @@ public struct RealtimeCoachingSettings: Sendable, Equatable {
             copy.sessionIntent = "lesson"
             copy.focusTitle = title
             copy.dueReviewCount = nil
-        case let .review(dueCount):
+        case let .review(dueCount, focusTitle):
             copy.sessionIntent = "review"
-            copy.focusTitle = nil
+            copy.focusTitle = focusTitle
             copy.dueReviewCount = dueCount
         }
         return copy

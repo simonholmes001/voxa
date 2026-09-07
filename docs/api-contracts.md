@@ -181,9 +181,14 @@ Issues a short-lived client authorization payload for a Voxa Realtime practice s
 {
   "coachingMode": "tutor",
   "proficiencyBand": "B1-B2",
-  "targetLanguage": "fr-FR"
+  "targetLanguage": "fr-FR",
+  "sessionIntent": "review",
+  "focusTitle": "Pronunciation",
+  "dueReviewCount": 3
 }
 ```
+
+`sessionIntent` is optional and is one of `practice`, `lesson`, or `review`. `focusTitle` optionally narrows a lesson or review, such as `Pronunciation`, `Words`, or a generated lesson title. `dueReviewCount` supplies the current number of due review items when known.
 
 Response `200`:
 
@@ -197,7 +202,10 @@ Response `200`:
   "settings": {
     "coachingMode": "tutor",
     "proficiencyBand": "B1-B2",
-    "targetLanguage": "fr-FR"
+    "targetLanguage": "fr-FR",
+    "sessionIntent": "review",
+    "focusTitle": "Pronunciation",
+    "dueReviewCount": 3
   }
 }
 ```

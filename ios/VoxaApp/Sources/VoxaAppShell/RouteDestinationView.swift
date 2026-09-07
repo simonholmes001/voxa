@@ -27,6 +27,9 @@ struct RouteDestinationView: View {
                 languages: homeLanguages,
                 onContinueLearning: onContinueLearning,
                 onVoicePractice: { onStartTalk(.openPractice) },
+                onReviewPractice: { topic in
+                    onStartTalk(.review(dueCount: learningContext.dueReviewCount, focusTitle: topic))
+                },
                 onSelectLanguage: selectLanguage
             )
         case .talk where talkModel != nil:
@@ -35,19 +38,21 @@ struct RouteDestinationView: View {
             LearningRouteView(
                 content: learningPlan.lesson,
                 primaryAction: { onStartTalk(.lesson(title: learningContext.activePlanTitle)) },
-                rowAction: { onStartTalk(.lesson(title: learningContext.currentLessonTitle ?? learningContext.activePlanTitle)) }
+                rowAction: { row in onStartTalk(.lesson(title: row.title)) }
             )
         case .review:
             LearningRouteView(
                 content: learningPlan.review,
                 primaryAction: { onStartTalk(.review(dueCount: learningContext.dueReviewCount)) },
-                rowAction: { onStartTalk(.review(dueCount: learningContext.dueReviewCount)) }
+                rowAction: { row in
+                    onStartTalk(.review(dueCount: learningContext.dueReviewCount, focusTitle: row.title))
+                }
             )
         case .progress:
             LearningRouteView(
                 content: learningPlan.progress,
                 primaryAction: onContinueLearning,
-                rowAction: onContinueLearning
+                rowAction: { _ in onContinueLearning() }
             )
         case .settings where languageManager != nil:
             LanguageManagementView(
@@ -63,7 +68,7 @@ struct RouteDestinationView: View {
             LearningRouteView(
                 content: learningPlan.settings,
                 primaryAction: languageManager?.onAddLanguage ?? {},
-                rowAction: languageManager?.onAddLanguage ?? {}
+                rowAction: { _ in languageManager?.onAddLanguage() }
             )
         default:
             placeholder
@@ -151,7 +156,7 @@ struct RouteDestinationView: View {
 private struct LearningRouteView: View {
     let content: LearningRouteContent
     let primaryAction: () -> Void
-    let rowAction: () -> Void
+    let rowAction: (LearningRouteRow) -> Void
 
     var body: some View {
         ScrollView {
@@ -179,7 +184,9 @@ private struct LearningRouteView: View {
 
                 VStack(spacing: 10) {
                     ForEach(content.rows) { row in
-                        Button(action: rowAction) {
+                        Button {
+                            rowAction(row)
+                        } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: row.symbol)
                                     .font(.title3)

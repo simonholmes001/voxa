@@ -10,6 +10,7 @@ public struct HomeView: View {
     private let languages: [LearnerLanguageSummary]
     private let onContinueLearning: () -> Void
     private let onVoicePractice: () -> Void
+    private let onReviewPractice: (String) -> Void
     private let onSelectLanguage: (String) -> Void
 
     public init(
@@ -18,6 +19,7 @@ public struct HomeView: View {
         languages: [LearnerLanguageSummary] = [],
         onContinueLearning: @escaping () -> Void,
         onVoicePractice: @escaping () -> Void,
+        onReviewPractice: @escaping (String) -> Void = { _ in },
         onSelectLanguage: @escaping (String) -> Void = { _ in }
     ) {
         self.model = model
@@ -25,6 +27,7 @@ public struct HomeView: View {
         self.languages = languages
         self.onContinueLearning = onContinueLearning
         self.onVoicePractice = onVoicePractice
+        self.onReviewPractice = onReviewPractice
         self.onSelectLanguage = onSelectLanguage
     }
 
@@ -210,19 +213,25 @@ public struct HomeView: View {
     }
 
     private func quickPractice(_ title: String, _ symbol: String) -> some View {
-        VStack(spacing: 6) {
-            Image(systemName: symbol)
-                .font(.title3)
-                .foregroundStyle(.tint)
-                .accessibilityHidden(true)
-            Text(title)
-                .font(.caption)
-                .fontWeight(.medium)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
+        Button {
+            onReviewPractice(title)
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.title3)
+                    .foregroundStyle(.tint)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, minHeight: 74)
+            .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
         }
-        .frame(maxWidth: .infinity, minHeight: 74)
-        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("home-review-\(title.lowercased())")
     }
 
     private func statusPill(_ title: String, _ symbol: String) -> some View {

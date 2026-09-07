@@ -369,6 +369,23 @@ final class TalkSessionViewModelTests: XCTestCase {
         XCTAssertEqual(service.createdWith.first?.0.focusTitle, "Survival German")
     }
 
+    func testPreparedFocusedReviewIntentIsSentToService() async {
+        let service = FakeRealtimeSessionService(result: .success(credential()))
+        let model = TalkSessionViewModel(
+            settings: settings,
+            permission: FakeMicrophonePermission(current: .granted),
+            service: service,
+            accessTokenProvider: { "t" }
+        )
+        model.prepare(.review(dueCount: 2, focusTitle: "Pronunciation"))
+
+        await model.start()
+
+        XCTAssertEqual(service.createdWith.first?.0.sessionIntent, "review")
+        XCTAssertEqual(service.createdWith.first?.0.focusTitle, "Pronunciation")
+        XCTAssertEqual(service.createdWith.first?.0.dueReviewCount, 2)
+    }
+
     func testSettingsProviderIsEvaluatedAtStart() async {
         let mutableSettings = MutableRealtimeSettings(band: "A1-A2")
         let service = FakeRealtimeSessionService(result: .success(credential()))

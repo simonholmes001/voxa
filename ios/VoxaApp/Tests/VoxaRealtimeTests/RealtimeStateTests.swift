@@ -31,4 +31,17 @@ final class RealtimeStateTests: XCTestCase {
         XCTAssertEqual(RealtimeTutorIntent.review(dueCount: 3).startButtonTitle, "Start review")
         XCTAssertEqual(RealtimeTutorIntent.review(dueCount: 0).prompt, "Ready to review with your tutor?")
     }
+
+    func testFocusedReviewIntentShapesPromptAndSettings() {
+        let intent = RealtimeTutorIntent.review(dueCount: 2, focusTitle: "Pronunciation")
+        let settings = RealtimeCoachingSettings(proficiencyBand: "A1-A2", targetLanguage: "de-DE")
+
+        XCTAssertEqual(intent.title, "Pronunciation")
+        XCTAssertEqual(intent.prompt, "Ready to practise pronunciation?")
+
+        let applied = settings.applying(intent)
+        XCTAssertEqual(applied.sessionIntent, "review")
+        XCTAssertEqual(applied.focusTitle, "Pronunciation")
+        XCTAssertEqual(applied.dueReviewCount, 2)
+    }
 }

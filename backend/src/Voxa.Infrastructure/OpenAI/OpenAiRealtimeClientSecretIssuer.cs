@@ -106,6 +106,9 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
             "review" => string.Join(
                 " ",
                 baseInstructions,
+                string.IsNullOrWhiteSpace(settings.FocusTitle)
+                    ? "Focus the review on recent tutor evidence."
+                    : $"Focus the review on {settings.FocusTitle.Trim()}.",
                 settings.DueReviewCount is > 0
                     ? $"Prioritize the {settings.DueReviewCount.Value} review items currently due."
                     : "Run a review conversation using recent mistakes, weak words, and pronunciation targets.",
