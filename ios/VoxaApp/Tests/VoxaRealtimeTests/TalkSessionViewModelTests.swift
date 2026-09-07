@@ -105,6 +105,18 @@ final class TalkSessionViewModelTests: XCTestCase {
             service: FakeRealtimeSessionService(result: .success(credential()))
         )
         XCTAssertEqual(model.state, .idle)
+        XCTAssertEqual(model.pendingIntent, .openPractice)
+    }
+
+    func testPrepareUpdatesPendingIntent() {
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential()))
+        )
+
+        model.prepare(.lesson(title: "Survival German"))
+
+        XCTAssertEqual(model.pendingIntent, .lesson(title: "Survival German"))
     }
 
     func testHappyPathReachesConnected() async {

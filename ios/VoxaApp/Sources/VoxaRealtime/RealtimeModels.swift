@@ -1,5 +1,42 @@
 import Foundation
 
+/// The learner's reason for opening the voice tutor. This is currently client
+/// UI state; the backend Realtime contract still receives the supported
+/// `tutor` coaching mode until server-side prompt modes are expanded.
+public enum RealtimeTutorIntent: Sendable, Equatable {
+    case openPractice
+    case lesson(title: String?)
+    case review(dueCount: Int)
+
+    public var title: String {
+        switch self {
+        case .openPractice:
+            return "Speaking practice"
+        case .lesson:
+            return "Voice lesson"
+        case .review:
+            return "Review session"
+        }
+    }
+
+    public var prompt: String {
+        switch self {
+        case .openPractice:
+            return "Ready to practise speaking?"
+        case let .lesson(title):
+            guard let title, !title.isEmpty else {
+                return "Ready for your voice lesson?"
+            }
+            return "Ready for \(title)?"
+        case let .review(dueCount):
+            guard dueCount > 0 else {
+                return "Ready to review with your tutor?"
+            }
+            return "Ready to review \(dueCount) due items?"
+        }
+    }
+}
+
 /// Settings that shape a Realtime tutoring session. Sent to the backend when
 /// requesting a session credential (see `POST /api/realtime/session`).
 public struct RealtimeCoachingSettings: Sendable, Equatable {

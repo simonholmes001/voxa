@@ -20,4 +20,11 @@ final class RealtimeStateTests: XCTestCase {
         XCTAssertTrue(credential.isExpired(asOf: Date(timeIntervalSince1970: 1001), leeway: 0))
         XCTAssertFalse(credential.isExpired(asOf: Date(timeIntervalSince1970: 900), leeway: 0))
     }
+
+    func testTutorIntentPromptsMatchLearningWorkflow() {
+        XCTAssertEqual(RealtimeTutorIntent.openPractice.title, "Speaking practice")
+        XCTAssertEqual(RealtimeTutorIntent.lesson(title: "Survival German").prompt, "Ready for Survival German?")
+        XCTAssertEqual(RealtimeTutorIntent.review(dueCount: 3).prompt, "Ready to review 3 due items?")
+        XCTAssertEqual(RealtimeTutorIntent.review(dueCount: 0).prompt, "Ready to review with your tutor?")
+    }
 }

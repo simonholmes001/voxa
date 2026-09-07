@@ -15,7 +15,7 @@ struct RouteDestinationView: View {
     var talkModel: TalkSessionViewModel?
     var languageManager: LanguageManagerContext?
     var onContinueLearning: () -> Void = {}
-    var onStartTalk: () -> Void = {}
+    var onStartTalk: (RealtimeTutorIntent) -> Void = { _ in }
 
     var body: some View {
         switch route {
@@ -25,7 +25,7 @@ struct RouteDestinationView: View {
                 talkModel: talkModel,
                 languages: homeLanguages,
                 onContinueLearning: onContinueLearning,
-                onVoicePractice: onStartTalk,
+                onVoicePractice: { onStartTalk(.openPractice) },
                 onSelectLanguage: selectLanguage
             )
         case .talk where talkModel != nil:
@@ -33,14 +33,14 @@ struct RouteDestinationView: View {
         case .learn:
             LearningRouteView(
                 content: learningPlan.lesson,
-                primaryAction: onStartTalk,
-                rowAction: onStartTalk
+                primaryAction: { onStartTalk(.lesson(title: learningContext.activePlanTitle)) },
+                rowAction: { onStartTalk(.lesson(title: learningContext.currentLessonTitle ?? learningContext.activePlanTitle)) }
             )
         case .review:
             LearningRouteView(
                 content: learningPlan.review,
-                primaryAction: onStartTalk,
-                rowAction: onStartTalk
+                primaryAction: { onStartTalk(.review(dueCount: learningContext.dueReviewCount)) },
+                rowAction: { onStartTalk(.review(dueCount: learningContext.dueReviewCount)) }
             )
         case .progress:
             LearningRouteView(

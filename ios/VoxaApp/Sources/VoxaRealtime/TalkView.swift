@@ -21,6 +21,12 @@ public struct TalkView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.center)
+            if !isSessionActive {
+                Text(model.pendingIntent.title)
+                    .font(.headline)
+                    .foregroundStyle(.tint)
+                    .accessibilityIdentifier("talk-intent-title")
+            }
             if case let .failed(message) = model.state {
                 Text(message)
                     .font(.callout)
@@ -70,7 +76,7 @@ public struct TalkView: View {
 
     private var statusTitle: String {
         switch model.state {
-        case .idle: return "Ready to practise speaking?"
+        case .idle: return model.pendingIntent.prompt
         case .requestingSession: return "Preparing your session…"
         case .connecting: return "Connecting to your tutor…"
         case .connected: return "Connected — start speaking"

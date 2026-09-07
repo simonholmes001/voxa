@@ -10,6 +10,7 @@ import Observation
 public final class TalkSessionViewModel {
     public private(set) var state: RealtimeConnectionState = .idle
     public private(set) var micPermission: MicrophonePermissionStatus = .undetermined
+    public private(set) var pendingIntent: RealtimeTutorIntent = .openPractice
 
     private let settingsProvider: @MainActor @Sendable () -> RealtimeCoachingSettings
     private let permission: any MicrophonePermission
@@ -54,6 +55,13 @@ public final class TalkSessionViewModel {
             accessTokenProvider: accessTokenProvider,
             onAuthenticationRequired: onAuthenticationRequired
         )
+    }
+
+    public func prepare(_ intent: RealtimeTutorIntent) {
+        pendingIntent = intent
+        if state == .ended {
+            state = .idle
+        }
     }
 
     /// Starts a session: ensures mic permission, requests a credential, and
