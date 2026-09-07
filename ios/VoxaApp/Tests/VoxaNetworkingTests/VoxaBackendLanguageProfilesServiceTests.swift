@@ -1,5 +1,6 @@
 import XCTest
 @testable import VoxaNetworking
+import VoxaOnboarding
 import VoxaProfiles
 
 final class VoxaBackendLanguageProfilesServiceTests: XCTestCase {
@@ -8,11 +9,9 @@ final class VoxaBackendLanguageProfilesServiceTests: XCTestCase {
     override func setUp() {
         super.setUp()
         StubURLProtocol.reset()
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [StubURLProtocol.self]
         service = VoxaBackendLanguageProfilesService(
             baseURL: URL(string: "https://api.voxa.test")!,
-            session: URLSession(configuration: config),
+            session: URLSession(configuration: urlSessionConfiguration),
             correlationIDProvider: { "corr-test" },
             accessTokenProvider: { "access-token" }
         )
@@ -22,6 +21,12 @@ final class VoxaBackendLanguageProfilesServiceTests: XCTestCase {
         StubURLProtocol.reset()
         service = nil
         super.tearDown()
+    }
+
+    private var urlSessionConfiguration: URLSessionConfiguration {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubURLProtocol.self]
+        return config
     }
 
     private let listJSON = """
@@ -71,6 +76,68 @@ final class VoxaBackendLanguageProfilesServiceTests: XCTestCase {
         XCTAssertEqual(fr.profile.placementLevel, .a1)
     }
 
+    func testListUsesFiniteRequestTimeout() async throws {
+        StubURLProtocol.handler = { request, _ in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(self.listJSON.utf8))
+        }
+
+        _ = try await service.list()
+
+        let request = try XCTUnwrap(StubURLProtocol.lastRequest)
+        XCTAssertEqual(request.timeoutInterval, 15, accuracy: 0.01)
+    }
+
+    func testProductionResponseDrivesProfileSelectionState() async throws {
+        StubURLProtocol.handler = { request, _ in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(self.listJSON.utf8))
+        }
+        let service = VoxaBackendLanguageProfilesService(
+            baseURL: URL(string: "https://api.voxa.test")!,
+            session: URLSession(configuration: self.urlSessionConfiguration),
+            correlationIDProvider: { "corr-integration" },
+            accessTokenProvider: { "access-token" }
+        )
+        let model = await MainActor.run { ProfileSelectionViewModel(service: service) }
+
+        await model.load()
+
+        let expected = LanguageProfile(
+            languageKey: "fr-FR",
+            displayName: "French",
+            isComplete: true,
+            profile: OnboardingProfile(
+                targetLanguage: "fr-FR",
+                nativeLanguage: "en-US",
+                goals: ["travel"],
+                minutesPerDay: 15,
+                placementLevel: .a1
+            ),
+            version: 3
+        )
+        let (state, activeLanguageKey) = await MainActor.run { (model.state, model.activeLanguageKey) }
+        XCTAssertEqual(state, .single(expected))
+        XCTAssertEqual(activeLanguageKey, "fr-FR")
+    }
+
+    func testMalformedProductionProfileDoesNotLeaveSelectionWaiting() async {
+        StubURLProtocol.handler = { request, _ in
+            let json = #"{"correlationId":"c","activeLanguageKey":"fr-FR","profiles":[{"languageKey":"fr-FR","displayName":"French","isComplete":true,"profile":{"targetLanguage":"fr-FR","nativeLanguage":"en-US","goals":["travel"],"minutesPerDay":15,"proficiencyLevel":"not-a-cefr-level"},"version":3}]}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+
+        do {
+            _ = try await service.list()
+            XCTFail("expected malformed profile to be rejected")
+        } catch let error as LanguageProfilesError {
+            XCTAssertEqual(error, .transport)
+        } catch {
+            XCTFail("unexpected (error)")
+        }
+    }
+
     func testEmptyProfilesIsValid() async throws {
         StubURLProtocol.handler = { request, _ in
             let json = #"{"correlationId":"c","activeLanguageKey":null,"profiles":[]}"#
@@ -105,6 +172,25 @@ final class VoxaBackendLanguageProfilesServiceTests: XCTestCase {
             return (response, Data(#"{"code":"app_session_required","message":"x","correlationId":"c","retryable":false}"#.utf8))
         }
         await assertListThrows(.authenticationRequired)
+    }
+
+    func testMissingAccessTokenMapsToAuthenticationRequiredBeforeNetworkCall() async {
+        let service = VoxaBackendLanguageProfilesService(
+            baseURL: URL(string: "https://api.voxa.test")!,
+            session: URLSession(configuration: urlSessionConfiguration),
+            correlationIDProvider: { "corr-no-token" },
+            accessTokenProvider: { nil }
+        )
+
+        do {
+            _ = try await service.list()
+            XCTFail("expected authentication error")
+        } catch let error as LanguageProfilesError {
+            XCTAssertEqual(error, .authenticationRequired)
+            XCTAssertNil(StubURLProtocol.lastRequest)
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
     }
 
     func testUnknownLanguageMapsTo404() async {

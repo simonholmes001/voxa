@@ -21,6 +21,7 @@ enum AppComposition {
         let authModel = makeAuthModel()
         let onboardingService = makeOnboardingService(authModel: authModel)
         let onboardingModel = makeOnboardingModel(service: onboardingService)
+        let languageSettingsService = makeLanguageSettingsService(authModel: authModel)
         return RootView(
             authModel: authModel,
             onboardingModel: onboardingModel,
@@ -31,13 +32,27 @@ enum AppComposition {
             ),
             talkModel: makeTalkModel(authModel: authModel, onboardingModel: onboardingModel),
             profileModel: makeProfileModel(authModel: authModel),
-            developerResetService: makeDeveloperResetService()
+            makeLanguageSettingsModel: { profile in
+                LanguageSettingsViewModel(profile: profile, service: languageSettingsService)
+            }
         )
     }
 
     @MainActor
     static func makeProfileModel(authModel: AuthViewModel) -> ProfileSelectionViewModel {
         ProfileSelectionViewModel(service: makeLanguageProfilesService(authModel: authModel))
+    }
+
+    /// The single source of truth for the app-session access token used by every
+    /// authenticated backend service. Every service must read its token from the
+    /// *same* `AuthViewModel` instance the auth gate signs in; if a service is
+    /// wired to a different (or freshly re-created, signed-out) `AuthViewModel`,
+    /// its requests silently lose the token and the backend answers 401. Routing
+    /// all services through this helper keeps that wiring in one place.
+    static func accessTokenProvider(
+        for authModel: AuthViewModel
+    ) -> @MainActor @Sendable () -> String? {
+        { @MainActor in authModel.state.session?.accessToken }
     }
 
     @MainActor
@@ -47,7 +62,7 @@ enum AppComposition {
         }
         return VoxaBackendLanguageProfilesService(
             baseURL: baseURL,
-            accessTokenProvider: { @MainActor in authModel.state.session?.accessToken }
+            accessTokenProvider: accessTokenProvider(for: authModel)
         )
     }
 
@@ -60,7 +75,7 @@ enum AppComposition {
         }
         return VoxaBackendLanguageSettingsService(
             baseURL: baseURL,
-            accessTokenProvider: { @MainActor in authModel.state.session?.accessToken }
+            accessTokenProvider: accessTokenProvider(for: authModel)
         )
     }
 

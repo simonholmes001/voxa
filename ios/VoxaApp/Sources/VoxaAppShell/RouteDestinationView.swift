@@ -1,6 +1,7 @@
 #if canImport(SwiftUI)
 import SwiftUI
 import VoxaHome
+import VoxaProfiles
 import VoxaRealtime
 
 /// Destination for a top-level route.
@@ -12,6 +13,7 @@ struct RouteDestinationView: View {
     let route: AppRoute
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
+    var languageManager: LanguageManagerContext?
     var onStartTalk: () -> Void = {}
 
     var body: some View {
@@ -35,6 +37,16 @@ struct RouteDestinationView: View {
                 title: "Review when you're ready",
                 message: "Your review queue will appear here after you complete a learning session.",
                 detail: "There is nothing due yet."
+            )
+        case .settings where languageManager != nil:
+            LanguageManagementView(
+                profiles: languageManager!.profileModel.allProfiles,
+                activeKey: languageManager!.profileModel.activeLanguageKey,
+                makeSettingsModel: languageManager!.makeSettingsModel,
+                onSwitch: languageManager!.onSwitch,
+                onAddLanguage: languageManager!.onAddLanguage,
+                onSaved: { await languageManager!.profileModel.refresh() },
+                onSignOut: languageManager!.onSignOut
             )
         case .settings:
             MvpRouteView(

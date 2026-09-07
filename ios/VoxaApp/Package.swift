@@ -51,7 +51,7 @@ let package = Package(
         ),
         .testTarget(name: "VoxaAppShellTests", dependencies: ["VoxaAppShell"]),
         .testTarget(name: "VoxaAuthTests", dependencies: ["VoxaAuth"]),
-        .testTarget(name: "VoxaNetworkingTests", dependencies: ["VoxaNetworking"]),
+        .testTarget(name: "VoxaNetworkingTests", dependencies: ["VoxaNetworking", "VoxaProfiles"]),
         .testTarget(name: "VoxaOnboardingTests", dependencies: ["VoxaOnboarding"]),
         .testTarget(name: "VoxaRealtimeTests", dependencies: ["VoxaRealtime"]),
         .testTarget(name: "VoxaRealtimeWebRTCTests", dependencies: ["VoxaRealtimeWebRTC"]),

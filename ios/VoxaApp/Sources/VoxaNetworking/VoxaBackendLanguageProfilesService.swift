@@ -1,25 +1,31 @@
 import Foundation
+import os
 import VoxaProfiles
 
 /// Backend-backed `LanguageProfilesService` for `GET /api/language-profiles`
 /// and `POST /api/language-profiles/{languageKey}/select`. Requires an
 /// authenticated app session (access token is sent as a bearer token).
 public struct VoxaBackendLanguageProfilesService: LanguageProfilesService {
+    private static let logger = Logger(subsystem: "com.simonholmes.voxa", category: "language-profiles")
+
     private let baseURL: URL
     private let session: URLSession
     private let correlationIDProvider: @Sendable () -> String
     private let accessTokenProvider: @MainActor @Sendable () -> String?
+    private let requestTimeout: TimeInterval
 
     public init(
         baseURL: URL,
         session: URLSession = .shared,
         correlationIDProvider: @escaping @Sendable () -> String = { UUID().uuidString },
-        accessTokenProvider: @escaping @MainActor @Sendable () -> String?
+        accessTokenProvider: @escaping @MainActor @Sendable () -> String?,
+        requestTimeout: TimeInterval = 15
     ) {
         self.baseURL = baseURL
         self.session = session
         self.correlationIDProvider = correlationIDProvider
         self.accessTokenProvider = accessTokenProvider
+        self.requestTimeout = requestTimeout
     }
 
     public func list() async throws -> LanguageProfileList {
@@ -27,7 +33,13 @@ public struct VoxaBackendLanguageProfilesService: LanguageProfilesService {
         let dto: LanguageProfilesListResponseDTO = try await send(
             path: "api/language-profiles", method: "GET", body: nil, accessToken: token
         )
-        let profiles = try dto.profiles.map { try $0.toLanguageProfile() }
+        let profiles: [LanguageProfile]
+        do {
+            profiles = try dto.profiles.map { try $0.toLanguageProfile() }
+        } catch {
+            Self.logger.error("Profile response mapping failure endpoint=api/language-profiles error=\(String(describing: error), privacy: .public)")
+            throw LanguageProfilesError.transport
+        }
         return LanguageProfileList(activeLanguageKey: dto.activeLanguageKey, profiles: profiles)
     }
 
@@ -42,6 +54,7 @@ public struct VoxaBackendLanguageProfilesService: LanguageProfilesService {
 
     private func requireToken() async throws -> String {
         guard let token = await accessTokenProvider() else {
+            Self.logger.error("Profile request blocked: no access token")
             throw LanguageProfilesError.authenticationRequired
         }
         return token
@@ -54,6 +67,7 @@ public struct VoxaBackendLanguageProfilesService: LanguageProfilesService {
         accessToken: String
     ) async throws -> Response {
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
+        request.timeoutInterval = requestTimeout
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -65,20 +79,29 @@ public struct VoxaBackendLanguageProfilesService: LanguageProfilesService {
 
         let data: Data
         let response: URLResponse
+        let correlationID = request.value(forHTTPHeaderField: "X-Correlation-Id") ?? "missing"
+        Self.logger.info("Profile request started method=\(method, privacy: .public) endpoint=\(path, privacy: .public) correlationId=\(correlationID, privacy: .public)")
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            let nsError = error as NSError
+            Self.logger.error("Profile request transport failure endpoint=\(path, privacy: .public) correlationId=\(correlationID, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public)")
             throw LanguageProfilesError.transport
         }
         guard let http = response as? HTTPURLResponse else {
+            Self.logger.error("Profile request returned non-HTTP response endpoint=\(path, privacy: .public) correlationId=\(correlationID, privacy: .public)")
             throw LanguageProfilesError.transport
         }
+        Self.logger.info("Profile response received endpoint=\(path, privacy: .public) status=\(http.statusCode, privacy: .public) bytes=\(data.count, privacy: .public) correlationId=\(correlationID, privacy: .public)")
         guard (200..<300).contains(http.statusCode) else {
-            throw Self.mapError(status: http.statusCode, data: data)
+            let error = Self.mapError(status: http.statusCode, data: data)
+            Self.logger.error("Profile request rejected endpoint=\(path, privacy: .public) status=\(http.statusCode, privacy: .public) error=\(String(describing: error), privacy: .public) correlationId=\(correlationID, privacy: .public)")
+            throw error
         }
         do {
             return try JSONDecoder().decode(Response.self, from: data)
         } catch {
+            Self.logger.error("Profile response decode failure endpoint=\(path, privacy: .public) correlationId=\(correlationID, privacy: .public) error=\(String(describing: error), privacy: .public)")
             throw LanguageProfilesError.transport
         }
     }
