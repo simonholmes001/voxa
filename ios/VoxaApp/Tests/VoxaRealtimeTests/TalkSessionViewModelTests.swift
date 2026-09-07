@@ -41,10 +41,30 @@ private final class FakeRealtimeSessionService: RealtimeSessionService, @uncheck
 }
 
 private final class FakeRealtimeSessionCompletionService: RealtimeSessionCompletionService, @unchecked Sendable {
+    var error: Error?
     private(set) var completedWith: [(RealtimeSessionCompletion, String)] = []
 
+    init(error: Error? = nil) {
+        self.error = error
+    }
+
     func completeSession(_ completion: RealtimeSessionCompletion, accessToken: String) async throws {
+        if let error {
+            throw error
+        }
         completedWith.append((completion, accessToken))
+    }
+}
+
+private actor CompletionObserver {
+    private var recordedCount = 0
+
+    func record() {
+        recordedCount += 1
+    }
+
+    func count() -> Int {
+        recordedCount
     }
 }
 
@@ -107,6 +127,7 @@ final class TalkSessionViewModelTests: XCTestCase {
         completionService: FakeRealtimeSessionCompletionService? = nil,
         transport: FakeRealtimeTransport = FakeRealtimeTransport(),
         token: String? = "access-token",
+        onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {},
         nowProvider: @escaping @MainActor @Sendable () -> Date = { Date() }
     ) -> TalkSessionViewModel {
         TalkSessionViewModel(
@@ -116,6 +137,7 @@ final class TalkSessionViewModelTests: XCTestCase {
             completionService: completionService,
             transport: transport,
             accessTokenProvider: { token },
+            onSessionCompleted: onSessionCompleted,
             nowProvider: nowProvider
         )
     }
@@ -261,11 +283,13 @@ final class TalkSessionViewModelTests: XCTestCase {
     func testEndRecordsCompletedSessionWhenConnected() async {
         var now = Date(timeIntervalSince1970: 1_000)
         let completionService = FakeRealtimeSessionCompletionService()
+        let completionObserver = CompletionObserver()
         let model = makeModel(
             permission: FakeMicrophonePermission(current: .granted),
             service: FakeRealtimeSessionService(result: .success(credential())),
             completionService: completionService,
             token: "access-token",
+            onSessionCompleted: { await completionObserver.record() },
             nowProvider: { now }
         )
         model.prepare(.lesson(title: "Survival German"))
@@ -279,6 +303,25 @@ final class TalkSessionViewModelTests: XCTestCase {
         XCTAssertEqual(completionService.completedWith.first?.0.durationSeconds, 420)
         XCTAssertEqual(completionService.completedWith.first?.0.sessionIntent, "lesson")
         XCTAssertEqual(completionService.completedWith.first?.1, "access-token")
+        let completedCount = await completionObserver.count()
+        XCTAssertEqual(completedCount, 1)
+    }
+
+    func testEndDoesNotNotifyCompletionWhenCompletionWriteBackFails() async {
+        let completionService = FakeRealtimeSessionCompletionService(error: RealtimeSessionError.transport)
+        let completionObserver = CompletionObserver()
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            completionService: completionService,
+            onSessionCompleted: { await completionObserver.record() }
+        )
+
+        await model.start()
+        await model.end()
+
+        let completedCount = await completionObserver.count()
+        XCTAssertEqual(completedCount, 0)
     }
 
     func testStartIsNoOpWhileBusy() async {

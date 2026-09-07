@@ -19,6 +19,7 @@ public final class TalkSessionViewModel {
     private let transport: any RealtimeTransport
     private let accessTokenProvider: @MainActor @Sendable () -> String?
     private let onAuthenticationRequired: @MainActor @Sendable () async -> Void
+    private let onSessionCompleted: @MainActor @Sendable () async -> Void
     private let nowProvider: @MainActor @Sendable () -> Date
     private var activeCredential: RealtimeSessionCredential?
     private var connectedAt: Date?
@@ -34,6 +35,7 @@ public final class TalkSessionViewModel {
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
         accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil },
         onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {},
+        onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {},
         nowProvider: @escaping @MainActor @Sendable () -> Date = { Date() }
     ) {
         self.settingsProvider = settingsProvider
@@ -43,6 +45,7 @@ public final class TalkSessionViewModel {
         self.transport = transport
         self.accessTokenProvider = accessTokenProvider
         self.onAuthenticationRequired = onAuthenticationRequired
+        self.onSessionCompleted = onSessionCompleted
         self.nowProvider = nowProvider
     }
 
@@ -55,6 +58,7 @@ public final class TalkSessionViewModel {
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
         accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil },
         onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {},
+        onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {},
         nowProvider: @escaping @MainActor @Sendable () -> Date = { Date() }
     ) {
         self.init(
@@ -65,6 +69,7 @@ public final class TalkSessionViewModel {
             transport: transport,
             accessTokenProvider: accessTokenProvider,
             onAuthenticationRequired: onAuthenticationRequired,
+            onSessionCompleted: onSessionCompleted,
             nowProvider: nowProvider
         )
     }
@@ -144,6 +149,7 @@ public final class TalkSessionViewModel {
                     sessionIntent: credential.settings.sessionIntent
                 ),
                 accessToken: token)
+            await onSessionCompleted()
         } catch {
             return
         }

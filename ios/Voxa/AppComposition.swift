@@ -22,16 +22,25 @@ enum AppComposition {
         let onboardingService = makeOnboardingService(authModel: authModel)
         let onboardingModel = makeOnboardingModel(service: onboardingService)
         let languageSettingsService = makeLanguageSettingsService(authModel: authModel)
+        let homeModel = makeHomeModel(
+            authModel: authModel,
+            onboardingService: onboardingService,
+            onboardingModel: onboardingModel
+        )
+        let profileModel = makeProfileModel(authModel: authModel)
         return RootView(
             authModel: authModel,
             onboardingModel: onboardingModel,
-            homeModel: makeHomeModel(
+            homeModel: homeModel,
+            talkModel: makeTalkModel(
                 authModel: authModel,
-                onboardingService: onboardingService,
-                onboardingModel: onboardingModel
+                onboardingModel: onboardingModel,
+                onSessionCompleted: {
+                    await homeModel.resumeIfAvailable()
+                    await profileModel.refresh()
+                }
             ),
-            talkModel: makeTalkModel(authModel: authModel, onboardingModel: onboardingModel),
-            profileModel: makeProfileModel(authModel: authModel),
+            profileModel: profileModel,
             makeLanguageSettingsModel: { profile in
                 LanguageSettingsViewModel(profile: profile, service: languageSettingsService)
             }
@@ -236,7 +245,8 @@ enum AppComposition {
     @MainActor
     static func makeTalkModel(
         authModel: AuthViewModel,
-        onboardingModel: OnboardingViewModel
+        onboardingModel: OnboardingViewModel,
+        onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {}
     ) -> TalkSessionViewModel {
         TalkSessionViewModel(
             settingsProvider: { [weak onboardingModel] in
@@ -249,7 +259,8 @@ enum AppComposition {
             accessTokenProvider: { [weak authModel] in authModel?.state.session?.accessToken },
             onAuthenticationRequired: { [weak authModel] in
                 await authModel?.signOut()
-            }
+            },
+            onSessionCompleted: onSessionCompleted
         )
     }
 
