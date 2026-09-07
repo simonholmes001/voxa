@@ -4,6 +4,7 @@ using Voxa.Application.Ai;
 using Voxa.Application.Realtime;
 using Voxa.Domain.Learners;
 using Voxa.Infrastructure.OpenAI;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Voxa.Infrastructure.Tests;
 
@@ -35,7 +36,8 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "gpt-realtime-2.1",
                 "low",
                 ModelRouteSource.ConfigDefault,
-                null)));
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         var credential = await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
 
@@ -47,7 +49,9 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
         Assert.Contains("\"session\"", handler.Body, StringComparison.Ordinal);
         Assert.Contains("\"type\":\"realtime\"", handler.Body, StringComparison.Ordinal);
         Assert.Contains("gpt-realtime-2.1", handler.Body, StringComparison.Ordinal);
-        Assert.Contains("fr-FR", handler.Body, StringComparison.Ordinal);
+        // `session.metadata` (which carried target_language etc.) is not sent:
+        // OpenAI's client_secrets endpoint rejects it with HTTP 400.
+        Assert.DoesNotContain("metadata", handler.Body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -65,7 +69,8 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "gpt-realtime-2.1",
                 "low",
                 ModelRouteSource.ConfigDefault,
-                null)));
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         await Assert.ThrowsAsync<RealtimeSessionIssueException>(() =>
             issuer.IssueAsync(CreateRequest(), CancellationToken.None));
@@ -98,13 +103,17 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
         var issuer = new OpenAiRealtimeClientSecretIssuer(
             client,
             new OpenAiRealtimeOptions("server-api-key"),
-            router);
+            router,
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         var credential = await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
 
         Assert.Equal("gpt-realtime-2.1-mini", credential.Model);
         Assert.Contains("gpt-realtime-2.1-mini", handler.Body, StringComparison.Ordinal);
         Assert.Contains("\"effort\":\"low\"", handler.Body, StringComparison.Ordinal);
+        // Regression: OpenAI's v1/realtime/client_secrets rejects an unknown
+        // `session.metadata` parameter with HTTP 400, which surfaced as a 503.
+        Assert.DoesNotContain("metadata", handler.Body, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(AiCapability.RealtimeTutorModel, router.Requests.Single().Capability);
         Assert.Equal(AiCallKind.RealtimeSession, router.Requests.Single().Kind);
     }
@@ -124,7 +133,8 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "gpt-realtime-2.1",
                 null,
                 ModelRouteSource.ConfigDefault,
-                null)));
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         await Assert.ThrowsAsync<RealtimeSessionIssueException>(() =>
             issuer.IssueAsync(CreateRequest(), CancellationToken.None));
