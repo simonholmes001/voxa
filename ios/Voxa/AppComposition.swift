@@ -171,11 +171,24 @@ enum AppComposition {
             from: checkpoint.profile,
             isStale: isStale,
             activePlanTitle: checkpoint.activePlan?.title,
-            currentLessonTitle: checkpoint.currentLesson?.knowledgeUnitId,
+            currentLessonTitle: displayTitle(forKnowledgeUnitId: checkpoint.currentLesson?.knowledgeUnitId),
             currentLessonStepIndex: checkpoint.currentLesson?.stepIndex,
             dueReviewCount: checkpoint.reviewQueue.count,
             recentSessionCount: checkpoint.recentSessions.count
         )
+    }
+
+    static func displayTitle(forKnowledgeUnitId knowledgeUnitId: String?) -> String? {
+        guard let knowledgeUnitId else { return nil }
+        let words = knowledgeUnitId
+            .split(whereSeparator: { $0 == "-" || $0 == "_" })
+            .map(String.init)
+        guard !words.isEmpty else { return nil }
+        return words.map { word in
+            let first = word.prefix(1).uppercased()
+            let remainder = String(word.dropFirst())
+            return first + remainder
+        }.joined(separator: " ")
     }
 
     static func isHomeProfileFallbackEligible(_ error: Error) -> Bool {

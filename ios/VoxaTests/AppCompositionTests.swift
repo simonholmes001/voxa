@@ -142,10 +142,17 @@ final class AppCompositionTests: XCTestCase {
 
         XCTAssertEqual(summary?.languageName, "German")
         XCTAssertEqual(summary?.activePlanTitle, "Survival German")
-        XCTAssertEqual(summary?.currentLessonTitle, "station-directions")
+        XCTAssertEqual(summary?.currentLessonTitle, "Station Directions")
         XCTAssertEqual(summary?.currentLessonStepIndex, 3)
         XCTAssertEqual(summary?.dueReviewCount, 1)
         XCTAssertEqual(summary?.recentSessionCount, 1)
+    }
+
+    func testKnowledgeUnitDisplayTitleFormatsSlugsForUi() {
+        XCTAssertEqual(AppComposition.displayTitle(forKnowledgeUnitId: "station-directions"), "Station Directions")
+        XCTAssertEqual(AppComposition.displayTitle(forKnowledgeUnitId: "basic_questions"), "Basic Questions")
+        XCTAssertNil(AppComposition.displayTitle(forKnowledgeUnitId: ""))
+        XCTAssertNil(AppComposition.displayTitle(forKnowledgeUnitId: nil))
     }
 
     func testInfoPlistDeclaresMicrophoneUsage() {
