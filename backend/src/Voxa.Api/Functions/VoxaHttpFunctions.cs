@@ -17,6 +17,7 @@ public sealed class VoxaHttpFunctions(
     RefreshAppSessionEndpoint refreshSession,
     LogoutAppSessionEndpoint logout,
     RealtimeSessionEndpoint realtimeSession,
+    LearningSessionCompletionEndpoint learningSessionCompletion,
     ResumeSessionEndpoint resumeSession,
     LanguageProfilesEndpoint languageProfiles,
     OnboardingSubmitEndpoint onboardingSubmit,
@@ -180,6 +181,27 @@ public sealed class VoxaHttpFunctions(
                 principal.UserId.Value,
                 CorrelationId(request),
             cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("session-complete")]
+    public async Task<HttpResponseData> CompleteSessionAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "session/complete")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadJsonAsync<LearningSessionCompletionHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
+        return await WriteAsync(
+            request,
+            await learningSessionCompletion.PostAsync(
+                Principal(request),
+                body.Value ?? new LearningSessionCompletionHttpRequest(null, null),
+                CorrelationId(request),
+                cancellationToken),
             cancellationToken);
     }
 

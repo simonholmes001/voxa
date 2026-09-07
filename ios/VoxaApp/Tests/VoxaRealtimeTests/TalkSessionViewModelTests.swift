@@ -28,7 +28,23 @@ private final class FakeRealtimeSessionService: RealtimeSessionService, @uncheck
 
     func createSession(_ settings: RealtimeCoachingSettings, accessToken: String) async throws -> RealtimeSessionCredential {
         createdWith.append((settings, accessToken))
-        return try result.get()
+        let credential = try result.get()
+        return RealtimeSessionCredential(
+            correlationId: credential.correlationId,
+            clientSecret: credential.clientSecret,
+            model: credential.model,
+            reasoningEffort: credential.reasoningEffort,
+            expiresAt: credential.expiresAt,
+            settings: settings
+        )
+    }
+}
+
+private final class FakeRealtimeSessionCompletionService: RealtimeSessionCompletionService, @unchecked Sendable {
+    private(set) var completedWith: [(RealtimeSessionCompletion, String)] = []
+
+    func completeSession(_ completion: RealtimeSessionCompletion, accessToken: String) async throws {
+        completedWith.append((completion, accessToken))
     }
 }
 
@@ -76,6 +92,7 @@ final class TalkSessionViewModelTests: XCTestCase {
 
     private func credential() -> RealtimeSessionCredential {
         RealtimeSessionCredential(
+            correlationId: "corr-1",
             clientSecret: "secret",
             model: "gpt-realtime",
             reasoningEffort: "low",
@@ -87,15 +104,19 @@ final class TalkSessionViewModelTests: XCTestCase {
     private func makeModel(
         permission: FakeMicrophonePermission,
         service: FakeRealtimeSessionService,
+        completionService: FakeRealtimeSessionCompletionService? = nil,
         transport: FakeRealtimeTransport = FakeRealtimeTransport(),
-        token: String? = "access-token"
+        token: String? = "access-token",
+        nowProvider: @escaping @MainActor @Sendable () -> Date = { Date() }
     ) -> TalkSessionViewModel {
         TalkSessionViewModel(
             settings: settings,
             permission: permission,
             service: service,
+            completionService: completionService,
             transport: transport,
-            accessTokenProvider: { token }
+            accessTokenProvider: { token },
+            nowProvider: nowProvider
         )
     }
 
@@ -235,6 +256,29 @@ final class TalkSessionViewModelTests: XCTestCase {
 
         XCTAssertEqual(model.state, .ended)
         XCTAssertEqual(transport.disconnectCount, 1)
+    }
+
+    func testEndRecordsCompletedSessionWhenConnected() async {
+        var now = Date(timeIntervalSince1970: 1_000)
+        let completionService = FakeRealtimeSessionCompletionService()
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            completionService: completionService,
+            token: "access-token",
+            nowProvider: { now }
+        )
+        model.prepare(.lesson(title: "Survival German"))
+
+        await model.start()
+        now = Date(timeIntervalSince1970: 1_420)
+        await model.end()
+
+        XCTAssertEqual(completionService.completedWith.count, 1)
+        XCTAssertEqual(completionService.completedWith.first?.0.sessionId, "corr-1")
+        XCTAssertEqual(completionService.completedWith.first?.0.durationSeconds, 420)
+        XCTAssertEqual(completionService.completedWith.first?.0.sessionIntent, "lesson")
+        XCTAssertEqual(completionService.completedWith.first?.1, "access-token")
     }
 
     func testStartIsNoOpWhileBusy() async {

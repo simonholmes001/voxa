@@ -97,6 +97,7 @@ public struct RealtimeCoachingSettings: Sendable, Equatable {
 /// permanent OpenAI key stays server-side; `clientSecret` is an ephemeral token
 /// the device uses to connect directly to OpenAI Realtime.
 public struct RealtimeSessionCredential: Sendable, Equatable {
+    public var correlationId: String
     public var clientSecret: String
     public var model: String
     public var reasoningEffort: String
@@ -104,12 +105,14 @@ public struct RealtimeSessionCredential: Sendable, Equatable {
     public var settings: RealtimeCoachingSettings
 
     public init(
+        correlationId: String,
         clientSecret: String,
         model: String,
         reasoningEffort: String,
         expiresAt: Date,
         settings: RealtimeCoachingSettings
     ) {
+        self.correlationId = correlationId
         self.clientSecret = clientSecret
         self.model = model
         self.reasoningEffort = reasoningEffort

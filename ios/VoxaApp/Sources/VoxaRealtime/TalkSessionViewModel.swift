@@ -15,9 +15,13 @@ public final class TalkSessionViewModel {
     private let settingsProvider: @MainActor @Sendable () -> RealtimeCoachingSettings
     private let permission: any MicrophonePermission
     private let service: any RealtimeSessionService
+    private let completionService: (any RealtimeSessionCompletionService)?
     private let transport: any RealtimeTransport
     private let accessTokenProvider: @MainActor @Sendable () -> String?
     private let onAuthenticationRequired: @MainActor @Sendable () async -> Void
+    private let nowProvider: @MainActor @Sendable () -> Date
+    private var activeCredential: RealtimeSessionCredential?
+    private var connectedAt: Date?
 
     /// Creates a Talk session model. `settingsProvider` is evaluated at
     /// `start()` time so the session reflects the learner's current
@@ -26,16 +30,20 @@ public final class TalkSessionViewModel {
         settingsProvider: @escaping @MainActor @Sendable () -> RealtimeCoachingSettings,
         permission: any MicrophonePermission,
         service: any RealtimeSessionService,
+        completionService: (any RealtimeSessionCompletionService)? = nil,
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
         accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil },
-        onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {}
+        onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {},
+        nowProvider: @escaping @MainActor @Sendable () -> Date = { Date() }
     ) {
         self.settingsProvider = settingsProvider
         self.permission = permission
         self.service = service
+        self.completionService = completionService
         self.transport = transport
         self.accessTokenProvider = accessTokenProvider
         self.onAuthenticationRequired = onAuthenticationRequired
+        self.nowProvider = nowProvider
     }
 
     /// Convenience for fixed settings (previews/tests).
@@ -43,17 +51,21 @@ public final class TalkSessionViewModel {
         settings: RealtimeCoachingSettings,
         permission: any MicrophonePermission,
         service: any RealtimeSessionService,
+        completionService: (any RealtimeSessionCompletionService)? = nil,
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
         accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil },
-        onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {}
+        onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {},
+        nowProvider: @escaping @MainActor @Sendable () -> Date = { Date() }
     ) {
         self.init(
             settingsProvider: { settings },
             permission: permission,
             service: service,
+            completionService: completionService,
             transport: transport,
             accessTokenProvider: accessTokenProvider,
-            onAuthenticationRequired: onAuthenticationRequired
+            onAuthenticationRequired: onAuthenticationRequired,
+            nowProvider: nowProvider
         )
     }
 
@@ -105,12 +117,36 @@ public final class TalkSessionViewModel {
         }
 
         state = .connected
+        activeCredential = credential
+        connectedAt = nowProvider()
     }
 
     /// Ends the current session and tears down the transport.
     public func end() async {
         await transport.disconnect()
+        await recordCompletionIfPossible()
+        activeCredential = nil
+        connectedAt = nil
         state = .ended
+    }
+
+    private func recordCompletionIfPossible() async {
+        guard let completionService, let credential = activeCredential else { return }
+        guard let token = accessTokenProvider(), !token.isEmpty else { return }
+
+        let startedAt = connectedAt ?? nowProvider()
+        let durationSeconds = Int(nowProvider().timeIntervalSince(startedAt))
+        do {
+            try await completionService.completeSession(
+                RealtimeSessionCompletion(
+                    sessionId: credential.correlationId,
+                    durationSeconds: durationSeconds,
+                    sessionIntent: credential.settings.sessionIntent
+                ),
+                accessToken: token)
+        } catch {
+            return
+        }
     }
 
     private static func message(for error: Error) -> String {

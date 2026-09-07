@@ -213,6 +213,64 @@ Response `401`:
 }
 ```
 
+## Realtime Session Completion
+
+`POST /api/session/complete`
+
+Records a completed voice learning session for the authenticated learner. The endpoint updates recent session history, queues the practised knowledge unit for review, and returns the updated resume checkpoint so clients can refresh Home, Learn, Review, and Progress surfaces from the same contract used by `GET /api/session/resume`. Repeating the same `sessionId` is idempotent and returns the existing checkpoint without advancing progress again.
+
+```json
+{
+  "sessionId": "corr-123",
+  "durationSeconds": 540,
+  "sessionIntent": "lesson",
+  "lessonId": "lesson-1",
+  "knowledgeUnitId": "greetings"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "correlationId": "corr-123",
+  "version": 3,
+  "profile": {
+    "targetLanguage": "fr-FR",
+    "nativeLanguage": "en-US",
+    "proficiencyLevel": "A1",
+    "goals": ["travel"],
+    "dailyMinutes": 15
+  },
+  "activePlan": {
+    "planId": "plan-1",
+    "title": "Survival French",
+    "knowledgeUnitIds": ["greetings"]
+  },
+  "currentLesson": {
+    "lessonId": "lesson-1",
+    "knowledgeUnitId": "greetings",
+    "stepIndex": 2,
+    "updatedAt": "2026-08-29T07:09:00Z"
+  },
+  "reviewQueue": [
+    {
+      "knowledgeUnitId": "greetings",
+      "dueAt": "2026-08-30T07:09:00Z",
+      "priority": 1
+    }
+  ],
+  "recentSessions": [
+    {
+      "sessionId": "corr-123",
+      "startedAt": "2026-08-29T07:00:00Z",
+      "durationSeconds": 540,
+      "lessonId": "lesson-1"
+    }
+  ]
+}
+```
+
 ## Developer Reset
 
 `DELETE /api/dev/learner-state`

@@ -13,6 +13,14 @@ struct RealtimeSessionRequestDTO: Encodable {
     let dueReviewCount: Int?
 }
 
+struct RealtimeSessionCompletionRequestDTO: Encodable {
+    let sessionId: String
+    let durationSeconds: Int
+    let sessionIntent: String?
+    let lessonId: String?
+    let knowledgeUnitId: String?
+}
+
 struct RealtimeSessionSettingsDTO: Codable {
     let coachingMode: String
     let proficiencyBand: String
@@ -32,6 +40,7 @@ struct RealtimeSessionResponseDTO: Decodable {
 
     func toCredential() -> RealtimeSessionCredential {
         RealtimeSessionCredential(
+            correlationId: correlationId,
             clientSecret: clientSecret,
             model: model,
             reasoningEffort: reasoningEffort,

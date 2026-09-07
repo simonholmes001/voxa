@@ -27,6 +27,7 @@ public sealed class VoxaApiServiceCollectionTests
         Assert.NotNull(provider.GetRequiredService<IAppleIdentityVerifier>());
         Assert.NotNull(provider.GetRequiredService<IAppSessionService>());
         Assert.NotNull(provider.GetRequiredService<ILearnerSessionQueries>());
+        Assert.NotNull(provider.GetRequiredService<ILearningSessionCompletionService>());
         Assert.NotNull(provider.GetRequiredService<IModelRouter>());
         Assert.NotNull(provider.GetRequiredService<IPromptRegistry>());
         Assert.NotNull(provider.GetRequiredService<IRealtimeSessionService>());
@@ -34,6 +35,7 @@ public sealed class VoxaApiServiceCollectionTests
         Assert.NotNull(provider.GetRequiredService<RefreshAppSessionEndpoint>());
         Assert.NotNull(provider.GetRequiredService<LogoutAppSessionEndpoint>());
         Assert.NotNull(provider.GetRequiredService<RealtimeSessionEndpoint>());
+        Assert.NotNull(provider.GetRequiredService<LearningSessionCompletionEndpoint>());
         Assert.NotNull(provider.GetRequiredService<ResumeSessionEndpoint>());
         Assert.NotNull(ActivatorUtilities.CreateInstance<VoxaHttpFunctions>(provider));
     }

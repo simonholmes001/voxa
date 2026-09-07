@@ -8,6 +8,35 @@ public protocol RealtimeSessionService: Sendable {
     ) async throws -> RealtimeSessionCredential
 }
 
+public protocol RealtimeSessionCompletionService: Sendable {
+    func completeSession(
+        _ completion: RealtimeSessionCompletion,
+        accessToken: String
+    ) async throws
+}
+
+public struct RealtimeSessionCompletion: Sendable, Equatable {
+    public var sessionId: String
+    public var durationSeconds: Int
+    public var sessionIntent: String?
+    public var lessonId: String?
+    public var knowledgeUnitId: String?
+
+    public init(
+        sessionId: String,
+        durationSeconds: Int,
+        sessionIntent: String? = nil,
+        lessonId: String? = nil,
+        knowledgeUnitId: String? = nil
+    ) {
+        self.sessionId = sessionId
+        self.durationSeconds = max(0, durationSeconds)
+        self.sessionIntent = sessionIntent
+        self.lessonId = lessonId
+        self.knowledgeUnitId = knowledgeUnitId
+    }
+}
+
 public enum RealtimeSessionError: Error, Equatable {
     /// The backend base URL is not configured for this build.
     case notConfigured(String)

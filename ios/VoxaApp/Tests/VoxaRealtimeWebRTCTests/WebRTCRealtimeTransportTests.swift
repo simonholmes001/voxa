@@ -16,6 +16,7 @@ final class WebRTCRealtimeTransportTests: XCTestCase {
 
     private func validCredential(expiresIn seconds: TimeInterval = 60) -> RealtimeSessionCredential {
         RealtimeSessionCredential(
+            correlationId: "corr-1",
             clientSecret: "secret-test-token",
             model: "gpt-realtime",
             reasoningEffort: "low",
@@ -95,6 +96,7 @@ final class WebRTCRealtimeTransportTests: XCTestCase {
         let answer = try await exchanger.createCall(
             offerSDP: "v=0\r\no=- test-offer",
             credential: RealtimeSessionCredential(
+                correlationId: "corr-2",
                 clientSecret: "ephemeral-client-secret",
                 model: "gpt-realtime-2.1",
                 reasoningEffort: "low",

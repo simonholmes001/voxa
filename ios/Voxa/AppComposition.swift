@@ -244,6 +244,7 @@ enum AppComposition {
             },
             permission: SystemMicrophonePermission(),
             service: makeRealtimeSessionService(),
+            completionService: makeRealtimeSessionCompletionService(),
             transport: makeRealtimeTransport(),
             accessTokenProvider: { [weak authModel] in authModel?.state.session?.accessToken },
             onAuthenticationRequired: { [weak authModel] in
@@ -287,6 +288,13 @@ enum AppComposition {
     static func makeRealtimeSessionService() -> any RealtimeSessionService {
         guard let baseURL = backendBaseURL() else {
             return NotConfiguredRealtimeSessionService()
+        }
+        return VoxaBackendRealtimeSessionService(baseURL: baseURL)
+    }
+
+    static func makeRealtimeSessionCompletionService() -> (any RealtimeSessionCompletionService)? {
+        guard let baseURL = backendBaseURL() else {
+            return nil
         }
         return VoxaBackendRealtimeSessionService(baseURL: baseURL)
     }

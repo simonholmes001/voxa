@@ -14,6 +14,7 @@ final class RealtimeStateTests: XCTestCase {
     func testCredentialExpiry() {
         let settings = RealtimeCoachingSettings(proficiencyBand: "A1-A2", targetLanguage: "fr-FR")
         let credential = RealtimeSessionCredential(
+            correlationId: "corr-1",
             clientSecret: "s", model: "m", reasoningEffort: "low",
             expiresAt: Date(timeIntervalSince1970: 1000), settings: settings
         )
