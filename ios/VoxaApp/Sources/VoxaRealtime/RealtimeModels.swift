@@ -1,8 +1,7 @@
 import Foundation
 
-/// The learner's reason for opening the voice tutor. This is currently client
-/// UI state; the backend Realtime contract still receives the supported
-/// `tutor` coaching mode until server-side prompt modes are expanded.
+/// The learner's reason for opening the voice tutor. The app uses this to set
+/// the Talk screen state and to shape backend Realtime tutor instructions.
 public enum RealtimeTutorIntent: Sendable, Equatable {
     case openPractice
     case lesson(title: String?)
@@ -33,6 +32,17 @@ public enum RealtimeTutorIntent: Sendable, Equatable {
                 return "Ready to review with your tutor?"
             }
             return "Ready to review \(dueCount) due items?"
+        }
+    }
+
+    public var startButtonTitle: String {
+        switch self {
+        case .openPractice:
+            return "Start talking"
+        case .lesson:
+            return "Start voice lesson"
+        case .review:
+            return "Start review"
         }
     }
 }

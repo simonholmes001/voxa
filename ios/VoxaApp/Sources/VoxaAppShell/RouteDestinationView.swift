@@ -6,9 +6,10 @@ import VoxaRealtime
 
 /// Destination for a top-level route.
 ///
-/// The Home route hosts the Home/Today surface and the Talk route hosts the
-/// Realtime voice session, when their view models are provided; other routes
-/// render a Dynamic Type-friendly placeholder until their own issues land.
+/// Home hosts the learning dashboard, Talk hosts the Realtime tutor, and
+/// Learn/Review/Progress render assistant-plan surfaces from the active
+/// profile. Settings renders the language manager when its dependencies are
+/// available.
 struct RouteDestinationView: View {
     let route: AppRoute
     var homeModel: HomeViewModel?

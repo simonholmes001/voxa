@@ -38,9 +38,9 @@ public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// Lightweight struct describing the placeholder content shown for routes
-/// that don't yet have full feature implementations. This keeps UI placeholder
-/// text meaningful and testable without rendering SwiftUI views in unit tests.
+/// Lightweight struct describing fallback route content when a destination is
+/// rendered without its feature dependencies. This keeps copy meaningful and
+/// testable without rendering SwiftUI views in unit tests.
 public struct RoutePlaceholderContent: Sendable, Equatable {
     public let headline: String
     public let subheadline: String
@@ -54,9 +54,7 @@ public struct RoutePlaceholderContent: Sendable, Equatable {
 }
 
 public extension AppRoute {
-    /// Returns purposeful placeholder content for device testing and demos.
-    /// These are intentionally minimal but descriptive so testers can exercise
-    /// each tab and verify navigation/state without the full feature.
+    /// Returns purposeful fallback content for device testing and demos.
     func placeholderContent() -> RoutePlaceholderContent {
         switch self {
         case .learn:

@@ -281,7 +281,7 @@ enum LearningAssistantPlanFactory {
         if context.recentSessionCount > 0 {
             return "No due items yet from \(context.recentSessionCount) recent sessions"
         }
-        return "Mistakes and weak words will appear here after tutor sessions"
+        return "Start a tutor session to create mistake and word review"
     }
 }
 #endif

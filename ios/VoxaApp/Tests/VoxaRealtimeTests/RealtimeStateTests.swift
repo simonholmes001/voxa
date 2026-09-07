@@ -23,8 +23,11 @@ final class RealtimeStateTests: XCTestCase {
 
     func testTutorIntentPromptsMatchLearningWorkflow() {
         XCTAssertEqual(RealtimeTutorIntent.openPractice.title, "Speaking practice")
+        XCTAssertEqual(RealtimeTutorIntent.openPractice.startButtonTitle, "Start talking")
         XCTAssertEqual(RealtimeTutorIntent.lesson(title: "Survival German").prompt, "Ready for Survival German?")
+        XCTAssertEqual(RealtimeTutorIntent.lesson(title: "Survival German").startButtonTitle, "Start voice lesson")
         XCTAssertEqual(RealtimeTutorIntent.review(dueCount: 3).prompt, "Ready to review 3 due items?")
+        XCTAssertEqual(RealtimeTutorIntent.review(dueCount: 3).startButtonTitle, "Start review")
         XCTAssertEqual(RealtimeTutorIntent.review(dueCount: 0).prompt, "Ready to review with your tutor?")
     }
 }

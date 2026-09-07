@@ -58,7 +58,7 @@ public struct TalkView: View {
             Button {
                 Task { await model.start() }
             } label: {
-                Label("Start talking", systemImage: "mic.fill")
+                Label(model.pendingIntent.startButtonTitle, systemImage: "mic.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
