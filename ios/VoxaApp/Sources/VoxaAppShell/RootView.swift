@@ -300,6 +300,7 @@ private struct TabLayout: View {
                         homeModel: homeModel,
                         talkModel: talkModel,
                         languageManager: languageManager,
+                        onContinueLearning: { model.selectedRoute = .learn },
                         onStartTalk: { model.selectedRoute = .talk }
                     )
                 }
@@ -353,6 +354,7 @@ private struct SplitLayout: View {
                     homeModel: homeModel,
                     talkModel: talkModel,
                     languageManager: languageManager,
+                    onContinueLearning: { model.selectedRoute = .learn },
                     onStartTalk: { model.selectedRoute = .talk }
                 )
             }

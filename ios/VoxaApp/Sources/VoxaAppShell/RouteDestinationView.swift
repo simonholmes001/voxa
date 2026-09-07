@@ -14,29 +14,51 @@ struct RouteDestinationView: View {
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
     var languageManager: LanguageManagerContext?
+    var onContinueLearning: () -> Void = {}
     var onStartTalk: () -> Void = {}
 
     var body: some View {
         switch route {
         case .home where homeModel != nil:
-            HomeView(model: homeModel!, onStartTalk: onStartTalk)
+            HomeView(
+                model: homeModel!,
+                talkModel: talkModel,
+                languages: homeLanguages,
+                onContinueLearning: onContinueLearning,
+                onVoicePractice: onStartTalk,
+                onSelectLanguage: selectLanguage
+            )
         case .talk where talkModel != nil:
             TalkView(model: talkModel!)
         case .learn:
-            MvpRouteView(
-                route: route,
+            LearningRouteView(
+                title: "Today's lesson",
                 symbol: "book.closed",
-                title: "Build your next lesson",
-                message: "Lessons will appear here after your learning plan is ready.",
-                detail: "Start a Talk session to practise while lesson content is being prepared."
+                headline: "Travel German A1",
+                detail: "A short tutor-led session with warm-up, useful phrases, and a voice roleplay.",
+                primaryTitle: "Start voice lesson",
+                primarySymbol: "mic.fill",
+                primaryAction: onStartTalk,
+                rows: [
+                    LearningRouteRow(title: "Warm up", detail: "Review yesterday's weak words", symbol: "flame"),
+                    LearningRouteRow(title: "New language", detail: "Asking for directions at a station", symbol: "map"),
+                    LearningRouteRow(title: "Roleplay", detail: "Find your platform and buy a ticket", symbol: "person.wave.2")
+                ]
             )
         case .review:
-            MvpRouteView(
-                route: route,
+            LearningRouteView(
+                title: "Review",
                 symbol: "arrow.triangle.2.circlepath",
-                title: "Review when you're ready",
-                message: "Your review queue will appear here after you complete a learning session.",
-                detail: "There is nothing due yet."
+                headline: "Practice what needs attention",
+                detail: "Voxa should turn mistakes, weak words, and pronunciation notes into focused drills.",
+                primaryTitle: "Review with tutor",
+                primarySymbol: "mic.fill",
+                primaryAction: onStartTalk,
+                rows: [
+                    LearningRouteRow(title: "Recent mistakes", detail: "Grammar and phrase corrections from Talk", symbol: "exclamationmark.bubble"),
+                    LearningRouteRow(title: "Words due", detail: "Spaced repetition for unstable vocabulary", symbol: "textformat.abc"),
+                    LearningRouteRow(title: "Pronunciation", detail: "Minimal-pair drills for sounds you miss", symbol: "waveform")
+                ]
             )
         case .settings where languageManager != nil:
             LanguageManagementView(
@@ -49,16 +71,52 @@ struct RouteDestinationView: View {
                 onSignOut: languageManager!.onSignOut
             )
         case .settings:
-            MvpRouteView(
-                route: route,
+            LearningRouteView(
+                title: "Settings",
                 symbol: "person.crop.circle",
-                title: "Your learning settings",
-                message: "Language profiles and account preferences are managed here.",
-                detail: "Select a language from the profile chooser to edit its onboarding settings."
+                headline: "Manage your tutor",
+                detail: "Language profiles, daily time, goals, and account settings live here.",
+                primaryTitle: "Add a language",
+                primarySymbol: "plus.circle",
+                primaryAction: languageManager?.onAddLanguage ?? {},
+                rows: [
+                    LearningRouteRow(title: "Languages", detail: "Switch between the languages you are learning", symbol: "globe"),
+                    LearningRouteRow(title: "Goals", detail: "Tune what your tutor should optimize for", symbol: "target"),
+                    LearningRouteRow(title: "Session style", detail: "Control how much correction and explanation you want", symbol: "slider.horizontal.3")
+                ]
             )
         default:
             placeholder
         }
+    }
+
+    private var homeLanguages: [LearnerLanguageSummary] {
+        guard let languageManager else { return [] }
+        return languageManager.profileModel.allProfiles.map { profile in
+            LearnerLanguageSummary(
+                id: profile.languageKey,
+                name: shortLanguageName(profile.displayName),
+                levelName: profile.profile.placementLevel.displayName,
+                dailyMinutes: profile.profile.minutesPerDay,
+                isActive: profile.languageKey == languageManager.profileModel.activeLanguageKey
+            )
+        }
+    }
+
+    private func selectLanguage(_ id: String) {
+        guard let languageManager,
+              let profile = languageManager.profileModel.allProfiles.first(where: { $0.languageKey == id }),
+              profile.languageKey != languageManager.profileModel.activeLanguageKey
+        else { return }
+        languageManager.onSwitch(profile)
+    }
+
+    private func shortLanguageName(_ displayName: String) -> String {
+        displayName.replacingOccurrences(
+            of: #"\s*\([^)]*\)"#,
+            with: "",
+            options: .regularExpression
+        )
     }
 
     private var placeholder: some View {
@@ -86,34 +144,75 @@ struct RouteDestinationView: View {
     }
 }
 
-private struct MvpRouteView: View {
-    let route: AppRoute
-    let symbol: String
+private struct LearningRouteRow: Identifiable {
+    let id = UUID()
     let title: String
-    let message: String
     let detail: String
+    let symbol: String
+}
+
+private struct LearningRouteView: View {
+    let title: String
+    let symbol: String
+    let headline: String
+    let detail: String
+    let primaryTitle: String
+    let primarySymbol: String
+    let primaryAction: () -> Void
+    let rows: [LearningRouteRow]
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Image(systemName: symbol)
-                    .font(.system(size: 44, weight: .medium))
-                    .foregroundStyle(.tint)
-                    .accessibilityHidden(true)
-                Text(title)
-                    .font(.largeTitle)
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 12) {
+                    Image(systemName: symbol)
+                        .font(.system(size: 34, weight: .medium))
+                        .foregroundStyle(.tint)
+                        .accessibilityHidden(true)
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+                Text(headline)
+                    .font(.title)
                     .fontWeight(.bold)
-                Text(message)
-                    .font(.title3)
-                    .fontWeight(.semibold)
                 Text(detail)
                     .foregroundStyle(.secondary)
+                Button(action: primaryAction) {
+                    Label(primaryTitle, systemImage: primarySymbol)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                VStack(spacing: 10) {
+                    ForEach(rows) { row in
+                        HStack(spacing: 12) {
+                            Image(systemName: row.symbol)
+                                .font(.title3)
+                                .foregroundStyle(.tint)
+                                .frame(width: 28)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(row.title)
+                                    .font(.body)
+                                    .fontWeight(.semibold)
+                                Text(row.detail)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding()
+                        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
             }
             .frame(maxWidth: 640, alignment: .leading)
             .padding()
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .navigationTitle(route.placeholderContent().headline)
+        .navigationTitle(title)
     }
 }
 

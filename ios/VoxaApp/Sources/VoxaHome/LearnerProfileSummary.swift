@@ -24,3 +24,21 @@ public struct LearnerProfileSummary: Sendable, Equatable {
         self.isStale = isStale
     }
 }
+
+/// Compact language row used by Home. This keeps the Home module independent
+/// from the richer profile model owned by `VoxaProfiles`.
+public struct LearnerLanguageSummary: Sendable, Equatable, Identifiable {
+    public var id: String
+    public var name: String
+    public var levelName: String
+    public var dailyMinutes: Int
+    public var isActive: Bool
+
+    public init(id: String, name: String, levelName: String, dailyMinutes: Int, isActive: Bool) {
+        self.id = id
+        self.name = name
+        self.levelName = levelName
+        self.dailyMinutes = dailyMinutes
+        self.isActive = isActive
+    }
+}
