@@ -49,7 +49,9 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
         Assert.Contains("\"session\"", handler.Body, StringComparison.Ordinal);
         Assert.Contains("\"type\":\"realtime\"", handler.Body, StringComparison.Ordinal);
         Assert.Contains("gpt-realtime-2.1", handler.Body, StringComparison.Ordinal);
-        Assert.Contains("fr-FR", handler.Body, StringComparison.Ordinal);
+        // `session.metadata` (which carried target_language etc.) is not sent:
+        // OpenAI's client_secrets endpoint rejects it with HTTP 400.
+        Assert.DoesNotContain("metadata", handler.Body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -109,6 +111,9 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
         Assert.Equal("gpt-realtime-2.1-mini", credential.Model);
         Assert.Contains("gpt-realtime-2.1-mini", handler.Body, StringComparison.Ordinal);
         Assert.Contains("\"effort\":\"low\"", handler.Body, StringComparison.Ordinal);
+        // Regression: OpenAI's v1/realtime/client_secrets rejects an unknown
+        // `session.metadata` parameter with HTTP 400, which surfaced as a 503.
+        Assert.DoesNotContain("metadata", handler.Body, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(AiCapability.RealtimeTutorModel, router.Requests.Single().Capability);
         Assert.Equal(AiCallKind.RealtimeSession, router.Requests.Single().Kind);
     }

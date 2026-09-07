@@ -42,12 +42,7 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
                 new OpenAiRealtimeSessionRequest(
                     "realtime",
                     route.Model,
-                    new OpenAiRealtimeReasoning(route.ReasoningEffort),
-                    new OpenAiRealtimeSessionMetadata(
-                        request.CorrelationId.Value,
-                        request.Settings.CoachingMode,
-                        request.Settings.ProficiencyBand,
-                        request.Settings.TargetLanguage))))
+                    new OpenAiRealtimeReasoning(route.ReasoningEffort))))
         };
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
 
@@ -94,17 +89,10 @@ internal sealed record OpenAiRealtimeClientSecretRequest(
 internal sealed record OpenAiRealtimeSessionRequest(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("model")] string Model,
-    [property: JsonPropertyName("reasoning")] OpenAiRealtimeReasoning Reasoning,
-    [property: JsonPropertyName("metadata")] OpenAiRealtimeSessionMetadata Metadata);
+    [property: JsonPropertyName("reasoning")] OpenAiRealtimeReasoning Reasoning);
 
 internal sealed record OpenAiRealtimeReasoning(
     [property: JsonPropertyName("effort")] string Effort);
-
-internal sealed record OpenAiRealtimeSessionMetadata(
-    [property: JsonPropertyName("correlation_id")] string CorrelationId,
-    [property: JsonPropertyName("coaching_mode")] string CoachingMode,
-    [property: JsonPropertyName("proficiency_band")] string ProficiencyBand,
-    [property: JsonPropertyName("target_language")] string TargetLanguage);
 
 internal sealed record OpenAiRealtimeClientSecretResponse(
     [property: JsonPropertyName("client_secret")] OpenAiRealtimeClientSecret? ClientSecret,
