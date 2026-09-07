@@ -65,7 +65,10 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
 
         var body = await response.Content.ReadFromJsonAsync<OpenAiRealtimeClientSecretResponse>(
             cancellationToken);
-        if (body?.ClientSecret?.Value is null)
+        var clientSecret = body?.Value ?? body?.ClientSecret?.Value;
+        var expiresAt = body?.ExpiresAt ?? body?.ClientSecret?.ExpiresAt;
+        var sessionModel = body?.Session?.Model ?? route.Model;
+        if (clientSecret is null || expiresAt is null)
         {
             logger.LogError(
                 "OpenAI realtime client_secret response was missing a client secret value. model={Model}",
@@ -75,10 +78,10 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
 
         return new RealtimeSessionCredential(
             request.CorrelationId.Value,
-            body.ClientSecret.Value,
-            body.Session?.Model ?? route.Model,
+            clientSecret,
+            sessionModel,
             route.ReasoningEffort,
-            DateTimeOffset.FromUnixTimeSeconds(body.ClientSecret.ExpiresAt),
+            DateTimeOffset.FromUnixTimeSeconds(expiresAt.Value),
             request.Settings);
     }
 }
@@ -95,6 +98,8 @@ internal sealed record OpenAiRealtimeReasoning(
     [property: JsonPropertyName("effort")] string Effort);
 
 internal sealed record OpenAiRealtimeClientSecretResponse(
+    [property: JsonPropertyName("value")] string? Value,
+    [property: JsonPropertyName("expires_at")] long? ExpiresAt,
     [property: JsonPropertyName("client_secret")] OpenAiRealtimeClientSecret? ClientSecret,
     [property: JsonPropertyName("session")] OpenAiRealtimeSession? Session);
 

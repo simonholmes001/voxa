@@ -55,6 +55,41 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
     }
 
     [Fact]
+    public async Task IssueAsyncAcceptsGaTopLevelClientSecretResponse()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": {
+                "type": "realtime",
+                "model": "gpt-realtime-2.1"
+              }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        var credential = await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
+
+        Assert.Equal("ek_prod_shape_123", credential.ClientSecret);
+        Assert.Equal("gpt-realtime-2.1", credential.Model);
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1787991600), credential.ExpiresAt);
+    }
+
+    [Fact]
     public async Task IssueAsyncMapsUpstreamFailureToRealtimeSessionIssueException()
     {
         var client = new HttpClient(new RecordingHttpMessageHandler("{}", HttpStatusCode.TooManyRequests))
