@@ -4,6 +4,7 @@ using Voxa.Application.Ai;
 using Voxa.Application.Realtime;
 using Voxa.Domain.Learners;
 using Voxa.Infrastructure.OpenAI;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Voxa.Infrastructure.Tests;
 
@@ -35,7 +36,8 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "gpt-realtime-2.1",
                 "low",
                 ModelRouteSource.ConfigDefault,
-                null)));
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         var credential = await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
 
@@ -65,7 +67,8 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "gpt-realtime-2.1",
                 "low",
                 ModelRouteSource.ConfigDefault,
-                null)));
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         await Assert.ThrowsAsync<RealtimeSessionIssueException>(() =>
             issuer.IssueAsync(CreateRequest(), CancellationToken.None));
@@ -98,7 +101,8 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
         var issuer = new OpenAiRealtimeClientSecretIssuer(
             client,
             new OpenAiRealtimeOptions("server-api-key"),
-            router);
+            router,
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         var credential = await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
 
@@ -124,7 +128,8 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "gpt-realtime-2.1",
                 null,
                 ModelRouteSource.ConfigDefault,
-                null)));
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         await Assert.ThrowsAsync<RealtimeSessionIssueException>(() =>
             issuer.IssueAsync(CreateRequest(), CancellationToken.None));
