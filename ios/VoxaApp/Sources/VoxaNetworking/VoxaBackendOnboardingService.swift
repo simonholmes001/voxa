@@ -54,6 +54,10 @@ public struct VoxaBackendOnboardingService: OnboardingService {
     }
 
     public func resume() async throws -> OnboardingProfile? {
+        try await resumeCheckpoint()?.profile
+    }
+
+    public func resumeCheckpoint() async throws -> OnboardingResumeCheckpoint? {
         guard let accessToken = await accessTokenProvider() else {
             throw OnboardingServiceError.authenticationRequired
         }
@@ -61,17 +65,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         do {
             let response: ResumeCheckpointResponseDTO = try await get("api/session/resume", accessToken: accessToken)
 
-            guard let cefrLevel = CEFRLevel(rawValue: response.profile.proficiencyLevel.lowercased()) else {
-                throw OnboardingServiceError.invalidResponse
-            }
-
-            return OnboardingProfile(
-                targetLanguage: response.profile.targetLanguage,
-                nativeLanguage: response.profile.nativeLanguage,
-                goals: response.profile.goals,
-                minutesPerDay: response.profile.dailyMinutes,
-                placementLevel: cefrLevel
-            )
+            return try response.toCheckpoint()
         } catch OnboardingServiceError.notFound {
             return nil
         }
@@ -107,7 +101,7 @@ public struct VoxaBackendOnboardingService: OnboardingService {
             throw Self.mapError(status: http.statusCode, data: data)
         }
         do {
-            return try JSONDecoder().decode(Response.self, from: data)
+            return try Self.decoder.decode(Response.self, from: data)
         } catch {
             throw OnboardingServiceError.invalidResponse
         }
@@ -140,11 +134,17 @@ public struct VoxaBackendOnboardingService: OnboardingService {
             throw Self.mapError(status: http.statusCode, data: data)
         }
         do {
-            return try JSONDecoder().decode(Response.self, from: data)
+            return try Self.decoder.decode(Response.self, from: data)
         } catch {
             throw OnboardingServiceError.invalidResponse
         }
     }
+
+    private static let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }()
 
     private static func mapError(status: Int, data: Data) -> OnboardingServiceError {
         switch status {
@@ -171,5 +171,51 @@ public struct VoxaBackendOnboardingService: OnboardingService {
         default:
             return .unavailable
         }
+    }
+}
+
+private extension ResumeCheckpointResponseDTO {
+    func toCheckpoint() throws -> OnboardingResumeCheckpoint {
+        guard let cefrLevel = CEFRLevel(rawValue: profile.proficiencyLevel.lowercased()) else {
+            throw OnboardingServiceError.invalidResponse
+        }
+
+        return OnboardingResumeCheckpoint(
+            profile: OnboardingProfile(
+                targetLanguage: profile.targetLanguage,
+                nativeLanguage: profile.nativeLanguage,
+                goals: profile.goals,
+                minutesPerDay: profile.dailyMinutes,
+                placementLevel: cefrLevel
+            ),
+            activePlan: ActiveLearningPlan(
+                planId: activePlan.planId,
+                title: activePlan.title,
+                knowledgeUnitIds: activePlan.knowledgeUnitIds
+            ),
+            currentLesson: currentLesson.map {
+                LessonCheckpoint(
+                    lessonId: $0.lessonId,
+                    knowledgeUnitId: $0.knowledgeUnitId,
+                    stepIndex: $0.stepIndex,
+                    updatedAt: $0.updatedAt
+                )
+            },
+            reviewQueue: (reviewQueue ?? []).map {
+                ReviewQueueItem(
+                    knowledgeUnitId: $0.knowledgeUnitId,
+                    dueAt: $0.dueAt,
+                    priority: $0.priority
+                )
+            },
+            recentSessions: (recentSessions ?? []).map {
+                SessionSummary(
+                    sessionId: $0.sessionId,
+                    startedAt: $0.startedAt,
+                    durationSeconds: $0.durationSeconds,
+                    lessonId: $0.lessonId
+                )
+            }
+        )
     }
 }

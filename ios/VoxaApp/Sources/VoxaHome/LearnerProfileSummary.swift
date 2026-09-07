@@ -9,19 +9,34 @@ public struct LearnerProfileSummary: Sendable, Equatable {
     public var goalName: String
     public var dailyMinutes: Int
     public var isStale: Bool
+    public var activePlanTitle: String?
+    public var currentLessonTitle: String?
+    public var currentLessonStepIndex: Int?
+    public var dueReviewCount: Int
+    public var recentSessionCount: Int
 
     public init(
         languageName: String,
         levelName: String,
         goalName: String,
         dailyMinutes: Int,
-        isStale: Bool = false
+        isStale: Bool = false,
+        activePlanTitle: String? = nil,
+        currentLessonTitle: String? = nil,
+        currentLessonStepIndex: Int? = nil,
+        dueReviewCount: Int = 0,
+        recentSessionCount: Int = 0
     ) {
         self.languageName = languageName
         self.levelName = levelName
         self.goalName = goalName
         self.dailyMinutes = dailyMinutes
         self.isStale = isStale
+        self.activePlanTitle = activePlanTitle
+        self.currentLessonTitle = currentLessonTitle
+        self.currentLessonStepIndex = currentLessonStepIndex
+        self.dueReviewCount = dueReviewCount
+        self.recentSessionCount = recentSessionCount
     }
 }
 

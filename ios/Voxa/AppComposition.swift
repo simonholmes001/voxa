@@ -104,7 +104,7 @@ enum AppComposition {
         onboardingModel: OnboardingViewModel
     ) -> HomeViewModel {
         let server = MainActorProfileProvider {
-            learnerSummary(from: try await onboardingService.resume())
+            learnerSummary(from: try await onboardingService.resumeCheckpoint())
         }
         let local = MainActorProfileProvider { [weak onboardingModel] in
             learnerSummary(from: onboardingModel?.makeProfile(), isStale: true)
@@ -123,14 +123,27 @@ enum AppComposition {
     }
 
     /// Maps an onboarding profile into the display-ready Home summary.
-    static func learnerSummary(from profile: OnboardingProfile?, isStale: Bool = false) -> LearnerProfileSummary? {
+    static func learnerSummary(
+        from profile: OnboardingProfile?,
+        isStale: Bool = false,
+        activePlanTitle: String? = nil,
+        currentLessonTitle: String? = nil,
+        currentLessonStepIndex: Int? = nil,
+        dueReviewCount: Int = 0,
+        recentSessionCount: Int = 0
+    ) -> LearnerProfileSummary? {
         guard let profile else { return nil }
         return LearnerProfileSummary(
             languageName: OnboardingLanguages.displayName(forKey: profile.targetLanguage),
             levelName: profile.placementLevel.displayName,
             goalName: profile.goals.map(GoalSelection.displayTitle).joined(separator: ", "),
             dailyMinutes: profile.minutesPerDay,
-            isStale: isStale
+            isStale: isStale,
+            activePlanTitle: activePlanTitle,
+            currentLessonTitle: currentLessonTitle,
+            currentLessonStepIndex: currentLessonStepIndex,
+            dueReviewCount: dueReviewCount,
+            recentSessionCount: recentSessionCount
         )
     }
 
@@ -142,9 +155,27 @@ enum AppComposition {
         let service: any OnboardingService
 
         func resumeSession() async throws -> LearnerProfileSummary? {
-            let profile = try await service.resume()
-            return AppComposition.learnerSummary(from: profile)
+            let checkpoint = try await service.resumeCheckpoint()
+            return AppComposition.learnerSummary(from: checkpoint)
         }
+    }
+
+    /// Maps a resume checkpoint into the display-ready Home summary, preserving
+    /// current plan/review context when the backend supplies it.
+    static func learnerSummary(
+        from checkpoint: OnboardingResumeCheckpoint?,
+        isStale: Bool = false
+    ) -> LearnerProfileSummary? {
+        guard let checkpoint else { return nil }
+        return learnerSummary(
+            from: checkpoint.profile,
+            isStale: isStale,
+            activePlanTitle: checkpoint.activePlan?.title,
+            currentLessonTitle: checkpoint.currentLesson?.knowledgeUnitId,
+            currentLessonStepIndex: checkpoint.currentLesson?.stepIndex,
+            dueReviewCount: checkpoint.reviewQueue.count,
+            recentSessionCount: checkpoint.recentSessions.count
+        )
     }
 
     static func isHomeProfileFallbackEligible(_ error: Error) -> Bool {

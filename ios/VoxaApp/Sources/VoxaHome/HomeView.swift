@@ -132,6 +132,16 @@ public struct HomeView: View {
             Text("\(summary.levelName) • \(summary.goalName.lowercased()) • about \(summary.dailyMinutes) min today")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            if let plan = summary.activePlanTitle {
+                Label(plan, systemImage: "map")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            if let lesson = summary.currentLessonTitle {
+                Label(currentLessonText(lesson, stepIndex: summary.currentLessonStepIndex), systemImage: "bookmark")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             HStack(spacing: 12) {
                 Button(action: onContinueLearning) {
                     Label("Continue learning", systemImage: "play.fill")
@@ -159,6 +169,12 @@ public struct HomeView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Practice")
                 .font(.headline)
+            if summary.dueReviewCount > 0 || summary.recentSessionCount > 0 {
+                HStack(spacing: 10) {
+                    statusPill("\(summary.dueReviewCount) due", "tray.full")
+                    statusPill("\(summary.recentSessionCount) sessions", "clock.arrow.circlepath")
+                }
+            }
             Button(action: onVoicePractice) {
                 Label("Talk with your tutor", systemImage: "mic.fill")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -196,6 +212,21 @@ public struct HomeView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 74)
         .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func statusPill(_ title: String, _ symbol: String) -> some View {
+        Label(title, systemImage: symbol)
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.secondary.opacity(0.10), in: Capsule())
+    }
+
+    private func currentLessonText(_ lesson: String, stepIndex: Int?) -> String {
+        guard let stepIndex else { return "Continue \(lesson)" }
+        return "Continue \(lesson), step \(stepIndex + 1)"
     }
 
     private func resolvedLanguages(for summary: LearnerProfileSummary) -> [LearnerLanguageSummary] {

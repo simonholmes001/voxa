@@ -17,7 +17,12 @@ final class LearningAssistantPlanTests: XCTestCase {
                 languageName: "French",
                 levelName: "B1",
                 goalName: "Work",
-                dailyMinutes: 10
+                dailyMinutes: 10,
+                activePlanTitle: "Business French",
+                currentLessonTitle: "introductions",
+                currentLessonStepIndex: 2,
+                dueReviewCount: 3,
+                recentSessionCount: 4
             )
         )
 
@@ -25,6 +30,9 @@ final class LearningAssistantPlanTests: XCTestCase {
         XCTAssertEqual(context.level, "A1")
         XCTAssertEqual(context.goal, "Travel")
         XCTAssertEqual(context.dailyMinutes, 30)
+        XCTAssertEqual(context.activePlanTitle, "Business French")
+        XCTAssertEqual(context.currentLessonTitle, "introductions")
+        XCTAssertEqual(context.dueReviewCount, 3)
     }
 
     func testContextFallsBackToHomeSummaryWhenNoActiveProfileExists() {
@@ -67,7 +75,8 @@ final class LearningAssistantPlanTests: XCTestCase {
             language: "German",
             level: "A1",
             goal: "Travel",
-            dailyMinutes: 30
+            dailyMinutes: 30,
+            dueReviewCount: 2
         ))
 
         XCTAssertEqual(plan.progress.title, "Progress")
@@ -75,7 +84,31 @@ final class LearningAssistantPlanTests: XCTestCase {
         XCTAssertTrue(plan.progress.rows.contains {
             $0.id == "daily-target" && $0.detail.contains("30 minutes")
         })
-        XCTAssertTrue(plan.progress.rows.contains { $0.id == "review-load" })
+        XCTAssertTrue(plan.progress.rows.contains {
+            $0.id == "review-load" && $0.detail.contains("2 due")
+        })
+    }
+
+    func testLessonPlanUsesResumeCheckpointWhenAvailable() {
+        let plan = LearningAssistantPlanFactory.makePlan(for: LearningAssistantContext(
+            language: "German",
+            level: "A1",
+            goal: "Travel",
+            dailyMinutes: 30,
+            activePlanTitle: "Survival German",
+            currentLessonTitle: "station-directions",
+            currentLessonStepIndex: 3,
+            dueReviewCount: 1,
+            recentSessionCount: 2
+        ))
+
+        XCTAssertEqual(plan.lesson.headline, "Survival German")
+        XCTAssertTrue(plan.lesson.rows.contains {
+            $0.id == "briefing" && $0.detail.contains("step 4")
+        })
+        XCTAssertTrue(plan.review.rows.contains {
+            $0.id == "recent-mistakes" && $0.detail.contains("1 due")
+        })
     }
 
     func testGoalFocusMappingsCoverPrimaryOnboardingGoals() {

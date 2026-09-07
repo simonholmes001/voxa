@@ -1,6 +1,7 @@
 import XCTest
 @testable import Voxa
 import VoxaAuth
+import VoxaHome
 import VoxaOnboarding
 
 private final class StubAuthenticationService: AuthenticationService, @unchecked Sendable {
@@ -98,6 +99,53 @@ final class AppCompositionTests: XCTestCase {
 
         XCTAssertEqual(settings.targetLanguage, "es-ES")
         XCTAssertEqual(settings.proficiencyBand, "C1-C2")
+    }
+
+    func testLearnerSummaryPreservesResumeCheckpointContext() {
+        let checkpoint = OnboardingResumeCheckpoint(
+            profile: OnboardingProfile(
+                targetLanguage: "de-DE",
+                nativeLanguage: "en-US",
+                goals: ["travel"],
+                minutesPerDay: 30,
+                placementLevel: .a1
+            ),
+            activePlan: ActiveLearningPlan(
+                planId: "plan-1",
+                title: "Survival German",
+                knowledgeUnitIds: ["station-directions"]
+            ),
+            currentLesson: LessonCheckpoint(
+                lessonId: "lesson-1",
+                knowledgeUnitId: "station-directions",
+                stepIndex: 3,
+                updatedAt: Date(timeIntervalSince1970: 0)
+            ),
+            reviewQueue: [
+                ReviewQueueItem(
+                    knowledgeUnitId: "ticket",
+                    dueAt: Date(timeIntervalSince1970: 60),
+                    priority: 2
+                )
+            ],
+            recentSessions: [
+                SessionSummary(
+                    sessionId: "session-1",
+                    startedAt: Date(timeIntervalSince1970: 120),
+                    durationSeconds: 600,
+                    lessonId: "lesson-1"
+                )
+            ]
+        )
+
+        let summary = AppComposition.learnerSummary(from: checkpoint)
+
+        XCTAssertEqual(summary?.languageName, "German")
+        XCTAssertEqual(summary?.activePlanTitle, "Survival German")
+        XCTAssertEqual(summary?.currentLessonTitle, "station-directions")
+        XCTAssertEqual(summary?.currentLessonStepIndex, 3)
+        XCTAssertEqual(summary?.dueReviewCount, 1)
+        XCTAssertEqual(summary?.recentSessionCount, 1)
     }
 
     func testInfoPlistDeclaresMicrophoneUsage() {

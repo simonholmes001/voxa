@@ -9,6 +9,33 @@ struct LearningAssistantContext: Equatable {
     let level: String
     let goal: String
     let dailyMinutes: Int
+    let activePlanTitle: String?
+    let currentLessonTitle: String?
+    let currentLessonStepIndex: Int?
+    let dueReviewCount: Int
+    let recentSessionCount: Int
+
+    init(
+        language: String,
+        level: String,
+        goal: String,
+        dailyMinutes: Int,
+        activePlanTitle: String? = nil,
+        currentLessonTitle: String? = nil,
+        currentLessonStepIndex: Int? = nil,
+        dueReviewCount: Int = 0,
+        recentSessionCount: Int = 0
+    ) {
+        self.language = language
+        self.level = level
+        self.goal = goal
+        self.dailyMinutes = dailyMinutes
+        self.activePlanTitle = activePlanTitle
+        self.currentLessonTitle = currentLessonTitle
+        self.currentLessonStepIndex = currentLessonStepIndex
+        self.dueReviewCount = dueReviewCount
+        self.recentSessionCount = recentSessionCount
+    }
 }
 
 struct LearningAssistantPlan: Equatable {
@@ -45,7 +72,12 @@ enum LearningAssistantPlanFactory {
                 language: shortLanguageName(activeProfile.displayName),
                 level: activeProfile.profile.placementLevel.displayName,
                 goal: activeProfile.profile.goals.first.map(GoalSelection.displayTitle(for:)) ?? "Daily",
-                dailyMinutes: activeProfile.profile.minutesPerDay
+                dailyMinutes: activeProfile.profile.minutesPerDay,
+                activePlanTitle: homeSummary?.activePlanTitle,
+                currentLessonTitle: homeSummary?.currentLessonTitle,
+                currentLessonStepIndex: homeSummary?.currentLessonStepIndex,
+                dueReviewCount: homeSummary?.dueReviewCount ?? 0,
+                recentSessionCount: homeSummary?.recentSessionCount ?? 0
             )
         }
 
@@ -54,7 +86,12 @@ enum LearningAssistantPlanFactory {
                 language: homeSummary.languageName,
                 level: homeSummary.levelName,
                 goal: homeSummary.goalName,
-                dailyMinutes: homeSummary.dailyMinutes
+                dailyMinutes: homeSummary.dailyMinutes,
+                activePlanTitle: homeSummary.activePlanTitle,
+                currentLessonTitle: homeSummary.currentLessonTitle,
+                currentLessonStepIndex: homeSummary.currentLessonStepIndex,
+                dueReviewCount: homeSummary.dueReviewCount,
+                recentSessionCount: homeSummary.recentSessionCount
             )
         }
 
@@ -62,7 +99,12 @@ enum LearningAssistantPlanFactory {
             language: "language",
             level: "A1",
             goal: "Daily",
-            dailyMinutes: 15
+            dailyMinutes: 15,
+            activePlanTitle: nil,
+            currentLessonTitle: nil,
+            currentLessonStepIndex: nil,
+            dueReviewCount: 0,
+            recentSessionCount: 0
         )
     }
 
@@ -104,7 +146,7 @@ enum LearningAssistantPlanFactory {
         LearningRouteContent(
             title: "Today's lesson",
             symbol: "book.closed",
-            headline: "\(context.goal) \(context.language) \(context.level)",
+            headline: context.activePlanTitle ?? "\(context.goal) \(context.language) \(context.level)",
             detail: "A short assistant-led lesson: warm up, learn useful phrases, then practise aloud in a realistic scenario.",
             primaryTitle: "Start voice lesson",
             primarySymbol: "mic.fill",
@@ -112,7 +154,7 @@ enum LearningAssistantPlanFactory {
                 LearningRouteRow(
                     id: "briefing",
                     title: "Tutor briefing",
-                    detail: "\(context.dailyMinutes) minutes focused on what you can use today",
+                    detail: lessonBriefing(for: context),
                     symbol: "sparkles"
                 ),
                 LearningRouteRow(
@@ -143,7 +185,7 @@ enum LearningAssistantPlanFactory {
                 LearningRouteRow(
                     id: "recent-mistakes",
                     title: "Recent mistakes",
-                    detail: "Grammar and phrase corrections from Talk",
+                    detail: reviewLoadDetail(for: context),
                     symbol: "exclamationmark.bubble"
                 ),
                 LearningRouteRow(
@@ -186,7 +228,7 @@ enum LearningAssistantPlanFactory {
                 LearningRouteRow(
                     id: "review-load",
                     title: "Review load",
-                    detail: "Mistakes and weak words will appear here after tutor sessions",
+                    detail: reviewLoadDetail(for: context),
                     symbol: "tray.full"
                 )
             ]
@@ -222,6 +264,24 @@ enum LearningAssistantPlanFactory {
                 )
             ]
         )
+    }
+
+    private static func lessonBriefing(for context: LearningAssistantContext) -> String {
+        if let lesson = context.currentLessonTitle {
+            let step = context.currentLessonStepIndex.map { ", step \($0 + 1)" } ?? ""
+            return "Continue \(lesson)\(step) in a \(context.dailyMinutes)-minute session"
+        }
+        return "\(context.dailyMinutes) minutes focused on what you can use today"
+    }
+
+    private static func reviewLoadDetail(for context: LearningAssistantContext) -> String {
+        if context.dueReviewCount > 0 {
+            return "\(context.dueReviewCount) due from recent tutor sessions"
+        }
+        if context.recentSessionCount > 0 {
+            return "No due items yet from \(context.recentSessionCount) recent sessions"
+        }
+        return "Mistakes and weak words will appear here after tutor sessions"
     }
 }
 #endif
