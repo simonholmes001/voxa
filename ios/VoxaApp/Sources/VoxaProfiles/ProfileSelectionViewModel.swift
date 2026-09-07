@@ -74,6 +74,10 @@ public final class ProfileSelectionViewModel {
             await self.performLoad(id)
         }
         inFlight = task
+        // `await` here suspends and RELEASES the main actor, so `task`'s
+        // main-actor-isolated body runs to completion — awaiting from the actor
+        // does not block it. Overlapping loads therefore cannot self-deadlock
+        // (see testTwoOverlappingLoadsBothCompleteWithoutDeadlock).
         await task.value
         // Clear bookkeeping once the winning load finishes, so a later load()
         // never cancels an already-completed task. A superseded load (whose id

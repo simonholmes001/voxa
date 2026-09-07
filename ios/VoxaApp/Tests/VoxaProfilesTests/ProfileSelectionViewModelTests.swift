@@ -310,6 +310,24 @@ final class ProfileSelectionViewModelTests: XCTestCase {
         await model.refresh()
         XCTAssertFalse(model.hasInFlightLoadForTesting)
     }
+
+    // Two overlapping load() calls must both complete — no self-deadlock.
+    // Awaiting an unstructured Task from the main actor *releases* the actor, so
+    // the task's main-actor-isolated body can run. (If this deadlocked, the test
+    // would hang rather than fail.)
+    func testTwoOverlappingLoadsBothCompleteWithoutDeadlock() async {
+        let fr = profile("fr-FR", "French")
+        let service = FakeLanguageProfilesService(
+            list: .success(LanguageProfileList(activeLanguageKey: "fr-FR", profiles: [fr])))
+        let model = ProfileSelectionViewModel(service: service)
+
+        async let first: Void = model.load()
+        async let second: Void = model.load()
+        _ = await (first, second)
+
+        XCTAssertEqual(model.state, .single(fr))
+        XCTAssertFalse(model.hasInFlightLoadForTesting, "bookkeeping must be clear after both loads settle")
+    }
 }
 
 private final class SequencedLanguageProfilesService: LanguageProfilesService, @unchecked Sendable {
