@@ -171,8 +171,12 @@ public struct HomeView: View {
                 .font(.headline)
             if summary.dueReviewCount > 0 || summary.recentSessionCount > 0 {
                 HStack(spacing: 10) {
-                    statusPill("\(summary.dueReviewCount) due", "tray.full")
-                    statusPill("\(summary.recentSessionCount) sessions", "clock.arrow.circlepath")
+                    if summary.dueReviewCount > 0 {
+                        statusPill("\(summary.dueReviewCount) due", "tray.full")
+                    }
+                    if summary.recentSessionCount > 0 {
+                        statusPill("\(summary.recentSessionCount) sessions", "clock.arrow.circlepath")
+                    }
                 }
             }
             Button(action: onVoicePractice) {

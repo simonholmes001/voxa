@@ -188,34 +188,60 @@ private extension ResumeCheckpointResponseDTO {
                 minutesPerDay: profile.dailyMinutes,
                 placementLevel: cefrLevel
             ),
-            activePlan: ActiveLearningPlan(
-                planId: activePlan.planId,
-                title: activePlan.title,
-                knowledgeUnitIds: activePlan.knowledgeUnitIds
-            ),
-            currentLesson: currentLesson.map {
-                LessonCheckpoint(
-                    lessonId: $0.lessonId,
-                    knowledgeUnitId: $0.knowledgeUnitId,
-                    stepIndex: $0.stepIndex,
-                    updatedAt: $0.updatedAt
-                )
-            },
-            reviewQueue: (reviewQueue ?? []).map {
-                ReviewQueueItem(
+            activePlan: activePlan.toDomain(),
+            currentLesson: currentLesson?.toDomain(),
+            reviewQueue: (reviewQueue ?? []).compactMap {
+                guard !$0.knowledgeUnitId.isEmpty else { return nil }
+                return ReviewQueueItem(
                     knowledgeUnitId: $0.knowledgeUnitId,
                     dueAt: $0.dueAt,
                     priority: $0.priority
                 )
             },
-            recentSessions: (recentSessions ?? []).map {
-                SessionSummary(
+            recentSessions: (recentSessions ?? []).compactMap {
+                guard !$0.sessionId.isEmpty else { return nil }
+                return SessionSummary(
                     sessionId: $0.sessionId,
                     startedAt: $0.startedAt,
                     durationSeconds: $0.durationSeconds,
-                    lessonId: $0.lessonId
+                    lessonId: $0.lessonId?.nilIfEmpty
                 )
             }
         )
+    }
+}
+
+private extension OnboardingActivePlanDTO {
+    func toDomain() -> ActiveLearningPlan? {
+        guard !planId.isEmpty || !title.isEmpty || !knowledgeUnitIds.isEmpty else {
+            return nil
+        }
+
+        return ActiveLearningPlan(
+            planId: planId,
+            title: title,
+            knowledgeUnitIds: knowledgeUnitIds
+        )
+    }
+}
+
+private extension LessonCheckpointDTO {
+    func toDomain() -> LessonCheckpoint? {
+        guard !lessonId.isEmpty, !knowledgeUnitId.isEmpty else {
+            return nil
+        }
+
+        return LessonCheckpoint(
+            lessonId: lessonId,
+            knowledgeUnitId: knowledgeUnitId,
+            stepIndex: stepIndex,
+            updatedAt: updatedAt
+        )
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }
