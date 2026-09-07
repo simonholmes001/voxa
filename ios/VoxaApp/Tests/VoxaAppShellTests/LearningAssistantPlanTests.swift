@@ -76,13 +76,14 @@ final class LearningAssistantPlanTests: XCTestCase {
             level: "A1",
             goal: "Travel",
             dailyMinutes: 30,
-            dueReviewCount: 2
+            dueReviewCount: 2,
+            minutesPracticedToday: 12
         ))
 
         XCTAssertEqual(plan.progress.title, "Progress")
         XCTAssertEqual(plan.progress.primaryTitle, "Continue learning")
         XCTAssertTrue(plan.progress.rows.contains {
-            $0.id == "daily-target" && $0.detail.contains("30 minutes")
+            $0.id == "daily-target" && $0.detail.contains("12 of 30 minutes")
         })
         XCTAssertTrue(plan.progress.rows.contains {
             $0.id == "review-load" && $0.detail.contains("2 due")

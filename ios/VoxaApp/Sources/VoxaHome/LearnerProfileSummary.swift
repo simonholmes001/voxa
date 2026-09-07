@@ -14,6 +14,7 @@ public struct LearnerProfileSummary: Sendable, Equatable {
     public var currentLessonStepIndex: Int?
     public var dueReviewCount: Int
     public var recentSessionCount: Int
+    public var minutesPracticedToday: Int
 
     public init(
         languageName: String,
@@ -25,7 +26,8 @@ public struct LearnerProfileSummary: Sendable, Equatable {
         currentLessonTitle: String? = nil,
         currentLessonStepIndex: Int? = nil,
         dueReviewCount: Int = 0,
-        recentSessionCount: Int = 0
+        recentSessionCount: Int = 0,
+        minutesPracticedToday: Int = 0
     ) {
         self.languageName = languageName
         self.levelName = levelName
@@ -37,6 +39,12 @@ public struct LearnerProfileSummary: Sendable, Equatable {
         self.currentLessonStepIndex = currentLessonStepIndex
         self.dueReviewCount = dueReviewCount
         self.recentSessionCount = recentSessionCount
+        self.minutesPracticedToday = minutesPracticedToday
+    }
+
+    public var dailyProgressFraction: Double {
+        guard dailyMinutes > 0 else { return 0 }
+        return min(1, Double(minutesPracticedToday) / Double(dailyMinutes))
     }
 }
 

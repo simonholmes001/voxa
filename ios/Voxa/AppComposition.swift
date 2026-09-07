@@ -139,7 +139,8 @@ enum AppComposition {
         currentLessonTitle: String? = nil,
         currentLessonStepIndex: Int? = nil,
         dueReviewCount: Int = 0,
-        recentSessionCount: Int = 0
+        recentSessionCount: Int = 0,
+        minutesPracticedToday: Int = 0
     ) -> LearnerProfileSummary? {
         guard let profile else { return nil }
         return LearnerProfileSummary(
@@ -152,7 +153,8 @@ enum AppComposition {
             currentLessonTitle: currentLessonTitle,
             currentLessonStepIndex: currentLessonStepIndex,
             dueReviewCount: dueReviewCount,
-            recentSessionCount: recentSessionCount
+            recentSessionCount: recentSessionCount,
+            minutesPracticedToday: minutesPracticedToday
         )
     }
 
@@ -173,7 +175,9 @@ enum AppComposition {
     /// current plan/review context when the backend supplies it.
     static func learnerSummary(
         from checkpoint: OnboardingResumeCheckpoint?,
-        isStale: Bool = false
+        isStale: Bool = false,
+        now: Date = Date(),
+        calendar: Calendar = .current
     ) -> LearnerProfileSummary? {
         guard let checkpoint else { return nil }
         return learnerSummary(
@@ -182,9 +186,25 @@ enum AppComposition {
             activePlanTitle: checkpoint.activePlan?.title,
             currentLessonTitle: displayTitle(forKnowledgeUnitId: checkpoint.currentLesson?.knowledgeUnitId),
             currentLessonStepIndex: checkpoint.currentLesson?.stepIndex,
-            dueReviewCount: checkpoint.reviewQueue.count,
-            recentSessionCount: checkpoint.recentSessions.count
+            dueReviewCount: checkpoint.reviewQueue.filter { $0.dueAt <= now }.count,
+            recentSessionCount: checkpoint.recentSessions.count,
+            minutesPracticedToday: minutesPracticedToday(
+                from: checkpoint.recentSessions,
+                now: now,
+                calendar: calendar
+            )
         )
+    }
+
+    static func minutesPracticedToday(
+        from sessions: [SessionSummary],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        let seconds = sessions
+            .filter { calendar.isDate($0.startedAt, inSameDayAs: now) }
+            .reduce(0) { total, session in total + max(0, session.durationSeconds) }
+        return seconds / 60
     }
 
     static func displayTitle(forKnowledgeUnitId knowledgeUnitId: String?) -> String? {

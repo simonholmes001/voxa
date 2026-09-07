@@ -102,6 +102,9 @@ final class AppCompositionTests: XCTestCase {
     }
 
     func testLearnerSummaryPreservesResumeCheckpointContext() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_800)
         let checkpoint = OnboardingResumeCheckpoint(
             profile: OnboardingProfile(
                 targetLanguage: "de-DE",
@@ -126,6 +129,11 @@ final class AppCompositionTests: XCTestCase {
                     knowledgeUnitId: "ticket",
                     dueAt: Date(timeIntervalSince1970: 60),
                     priority: 2
+                ),
+                ReviewQueueItem(
+                    knowledgeUnitId: "hotel",
+                    dueAt: Date(timeIntervalSince1970: 86_400),
+                    priority: 1
                 )
             ],
             recentSessions: [
@@ -134,18 +142,57 @@ final class AppCompositionTests: XCTestCase {
                     startedAt: Date(timeIntervalSince1970: 120),
                     durationSeconds: 600,
                     lessonId: "lesson-1"
+                ),
+                SessionSummary(
+                    sessionId: "session-2",
+                    startedAt: Date(timeIntervalSince1970: -86_400),
+                    durationSeconds: 1_200,
+                    lessonId: "lesson-0"
                 )
             ]
         )
 
-        let summary = AppComposition.learnerSummary(from: checkpoint)
+        let summary = AppComposition.learnerSummary(from: checkpoint, now: now, calendar: calendar)
 
         XCTAssertEqual(summary?.languageName, "German")
         XCTAssertEqual(summary?.activePlanTitle, "Survival German")
         XCTAssertEqual(summary?.currentLessonTitle, "Station Directions")
         XCTAssertEqual(summary?.currentLessonStepIndex, 3)
         XCTAssertEqual(summary?.dueReviewCount, 1)
-        XCTAssertEqual(summary?.recentSessionCount, 1)
+        XCTAssertEqual(summary?.recentSessionCount, 2)
+        XCTAssertEqual(summary?.minutesPracticedToday, 10)
+    }
+
+    func testMinutesPracticedTodayIgnoresOtherDaysAndNegativeDurations() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let minutes = AppComposition.minutesPracticedToday(
+            from: [
+                SessionSummary(
+                    sessionId: "today-1",
+                    startedAt: Date(timeIntervalSince1970: 3_600),
+                    durationSeconds: 300,
+                    lessonId: nil
+                ),
+                SessionSummary(
+                    sessionId: "today-2",
+                    startedAt: Date(timeIntervalSince1970: 4_200),
+                    durationSeconds: -120,
+                    lessonId: nil
+                ),
+                SessionSummary(
+                    sessionId: "yesterday",
+                    startedAt: Date(timeIntervalSince1970: -3_600),
+                    durationSeconds: 900,
+                    lessonId: nil
+                )
+            ],
+            now: Date(timeIntervalSince1970: 5_000),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(minutes, 5)
     }
 
     func testKnowledgeUnitDisplayTitleFormatsSlugsForUi() {

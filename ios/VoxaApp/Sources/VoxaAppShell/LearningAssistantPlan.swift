@@ -14,6 +14,7 @@ struct LearningAssistantContext: Equatable {
     let currentLessonStepIndex: Int?
     let dueReviewCount: Int
     let recentSessionCount: Int
+    let minutesPracticedToday: Int
 
     init(
         language: String,
@@ -24,7 +25,8 @@ struct LearningAssistantContext: Equatable {
         currentLessonTitle: String? = nil,
         currentLessonStepIndex: Int? = nil,
         dueReviewCount: Int = 0,
-        recentSessionCount: Int = 0
+        recentSessionCount: Int = 0,
+        minutesPracticedToday: Int = 0
     ) {
         self.language = language
         self.level = level
@@ -35,6 +37,7 @@ struct LearningAssistantContext: Equatable {
         self.currentLessonStepIndex = currentLessonStepIndex
         self.dueReviewCount = dueReviewCount
         self.recentSessionCount = recentSessionCount
+        self.minutesPracticedToday = minutesPracticedToday
     }
 }
 
@@ -77,7 +80,8 @@ enum LearningAssistantPlanFactory {
                 currentLessonTitle: homeSummary?.currentLessonTitle,
                 currentLessonStepIndex: homeSummary?.currentLessonStepIndex,
                 dueReviewCount: homeSummary?.dueReviewCount ?? 0,
-                recentSessionCount: homeSummary?.recentSessionCount ?? 0
+                recentSessionCount: homeSummary?.recentSessionCount ?? 0,
+                minutesPracticedToday: homeSummary?.minutesPracticedToday ?? 0
             )
         }
 
@@ -91,7 +95,8 @@ enum LearningAssistantPlanFactory {
                 currentLessonTitle: homeSummary.currentLessonTitle,
                 currentLessonStepIndex: homeSummary.currentLessonStepIndex,
                 dueReviewCount: homeSummary.dueReviewCount,
-                recentSessionCount: homeSummary.recentSessionCount
+                recentSessionCount: homeSummary.recentSessionCount,
+                minutesPracticedToday: homeSummary.minutesPracticedToday
             )
         }
 
@@ -104,7 +109,8 @@ enum LearningAssistantPlanFactory {
             currentLessonTitle: nil,
             currentLessonStepIndex: nil,
             dueReviewCount: 0,
-            recentSessionCount: 0
+            recentSessionCount: 0,
+            minutesPracticedToday: 0
         )
     }
 
@@ -216,7 +222,7 @@ enum LearningAssistantPlanFactory {
                 LearningRouteRow(
                     id: "daily-target",
                     title: "Daily target",
-                    detail: "\(context.dailyMinutes) minutes planned for \(context.level)",
+                    detail: "\(context.minutesPracticedToday) of \(context.dailyMinutes) minutes completed for \(context.level)",
                     symbol: "clock"
                 ),
                 LearningRouteRow(
