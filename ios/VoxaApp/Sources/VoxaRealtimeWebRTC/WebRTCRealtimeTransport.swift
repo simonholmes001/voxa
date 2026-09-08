@@ -112,6 +112,15 @@ public final class WebRTCRealtimeTransport: NSObject, RealtimeTransport, @unchec
         #if os(iOS)
         try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
         try audioSession.setActive(true)
+        // `defaultToSpeaker` only affects the initial route. Explicitly select
+        // the speaker so a previous phone-call/receiver route cannot leave the
+        // tutor almost inaudible. iOS keeps an attached Bluetooth route ahead
+        // of this override, so headset users are not forced back to the phone.
+        if !audioSession.currentRoute.outputs.contains(where: { output in
+            output.portType == .bluetoothHFP || output.portType == .bluetoothA2DP || output.portType == .bluetoothLE
+        }) {
+            try? audioSession.overrideOutputAudioPort(.speaker)
+        }
         #endif
     }
 
