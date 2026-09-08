@@ -110,23 +110,43 @@ public final class WebRTCRealtimeTransport: NSObject, RealtimeTransport, @unchec
 
     private func configureAudioSession() throws {
         #if os(iOS)
-        try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
-        try audioSession.setActive(true)
+        // WebRTC owns the audio unit and may overwrite direct AVAudioSession
+        // settings when the first track is attached. Configure its session so
+        // the output route and mode survive audio-unit initialization.
+        let rtcAudioSession = RTCAudioSession.sharedInstance()
+        rtcAudioSession.lockForConfiguration()
+        defer { rtcAudioSession.unlockForConfiguration() }
+
+        var error: NSError?
+        guard rtcAudioSession.setCategory(
+            AVAudioSession.Category.playAndRecord.rawValue,
+            mode: AVAudioSession.Mode.videoChat.rawValue,
+            options: [.defaultToSpeaker, .allowBluetoothHFP],
+            error: &error
+        ) else {
+            throw error ?? NSError(domain: "VoxaAudioSession", code: 1)
+        }
+        guard rtcAudioSession.setActive(true, error: &error) else {
+            throw error ?? NSError(domain: "VoxaAudioSession", code: 2)
+        }
+
         // `defaultToSpeaker` only affects the initial route. Explicitly select
-        // the speaker so a previous phone-call/receiver route cannot leave the
-        // tutor almost inaudible. iOS keeps an attached Bluetooth route ahead
-        // of this override, so headset users are not forced back to the phone.
-        if !audioSession.currentRoute.outputs.contains(where: { output in
+        // the speaker so a previous receiver route cannot leave the tutor
+        // almost inaudible. Bluetooth routes remain preferred when connected.
+        if !rtcAudioSession.currentRoute.outputs.contains(where: { output in
             output.portType == .bluetoothHFP || output.portType == .bluetoothA2DP || output.portType == .bluetoothLE
         }) {
-            try? audioSession.overrideOutputAudioPort(.speaker)
+            _ = rtcAudioSession.overrideOutputAudioPort(.speaker, error: &error)
         }
         #endif
     }
 
     private func deactivateAudioSession() {
         #if os(iOS)
-        try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        let rtcAudioSession = RTCAudioSession.sharedInstance()
+        rtcAudioSession.lockForConfiguration()
+        _ = rtcAudioSession.setActive(false, error: nil)
+        rtcAudioSession.unlockForConfiguration()
         #endif
     }
 
