@@ -84,10 +84,7 @@ final class WebRTCRealtimeTransportTests: XCTestCase {
             let reasoning = try XCTUnwrap(sessionObject["reasoning"] as? [String: Any])
             XCTAssertEqual(reasoning["effort"] as? String, "low")
 
-            let metadata = try XCTUnwrap(sessionObject["metadata"] as? [String: Any])
-            XCTAssertEqual(metadata["coaching_mode"] as? String, "tutor")
-            XCTAssertEqual(metadata["proficiency_band"] as? String, "B1-B2")
-            XCTAssertEqual(metadata["target_language"] as? String, "fr-FR")
+            XCTAssertNil(sessionObject["metadata"], "OpenAI's WebRTC calls endpoint rejects session.metadata")
 
             let response = HTTPURLResponse(url: request.url!, statusCode: 201, httpVersion: nil, headerFields: nil)!
             return (response, Data("v=0\r\no=- test-answer".utf8))
@@ -115,15 +112,16 @@ final class WebRTCRealtimeTransportTests: XCTestCase {
             endpoint: URL(string: "https://api.openai.test/v1/realtime/calls")!
         )
         StubURLProtocol.handler = { request, _ in
-            let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
-            return (response, Data())
+            let response = HTTPURLResponse(url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"error":{"message":"session.metadata is not supported"}}"#.utf8))
         }
 
         do {
             _ = try await exchanger.createCall(offerSDP: "v=0", credential: validCredential())
             XCTFail("expected status failure")
         } catch RealtimeTransportError.connectionFailed(let message) {
-            XCTAssertTrue(message.contains("401"))
+            XCTAssertTrue(message.contains("400"))
+            XCTAssertTrue(message.contains("session.metadata is not supported"))
         } catch {
             XCTFail("unexpected error: \(error)")
         }

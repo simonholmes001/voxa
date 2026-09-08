@@ -270,7 +270,12 @@ public struct OpenAIRealtimeCallsExchanger: RealtimeCallsExchanging {
         }
 
         guard (200..<300).contains(httpResponse.statusCode) else {
-            throw RealtimeTransportError.connectionFailed("OpenAI returned status \(httpResponse.statusCode).")
+            let detail = String(data: data, encoding: .utf8)
+                .map { String($0.prefix(300)) }
+                .flatMap { $0.isEmpty ? nil : $0 }
+            let suffix = detail.map { " \($0)" } ?? ""
+            throw RealtimeTransportError.connectionFailed(
+                "OpenAI returned status \(httpResponse.statusCode).\(suffix)")
         }
 
         guard let answerSDP = String(data: data, encoding: .utf8), !answerSDP.isEmpty else {
@@ -306,12 +311,7 @@ public struct OpenAIRealtimeCallsExchanger: RealtimeCallsExchanging {
         return try encoder.encode(RealtimeCallSessionPayload(
             type: "realtime",
             model: credential.model,
-            reasoning: RealtimeCallReasoningPayload(effort: credential.reasoningEffort),
-            metadata: RealtimeCallMetadataPayload(
-                coachingMode: credential.settings.coachingMode,
-                proficiencyBand: credential.settings.proficiencyBand,
-                targetLanguage: credential.settings.targetLanguage
-            )
+            reasoning: RealtimeCallReasoningPayload(effort: credential.reasoningEffort)
         ))
     }
 }
@@ -320,23 +320,10 @@ private struct RealtimeCallSessionPayload: Encodable {
     let type: String
     let model: String
     let reasoning: RealtimeCallReasoningPayload
-    let metadata: RealtimeCallMetadataPayload
 }
 
 private struct RealtimeCallReasoningPayload: Encodable {
     let effort: String
-}
-
-private struct RealtimeCallMetadataPayload: Encodable {
-    let coachingMode: String
-    let proficiencyBand: String
-    let targetLanguage: String
-
-    enum CodingKeys: String, CodingKey {
-        case coachingMode = "coaching_mode"
-        case proficiencyBand = "proficiency_band"
-        case targetLanguage = "target_language"
-    }
 }
 
 final class WebRTCPeerConnectionReadiness: @unchecked Sendable {

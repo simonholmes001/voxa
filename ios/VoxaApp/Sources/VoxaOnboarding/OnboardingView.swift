@@ -8,8 +8,10 @@ public struct OnboardingView: View {
     @Bindable private var model: OnboardingViewModel
     @State private var customGoalText = ""
     @State private var customGoalError: String?
+    @State private var customTargetLanguageText = ""
 
     private static let languages = OnboardingLanguages.sorted
+    private static let customLanguageKey = "__custom__"
 
     public init(model: OnboardingViewModel) {
         self.model = model
@@ -42,6 +44,16 @@ public struct OnboardingView: View {
         case .targetLanguage:
             header("What do you want to learn?", "Choose your target language.")
             picker(selection: targetLanguageBinding, options: Self.languages)
+            if model.draft.targetLanguage == Self.customLanguageKey ||
+                (model.draft.targetLanguage != nil && !Self.languages.contains { $0.key == model.draft.targetLanguage }) {
+                TextField("Language name", text: $customTargetLanguageText)
+                    .textFieldStyle(.roundedBorder)
+                    .onAppear { customTargetLanguageText = model.draft.targetLanguage ?? "" }
+                    .onChange(of: customTargetLanguageText) { _, value in
+                        model.setTargetLanguage(value.trimmingCharacters(in: .whitespacesAndNewlines))
+                    }
+                    .accessibilityIdentifier("onboarding-custom-language-field")
+            }
         case .nativeLanguage:
             header("What's your native language?", "This helps us explain things clearly.")
             picker(selection: nativeLanguageBinding, options: Self.languages)
@@ -51,9 +63,12 @@ public struct OnboardingView: View {
             timeStep
         case .placement:
             header("Quick placement", "Tick everything you can already do.")
+            Toggle("I'm starting from zero", isOn: startingFromZeroBinding)
+                .padding(.vertical, 4)
             ForEach(Array(PlacementEstimator.questions.enumerated()), id: \.element.id) { index, question in
                 Toggle(question.prompt, isOn: placementBinding(index))
                     .padding(.vertical, 4)
+                    .disabled(model.draft.startingFromZero)
             }
         case .summary:
             header("You're all set", "Here's where we'll start.")
@@ -258,6 +273,7 @@ public struct OnboardingView: View {
             ForEach(options) { language in
                 Text(language.displayName).tag(String?.some(language.key))
             }
+            Text("Other...").tag(String?.some(Self.customLanguageKey))
         }
         .pickerStyle(.menu)
         .labelsHidden()
@@ -292,7 +308,24 @@ public struct OnboardingView: View {
     // MARK: - Bindings
 
     private var targetLanguageBinding: Binding<String?> {
-        Binding(get: { model.draft.targetLanguage }, set: { if let v = $0 { model.setTargetLanguage(v) } })
+        Binding(
+            get: {
+                guard let value = model.draft.targetLanguage else { return nil }
+                return Self.languages.contains { $0.key == value } ? value : Self.customLanguageKey
+            },
+            set: { value in
+                guard let value else { return }
+                if value == Self.customLanguageKey {
+                    customTargetLanguageText = model.draft.targetLanguage.flatMap { existing in
+                        Self.languages.contains { $0.key == existing } ? nil : existing
+                    } ?? ""
+                    model.setTargetLanguage(customTargetLanguageText)
+                } else {
+                    customTargetLanguageText = ""
+                    model.setTargetLanguage(value)
+                }
+            }
+        )
     }
 
     private var nativeLanguageBinding: Binding<String?> {
@@ -306,6 +339,10 @@ public struct OnboardingView: View {
             },
             set: { model.answerPlacement(index, $0) }
         )
+    }
+
+    private var startingFromZeroBinding: Binding<Bool> {
+        Binding(get: { model.draft.startingFromZero }, set: { model.setStartingFromZero($0) })
     }
 }
 #endif
