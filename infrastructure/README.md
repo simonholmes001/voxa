@@ -29,6 +29,26 @@ AZURE_SUBSCRIPTION_ID="<subscription-id>" \
 ./scripts/setup-azure-auth-for-pipeline.sh dev
 ```
 
+After `az login`, the script also uses the currently selected subscription, so
+`AZURE_SUBSCRIPTION_ID` may be omitted. This is useful when testing a feature
+branch. The branch needs its own exact-match GitHub OIDC credential; do not
+replace the existing `main` credential:
+
+```bash
+az login
+# Select the Voxa subscription when prompted, or run:
+az account set --subscription "<subscription-id>"
+
+GITHUB_REF="refs/heads/feature/learning-experience-roadmap" \
+GITHUB_FEDERATED_CREDENTIAL_NAME="github-feature-learning-experience" \
+./scripts/setup-azure-auth-for-pipeline.sh dev
+```
+
+Do not include a trailing space inside the subscription ID. After this one-time
+bootstrap change succeeds, run **Azure Infrastructure Deploy** manually and
+select the same feature branch. Confirm `/api/health/deployment` reports the
+feature branch commit before testing the iOS app.
+
 The bootstrap deployment creates:
 
 - `rg-voxa-pipeline-identity`
