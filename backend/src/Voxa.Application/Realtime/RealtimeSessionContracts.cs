@@ -37,6 +37,9 @@ public sealed record RealtimeSessionCommand(
     string CoachingMode,
     string ProficiencyBand,
     string TargetLanguage,
+    string? SessionIntent,
+    string? FocusTitle,
+    int? DueReviewCount,
     CorrelationId CorrelationId)
 {
     public static RealtimeSessionCommand Create(
@@ -47,12 +50,38 @@ public sealed record RealtimeSessionCommand(
         string? targetLanguage,
         CorrelationId correlationId)
     {
+        return Create(
+            tenantId,
+            userId,
+            coachingMode,
+            proficiencyBand,
+            targetLanguage,
+            sessionIntent: null,
+            focusTitle: null,
+            dueReviewCount: null,
+            correlationId);
+    }
+
+    public static RealtimeSessionCommand Create(
+        string? tenantId,
+        string? userId,
+        string? coachingMode,
+        string? proficiencyBand,
+        string? targetLanguage,
+        string? sessionIntent,
+        string? focusTitle,
+        int? dueReviewCount,
+        CorrelationId correlationId)
+    {
         return new RealtimeSessionCommand(
             TenantId.Create(tenantId ?? ""),
             UserId.Create(userId ?? ""),
             Required(coachingMode, nameof(coachingMode)),
             Required(proficiencyBand, nameof(proficiencyBand)),
             Required(targetLanguage, nameof(targetLanguage)),
+            Optional(sessionIntent),
+            Optional(focusTitle),
+            dueReviewCount,
             correlationId);
     }
 
@@ -61,6 +90,11 @@ public sealed record RealtimeSessionCommand(
         return string.IsNullOrWhiteSpace(value)
             ? throw new ArgumentException($"{name} is required.", name)
             : value.Trim();
+    }
+
+    private static string? Optional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }
 
@@ -89,7 +123,10 @@ public sealed record RealtimeSessionAuditEvent(
 public sealed record RealtimeSessionSettingsContract(
     string CoachingMode,
     string ProficiencyBand,
-    string TargetLanguage);
+    string TargetLanguage,
+    string? SessionIntent = null,
+    string? FocusTitle = null,
+    int? DueReviewCount = null);
 
 public sealed class RealtimeSessionIssueException(string message) : Exception(message);
 

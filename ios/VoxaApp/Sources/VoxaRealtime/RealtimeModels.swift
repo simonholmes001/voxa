@@ -1,16 +1,98 @@
 import Foundation
 
+/// The learner's reason for opening the voice tutor. The app uses this to set
+/// the Talk screen state and to shape backend Realtime tutor instructions.
+public enum RealtimeTutorIntent: Sendable, Equatable {
+    case openPractice
+    case lesson(title: String?)
+    case review(dueCount: Int, focusTitle: String? = nil)
+
+    public var title: String {
+        switch self {
+        case .openPractice:
+            return "Speaking practice"
+        case .lesson:
+            return "Voice lesson"
+        case let .review(_, focusTitle):
+            return focusTitle ?? "Review session"
+        }
+    }
+
+    public var prompt: String {
+        switch self {
+        case .openPractice:
+            return "Ready to practise speaking?"
+        case let .lesson(title):
+            guard let title, !title.isEmpty else {
+                return "Ready for your voice lesson?"
+            }
+            return "Ready for \(title)?"
+        case let .review(dueCount, focusTitle):
+            if let focusTitle, !focusTitle.isEmpty {
+                return "Ready to practise \(focusTitle.lowercased())?"
+            }
+            guard dueCount > 0 else {
+                return "Ready to review with your tutor?"
+            }
+            return "Ready to review \(dueCount) due items?"
+        }
+    }
+
+    public var startButtonTitle: String {
+        switch self {
+        case .openPractice:
+            return "Start talking"
+        case .lesson:
+            return "Start voice lesson"
+        case .review:
+            return "Start review"
+        }
+    }
+}
+
 /// Settings that shape a Realtime tutoring session. Sent to the backend when
 /// requesting a session credential (see `POST /api/realtime/session`).
 public struct RealtimeCoachingSettings: Sendable, Equatable {
     public var coachingMode: String
     public var proficiencyBand: String
     public var targetLanguage: String
+    public var sessionIntent: String?
+    public var focusTitle: String?
+    public var dueReviewCount: Int?
 
-    public init(coachingMode: String = "tutor", proficiencyBand: String, targetLanguage: String) {
+    public init(
+        coachingMode: String = "tutor",
+        proficiencyBand: String,
+        targetLanguage: String,
+        sessionIntent: String? = nil,
+        focusTitle: String? = nil,
+        dueReviewCount: Int? = nil
+    ) {
         self.coachingMode = coachingMode
         self.proficiencyBand = proficiencyBand
         self.targetLanguage = targetLanguage
+        self.sessionIntent = sessionIntent
+        self.focusTitle = focusTitle
+        self.dueReviewCount = dueReviewCount
+    }
+
+    public func applying(_ intent: RealtimeTutorIntent) -> RealtimeCoachingSettings {
+        var copy = self
+        switch intent {
+        case .openPractice:
+            copy.sessionIntent = "practice"
+            copy.focusTitle = nil
+            copy.dueReviewCount = nil
+        case let .lesson(title):
+            copy.sessionIntent = "lesson"
+            copy.focusTitle = title
+            copy.dueReviewCount = nil
+        case let .review(dueCount, focusTitle):
+            copy.sessionIntent = "review"
+            copy.focusTitle = focusTitle
+            copy.dueReviewCount = dueCount
+        }
+        return copy
     }
 }
 
@@ -18,6 +100,7 @@ public struct RealtimeCoachingSettings: Sendable, Equatable {
 /// permanent OpenAI key stays server-side; `clientSecret` is an ephemeral token
 /// the device uses to connect directly to OpenAI Realtime.
 public struct RealtimeSessionCredential: Sendable, Equatable {
+    public var correlationId: String
     public var clientSecret: String
     public var model: String
     public var reasoningEffort: String
@@ -25,12 +108,14 @@ public struct RealtimeSessionCredential: Sendable, Equatable {
     public var settings: RealtimeCoachingSettings
 
     public init(
+        correlationId: String,
         clientSecret: String,
         model: String,
         reasoningEffort: String,
         expiresAt: Date,
         settings: RealtimeCoachingSettings
     ) {
+        self.correlationId = correlationId
         self.clientSecret = clientSecret
         self.model = model
         self.reasoningEffort = reasoningEffort

@@ -148,6 +148,7 @@ public struct RootView: View {
     ) async {
         guard await profileModel.selectLanguage(profile.languageKey) else { return }
         onboardingModel.hydrate(from: profile.profile, completed: true)
+        await homeModel?.load()
         didChooseLanguage = true
     }
 
@@ -189,6 +190,7 @@ public struct RootView: View {
         // Reload so a former single-language learner becomes multi-language and
         // the shell opens the new course instead of re-hydrating the old one.
         await profileModel.refresh()
+        await homeModel?.load()
         addLanguageActivationError = nil
         isAddingLanguage = false
         didChooseLanguage = true
@@ -300,7 +302,11 @@ private struct TabLayout: View {
                         homeModel: homeModel,
                         talkModel: talkModel,
                         languageManager: languageManager,
-                        onStartTalk: { model.selectedRoute = .talk }
+                        onContinueLearning: { model.selectedRoute = .learn },
+                        onStartTalk: { intent in
+                            talkModel?.prepare(intent)
+                            model.selectedRoute = .talk
+                        }
                     )
                 }
                 .tabItem {
@@ -353,7 +359,11 @@ private struct SplitLayout: View {
                     homeModel: homeModel,
                     talkModel: talkModel,
                     languageManager: languageManager,
-                    onStartTalk: { model.selectedRoute = .talk }
+                    onContinueLearning: { model.selectedRoute = .learn },
+                    onStartTalk: { intent in
+                        talkModel?.prepare(intent)
+                        model.selectedRoute = .talk
+                    }
                 )
             }
         }

@@ -42,7 +42,8 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
                 new OpenAiRealtimeSessionRequest(
                     "realtime",
                     route.Model,
-                    new OpenAiRealtimeReasoning(route.ReasoningEffort))))
+                    new OpenAiRealtimeReasoning(route.ReasoningEffort),
+                    BuildInstructions(request.Settings))))
         };
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
 
@@ -65,7 +66,10 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
 
         var body = await response.Content.ReadFromJsonAsync<OpenAiRealtimeClientSecretResponse>(
             cancellationToken);
-        if (body?.ClientSecret?.Value is null)
+        var clientSecret = body?.Value ?? body?.ClientSecret?.Value;
+        var expiresAt = body?.ExpiresAt ?? body?.ClientSecret?.ExpiresAt;
+        var sessionModel = body?.Session?.Model ?? route.Model;
+        if (clientSecret is null || expiresAt is null)
         {
             logger.LogError(
                 "OpenAI realtime client_secret response was missing a client secret value. model={Model}",
@@ -75,11 +79,50 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
 
         return new RealtimeSessionCredential(
             request.CorrelationId.Value,
-            body.ClientSecret.Value,
-            body.Session?.Model ?? route.Model,
+            clientSecret,
+            sessionModel,
             route.ReasoningEffort,
-            DateTimeOffset.FromUnixTimeSeconds(body.ClientSecret.ExpiresAt),
+            DateTimeOffset.FromUnixTimeSeconds(expiresAt.Value),
             request.Settings);
+    }
+
+    private static string BuildInstructions(RealtimeSessionSettingsContract settings)
+    {
+        var baseInstructions = string.Join(
+            " ",
+            "You are Voxa, a spoken language-learning tutor.",
+            $"Target language: {settings.TargetLanguage}.",
+            $"Learner level: {settings.ProficiencyBand}.",
+            "Keep replies short enough for a voice conversation.",
+            "Coach through natural conversation, ask one question at a time, and correct gently after the learner answers.");
+
+        return settings.SessionIntent?.ToLowerInvariant() switch
+        {
+            "lesson" => string.Join(
+                " ",
+                baseInstructions,
+                $"Run an assistant-led lesson focused on {TextOrDefault(settings.FocusTitle, "today's learning plan")}.",
+                "Structure the session as warm-up, key phrases, short roleplay, correction, and retry."),
+            "review" => string.Join(
+                " ",
+                baseInstructions,
+                string.IsNullOrWhiteSpace(settings.FocusTitle)
+                    ? "Focus the review on recent tutor evidence."
+                    : $"Focus the review on {settings.FocusTitle.Trim()}.",
+                settings.DueReviewCount is > 0
+                    ? $"Prioritize the {settings.DueReviewCount.Value} review items currently due."
+                    : "Run a review conversation using recent mistakes, weak words, and pronunciation targets.",
+                "Ask the learner to produce language before explaining."),
+            _ => string.Join(
+                " ",
+                baseInstructions,
+                "Run open speaking practice adapted to the learner's goal and current level.")
+        };
+    }
+
+    private static string TextOrDefault(string? value, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
     }
 }
 
@@ -89,12 +132,15 @@ internal sealed record OpenAiRealtimeClientSecretRequest(
 internal sealed record OpenAiRealtimeSessionRequest(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("model")] string Model,
-    [property: JsonPropertyName("reasoning")] OpenAiRealtimeReasoning Reasoning);
+    [property: JsonPropertyName("reasoning")] OpenAiRealtimeReasoning Reasoning,
+    [property: JsonPropertyName("instructions")] string Instructions);
 
 internal sealed record OpenAiRealtimeReasoning(
     [property: JsonPropertyName("effort")] string Effort);
 
 internal sealed record OpenAiRealtimeClientSecretResponse(
+    [property: JsonPropertyName("value")] string? Value,
+    [property: JsonPropertyName("expires_at")] long? ExpiresAt,
     [property: JsonPropertyName("client_secret")] OpenAiRealtimeClientSecret? ClientSecret,
     [property: JsonPropertyName("session")] OpenAiRealtimeSession? Session);
 

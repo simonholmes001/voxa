@@ -38,9 +38,9 @@ public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// Lightweight struct describing the placeholder content shown for routes
-/// that don't yet have full feature implementations. This keeps UI placeholder
-/// text meaningful and testable without rendering SwiftUI views in unit tests.
+/// Lightweight struct describing fallback route content when a destination is
+/// rendered without its feature dependencies. This keeps copy meaningful and
+/// testable without rendering SwiftUI views in unit tests.
 public struct RoutePlaceholderContent: Sendable, Equatable {
     public let headline: String
     public let subheadline: String
@@ -54,28 +54,26 @@ public struct RoutePlaceholderContent: Sendable, Equatable {
 }
 
 public extension AppRoute {
-    /// Returns purposeful placeholder content for device testing and demos.
-    /// These are intentionally minimal but descriptive so testers can exercise
-    /// each tab and verify navigation/state without the full feature.
+    /// Returns purposeful fallback content for device testing and demos.
     func placeholderContent() -> RoutePlaceholderContent {
         switch self {
         case .learn:
             return RoutePlaceholderContent(
                 headline: "Learn",
-                subheadline: "Start a short lesson to practice vocabulary and grammar.",
-                actionTitle: "Start Lesson"
+                subheadline: "Continue a tutor-led lesson built from your goal, level, and recent mistakes.",
+                actionTitle: "Continue Learning"
             )
         case .review:
             return RoutePlaceholderContent(
                 headline: "Review",
-                subheadline: "Practice quick review sessions tailored to your recent lessons.",
-                actionTitle: "Start Review"
+                subheadline: "Practice mistakes, weak words, and pronunciation notes from your tutor sessions.",
+                actionTitle: "Review with Tutor"
             )
         case .settings:
             return RoutePlaceholderContent(
-                headline: "More",
-                subheadline: "Manage account, preferences, and app settings.",
-                actionTitle: "Open Settings"
+                headline: "Settings",
+                subheadline: "Manage language profiles, goals, daily time, and tutor preferences.",
+                actionTitle: "Add a Language"
             )
         default:
             return RoutePlaceholderContent(

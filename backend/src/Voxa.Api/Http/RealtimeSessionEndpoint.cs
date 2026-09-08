@@ -32,6 +32,9 @@ public sealed class RealtimeSessionEndpoint(IRealtimeSessionService realtimeSess
                 request.CoachingMode,
                 request.ProficiencyBand,
                 request.TargetLanguage,
+                request.SessionIntent,
+                request.FocusTitle,
+                request.DueReviewCount,
                 requestCorrelationId);
             var credential = await realtimeSessions.IssueClientSecretAsync(command, cancellationToken);
             return ApiResponse<RealtimeSessionHttpResponse>.Ok(RealtimeSessionHttpResponse.FromCredential(credential));
@@ -67,7 +70,10 @@ public sealed class RealtimeSessionEndpoint(IRealtimeSessionService realtimeSess
 public sealed record RealtimeSessionHttpRequest(
     string? CoachingMode,
     string? ProficiencyBand,
-    string? TargetLanguage);
+    string? TargetLanguage,
+    string? SessionIntent = null,
+    string? FocusTitle = null,
+    int? DueReviewCount = null);
 
 public sealed record RealtimeSessionHttpResponse(
     string CorrelationId,

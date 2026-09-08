@@ -25,11 +25,12 @@ public sealed class RealtimeSessionEndpointTests
     [Fact]
     public async Task PostReturnsShortLivedRealtimeClientSecretWithoutServerKey()
     {
-        var endpoint = new RealtimeSessionEndpoint(new StubRealtimeSessionService());
+        var service = new StubRealtimeSessionService();
+        var endpoint = new RealtimeSessionEndpoint(service);
 
         var response = await endpoint.PostAsync(
             new AppSessionPrincipal(TenantId.Create("tenant-default"), UserId.Create("user-a")),
-            new RealtimeSessionHttpRequest("tutor", "B1-B2", "fr-FR"),
+            new RealtimeSessionHttpRequest("tutor", "B1-B2", "fr-FR", "lesson", "Survival French"),
             "corr-123",
             CancellationToken.None);
 
@@ -39,6 +40,8 @@ public sealed class RealtimeSessionEndpointTests
         Assert.Equal("realtime-client-secret", response.Body.ClientSecret);
         Assert.Equal("gpt-realtime-2.1", response.Body.Model);
         Assert.Equal("low", response.Body.ReasoningEffort);
+        Assert.Equal("lesson", service.Command?.SessionIntent);
+        Assert.Equal("Survival French", service.Command?.FocusTitle);
         Assert.DoesNotContain("OPENAI_API_KEY", response.Body.ToString(), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("server-api-key", response.Body.ToString(), StringComparison.OrdinalIgnoreCase);
     }
@@ -60,17 +63,26 @@ public sealed class RealtimeSessionEndpointTests
 
     private sealed class StubRealtimeSessionService : IRealtimeSessionService
     {
+        public RealtimeSessionCommand? Command { get; private set; }
+
         public Task<RealtimeSessionCredential> IssueClientSecretAsync(
             RealtimeSessionCommand command,
             CancellationToken cancellationToken)
         {
+            Command = command;
             return Task.FromResult(new RealtimeSessionCredential(
                 command.CorrelationId.Value,
                 "realtime-client-secret",
                 "gpt-realtime-2.1",
                 "low",
                 DateTimeOffset.Parse("2026-08-29T08:20:00Z"),
-                new RealtimeSessionSettingsContract(command.CoachingMode, command.ProficiencyBand, command.TargetLanguage)));
+                new RealtimeSessionSettingsContract(
+                    command.CoachingMode,
+                    command.ProficiencyBand,
+                    command.TargetLanguage,
+                    command.SessionIntent,
+                    command.FocusTitle,
+                    command.DueReviewCount)));
         }
     }
 }

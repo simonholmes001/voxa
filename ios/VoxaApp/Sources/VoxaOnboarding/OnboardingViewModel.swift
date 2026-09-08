@@ -195,6 +195,7 @@ public final class OnboardingViewModel {
 
     public func answerPlacement(_ index: Int, _ value: Bool) {
         mutate {
+            if value { $0.startingFromZero = false }
             var answers = $0.placementAnswers
             let count = PlacementEstimator.questions.count
             if answers.count < count {
@@ -204,6 +205,16 @@ public final class OnboardingViewModel {
             answers[index] = value
             $0.placementAnswers = answers
             $0.placementLevel = PlacementEstimator.estimate(from: answers)
+        }
+    }
+
+    public func setStartingFromZero(_ value: Bool) {
+        mutate {
+            $0.startingFromZero = value
+            if value {
+                $0.placementAnswers = Array(repeating: false, count: PlacementEstimator.questions.count)
+                $0.placementLevel = .a1
+            }
         }
     }
 

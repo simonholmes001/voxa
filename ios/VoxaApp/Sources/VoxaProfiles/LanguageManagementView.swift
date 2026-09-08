@@ -17,6 +17,7 @@ public struct LanguageManagementView: View {
     private let onAddLanguage: () -> Void
     private let onSaved: () async -> Void
     private let onSignOut: () -> Void
+    @State private var editingProfile: LanguageProfile?
 
     public init(
         profiles: [LanguageProfile],
@@ -38,23 +39,29 @@ public struct LanguageManagementView: View {
 
     public var body: some View {
         List {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Tutor setup", systemImage: "person.wave.2")
+                        .font(.headline)
+                    Text("Languages, goals, daily time, and correction style shape how Voxa teaches you.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+
             Section("Your languages") {
                 if profiles.isEmpty {
                     Text("You don't have any languages yet.")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(profiles) { profile in
-                        NavigationLink {
-                            LanguageDetailView(
-                                profile: profile,
-                                isActive: profile.languageKey == activeKey,
-                                makeSettingsModel: makeSettingsModel,
-                                onSwitch: { onSwitch(profile) },
-                                onSaved: onSaved
-                            )
+                        Button {
+                            editingProfile = profile
                         } label: {
                             LanguageRow(profile: profile, isActive: profile.languageKey == activeKey)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -76,6 +83,22 @@ public struct LanguageManagementView: View {
             }
         }
         .navigationTitle("Languages")
+        .sheet(item: $editingProfile) { profile in
+            NavigationStack {
+                LanguageDetailView(
+                    profile: profile,
+                    isActive: profile.languageKey == activeKey,
+                    makeSettingsModel: makeSettingsModel,
+                    onSwitch: { onSwitch(profile) },
+                    onSaved: onSaved
+                )
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { editingProfile = nil }
+                    }
+                }
+            }
+        }
     }
 }
 

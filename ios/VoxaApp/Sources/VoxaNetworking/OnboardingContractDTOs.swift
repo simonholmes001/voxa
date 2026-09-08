@@ -39,4 +39,27 @@ struct ResumeCheckpointResponseDTO: Decodable {
     let version: Int
     let profile: OnboardingProfileDTO
     let activePlan: OnboardingActivePlanDTO
+    let currentLesson: LessonCheckpointDTO?
+    let reviewQueue: [ReviewQueueItemDTO]?
+    let recentSessions: [SessionSummaryDTO]?
+}
+
+struct LessonCheckpointDTO: Decodable {
+    let lessonId: String
+    let knowledgeUnitId: String
+    let stepIndex: Int
+    let updatedAt: Date
+}
+
+struct ReviewQueueItemDTO: Decodable {
+    let knowledgeUnitId: String
+    let dueAt: Date
+    let priority: Int
+}
+
+struct SessionSummaryDTO: Decodable {
+    let sessionId: String
+    let startedAt: Date
+    let durationSeconds: Int
+    let lessonId: String?
 }

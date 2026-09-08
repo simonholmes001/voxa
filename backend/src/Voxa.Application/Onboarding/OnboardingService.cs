@@ -69,7 +69,7 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
             command.UserId,
             profile,
             activePlan,
-            LessonCheckpoint.None,
+            CreateInitialLessonCheckpoint(activePlan),
             ReviewQueue.Empty,
             RecentSessionSummaries.Empty);
 
@@ -128,5 +128,20 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
             $"plan-{proficiencyLevel.ToLowerInvariant()}",
             planTitle,
             knowledgeUnits);
+    }
+
+    private static LessonCheckpoint CreateInitialLessonCheckpoint(ActiveLearningPlan activePlan)
+    {
+        var firstUnitId = activePlan.KnowledgeUnitIds.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(firstUnitId))
+        {
+            return LessonCheckpoint.None;
+        }
+
+        return new LessonCheckpoint(
+            $"lesson-{firstUnitId}",
+            firstUnitId,
+            0,
+            DateTimeOffset.UtcNow);
     }
 }

@@ -49,9 +49,46 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
         Assert.Contains("\"session\"", handler.Body, StringComparison.Ordinal);
         Assert.Contains("\"type\":\"realtime\"", handler.Body, StringComparison.Ordinal);
         Assert.Contains("gpt-realtime-2.1", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"instructions\"", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("spoken language-learning tutor", handler.Body, StringComparison.Ordinal);
         // `session.metadata` (which carried target_language etc.) is not sent:
         // OpenAI's client_secrets endpoint rejects it with HTTP 400.
         Assert.DoesNotContain("metadata", handler.Body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task IssueAsyncAcceptsGaTopLevelClientSecretResponse()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": {
+                "type": "realtime",
+                "model": "gpt-realtime-2.1"
+              }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        var credential = await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
+
+        Assert.Equal("ek_prod_shape_123", credential.ClientSecret);
+        Assert.Equal("gpt-realtime-2.1", credential.Model);
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1787991600), credential.ExpiresAt);
     }
 
     [Fact]
@@ -119,6 +156,109 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
     }
 
     [Fact]
+    public async Task IssueAsyncAddsLessonIntentToRealtimeInstructions()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": {
+                "type": "realtime",
+                "model": "gpt-realtime-2.1"
+              }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(CreateRequest(sessionIntent: "lesson", focusTitle: "Survival German"), CancellationToken.None);
+
+        Assert.Contains("Run an assistant-led lesson focused on Survival German", handler.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("metadata", handler.Body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task IssueAsyncAddsReviewIntentToRealtimeInstructions()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": {
+                "type": "realtime",
+                "model": "gpt-realtime-2.1"
+              }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(CreateRequest(sessionIntent: "review", dueReviewCount: 3), CancellationToken.None);
+
+        Assert.Contains("Prioritize the 3 review items currently due", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("Focus the review on recent tutor evidence", handler.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("metadata", handler.Body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task IssueAsyncAddsFocusedReviewInstructionsToRealtimeInstructions()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": {
+                "type": "realtime",
+                "model": "gpt-realtime-2.1"
+              }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(CreateRequest(sessionIntent: "review", focusTitle: "Pronunciation"), CancellationToken.None);
+
+        Assert.Contains("Focus the review on Pronunciation", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("recent mistakes, weak words, and pronunciation targets", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task IssueAsyncRejectsRealtimeRouteWithoutReasoningEffort()
     {
         var client = new HttpClient(new RecordingHttpMessageHandler("{}"))
@@ -141,13 +281,16 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
     }
 
 
-    private static RealtimeSessionRequest CreateRequest()
+    private static RealtimeSessionRequest CreateRequest(
+        string? sessionIntent = null,
+        string? focusTitle = null,
+        int? dueReviewCount = null)
     {
         return new RealtimeSessionRequest(
             TenantId.Create("tenant-default"),
             UserId.Create("user-a"),
             CorrelationId.Create("corr-123"),
-            new RealtimeSessionSettingsContract("tutor", "B1-B2", "fr-FR"));
+            new RealtimeSessionSettingsContract("tutor", "B1-B2", "fr-FR", sessionIntent, focusTitle, dueReviewCount));
     }
 
     private sealed class RecordingHttpMessageHandler(

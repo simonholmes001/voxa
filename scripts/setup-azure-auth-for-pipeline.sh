@@ -17,7 +17,11 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BOOTSTRAP_BICEP_FILE="$ROOT_DIR/infrastructure/bootstrap/main.bicep"
 
 if [ -z "$SUBSCRIPTION_ID" ]; then
-  echo "AZURE_SUBSCRIPTION_ID is required." >&2
+  SUBSCRIPTION_ID="$(az account show --query id --output tsv 2>/dev/null || true)"
+fi
+
+if [ -z "$SUBSCRIPTION_ID" ]; then
+  echo "No Azure subscription is selected. Run 'az login' and select a subscription, or set AZURE_SUBSCRIPTION_ID." >&2
   exit 1
 fi
 

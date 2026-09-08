@@ -78,6 +78,10 @@ public final class WebRTCRealtimeTransport: NSObject, RealtimeTransport, @unchec
 
             let offer = try await createOffer(on: pc)
             try await setLocalDescription(offer, on: pc)
+            // WebRTC may initialize Voice I/O while creating the offer. Apply
+            // the route again after that initialization so playback is not
+            // left on the receiver path.
+            try configureAudioSession()
 
             let answer = try await callsExchanger.createCall(
                 offerSDP: offer.sdp,
@@ -110,14 +114,37 @@ public final class WebRTCRealtimeTransport: NSObject, RealtimeTransport, @unchec
 
     private func configureAudioSession() throws {
         #if os(iOS)
-        try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
-        try audioSession.setActive(true)
+        // WebRTC owns the audio unit and may overwrite direct AVAudioSession
+        // settings when the first track is attached. Configure its session so
+        // the output route and mode survive audio-unit initialization.
+        let rtcAudioSession = RTCAudioSession.sharedInstance()
+        rtcAudioSession.lockForConfiguration()
+        defer { rtcAudioSession.unlockForConfiguration() }
+
+        try rtcAudioSession.setCategory(
+            .playAndRecord,
+            mode: .voiceChat,
+            options: [.defaultToSpeaker, .allowBluetoothHFP]
+        )
+        try rtcAudioSession.setActive(true)
+
+        // `defaultToSpeaker` only affects the initial route. Explicitly select
+        // the speaker so a previous receiver route cannot leave the tutor
+        // almost inaudible. Bluetooth routes remain preferred when connected.
+        if !rtcAudioSession.currentRoute.outputs.contains(where: { output in
+            output.portType == .bluetoothHFP || output.portType == .bluetoothA2DP || output.portType == .bluetoothLE
+        }) {
+            try? rtcAudioSession.overrideOutputAudioPort(.speaker)
+        }
         #endif
     }
 
     private func deactivateAudioSession() {
         #if os(iOS)
-        try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        let rtcAudioSession = RTCAudioSession.sharedInstance()
+        rtcAudioSession.lockForConfiguration()
+        try? rtcAudioSession.setActive(false)
+        rtcAudioSession.unlockForConfiguration()
         #endif
     }
 
@@ -270,7 +297,12 @@ public struct OpenAIRealtimeCallsExchanger: RealtimeCallsExchanging {
         }
 
         guard (200..<300).contains(httpResponse.statusCode) else {
-            throw RealtimeTransportError.connectionFailed("OpenAI returned status \(httpResponse.statusCode).")
+            let detail = String(data: data, encoding: .utf8)
+                .map { String($0.prefix(300)) }
+                .flatMap { $0.isEmpty ? nil : $0 }
+            let suffix = detail.map { " \($0)" } ?? ""
+            throw RealtimeTransportError.connectionFailed(
+                "OpenAI returned status \(httpResponse.statusCode).\(suffix)")
         }
 
         guard let answerSDP = String(data: data, encoding: .utf8), !answerSDP.isEmpty else {
@@ -306,12 +338,7 @@ public struct OpenAIRealtimeCallsExchanger: RealtimeCallsExchanging {
         return try encoder.encode(RealtimeCallSessionPayload(
             type: "realtime",
             model: credential.model,
-            reasoning: RealtimeCallReasoningPayload(effort: credential.reasoningEffort),
-            metadata: RealtimeCallMetadataPayload(
-                coachingMode: credential.settings.coachingMode,
-                proficiencyBand: credential.settings.proficiencyBand,
-                targetLanguage: credential.settings.targetLanguage
-            )
+            reasoning: RealtimeCallReasoningPayload(effort: credential.reasoningEffort)
         ))
     }
 }
@@ -320,23 +347,10 @@ private struct RealtimeCallSessionPayload: Encodable {
     let type: String
     let model: String
     let reasoning: RealtimeCallReasoningPayload
-    let metadata: RealtimeCallMetadataPayload
 }
 
 private struct RealtimeCallReasoningPayload: Encodable {
     let effort: String
-}
-
-private struct RealtimeCallMetadataPayload: Encodable {
-    let coachingMode: String
-    let proficiencyBand: String
-    let targetLanguage: String
-
-    enum CodingKeys: String, CodingKey {
-        case coachingMode = "coaching_mode"
-        case proficiencyBand = "proficiency_band"
-        case targetLanguage = "target_language"
-    }
 }
 
 final class WebRTCPeerConnectionReadiness: @unchecked Sendable {

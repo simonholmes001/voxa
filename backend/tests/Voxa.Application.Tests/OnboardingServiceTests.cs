@@ -81,6 +81,35 @@ public sealed class OnboardingServiceTests
         Assert.Null(repository.LastExpectedVersion);
     }
 
+    [Fact]
+    public async Task SubmitAsyncSeedsFirstLessonCheckpointForNewLanguageProfile()
+    {
+        var tenantId = TenantId.Create("tenant-a");
+        var userId = UserId.Create("user-a");
+        var repository = new RecordingLearnerStateRepository();
+        var service = new OnboardingService(repository);
+
+        await service.SubmitAsync(
+            new OnboardingSubmitCommand(
+                tenantId,
+                userId,
+                "Spanish",
+                "English",
+                "A1",
+                ["travel"],
+                15,
+                CorrelationId.Create("corr-new-language")),
+            CancellationToken.None);
+
+        var saved = await repository.GetAsync(tenantId, userId, CancellationToken.None);
+
+        Assert.NotNull(saved);
+        Assert.Equal("lesson-greetings", saved.CurrentLesson.LessonId);
+        Assert.Equal("greetings", saved.CurrentLesson.KnowledgeUnitId);
+        Assert.Equal(0, saved.CurrentLesson.StepIndex);
+        Assert.True(saved.CurrentLesson.UpdatedAt > DateTimeOffset.UnixEpoch);
+    }
+
     private static LearnerState CreateState(TenantId tenantId, UserId userId)
     {
         return LearnerState.Create(

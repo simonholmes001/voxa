@@ -4,7 +4,7 @@ import VoxaRealtime
 /// Backend-backed implementation of `RealtimeSessionService` for
 /// `POST /api/realtime/session`. Requires an authenticated app session: the
 /// caller's access token is sent as a bearer token.
-public struct VoxaBackendRealtimeSessionService: RealtimeSessionService {
+public struct VoxaBackendRealtimeSessionService: RealtimeSessionService, RealtimeSessionCompletionService {
     private let baseURL: URL
     private let session: URLSession
     private let correlationIDProvider: @Sendable () -> String
@@ -33,7 +33,10 @@ public struct VoxaBackendRealtimeSessionService: RealtimeSessionService {
             RealtimeSessionRequestDTO(
                 coachingMode: settings.coachingMode,
                 proficiencyBand: settings.proficiencyBand,
-                targetLanguage: settings.targetLanguage
+                targetLanguage: settings.targetLanguage,
+                sessionIntent: settings.sessionIntent,
+                focusTitle: settings.focusTitle,
+                dueReviewCount: settings.dueReviewCount
             )
         )
 
@@ -55,6 +58,42 @@ public struct VoxaBackendRealtimeSessionService: RealtimeSessionService {
             return try Self.decoder.decode(RealtimeSessionResponseDTO.self, from: data).toCredential()
         } catch {
             throw RealtimeSessionError.transport
+        }
+    }
+
+    public func completeSession(
+        _ completion: RealtimeSessionCompletion,
+        accessToken: String
+    ) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/session/complete"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(correlationIDProvider(), forHTTPHeaderField: "X-Correlation-Id")
+        request.httpBody = try JSONEncoder().encode(
+            RealtimeSessionCompletionRequestDTO(
+                sessionId: completion.sessionId,
+                durationSeconds: completion.durationSeconds,
+                sessionIntent: completion.sessionIntent,
+                lessonId: completion.lessonId,
+                knowledgeUnitId: completion.knowledgeUnitId
+            )
+        )
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw RealtimeSessionError.transport
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw RealtimeSessionError.transport
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw Self.mapError(status: http.statusCode, data: data)
         }
     }
 

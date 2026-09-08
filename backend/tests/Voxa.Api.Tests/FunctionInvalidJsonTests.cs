@@ -248,6 +248,7 @@ public sealed class FunctionInvalidJsonTests
             new RefreshAppSessionEndpoint(new StubAppSessionService()),
             new LogoutAppSessionEndpoint(new StubAppSessionService()),
             new RealtimeSessionEndpoint(new StubRealtimeSessionService()),
+            new LearningSessionCompletionEndpoint(new StubLearningSessionCompletionService()),
             new ResumeSessionEndpoint(new StubLearnerSessionQueries()),
             new LanguageProfilesEndpoint(new LanguageProfileService(learnerStateRepository)),
             new OnboardingSubmitEndpoint(new OnboardingService(learnerStateRepository)),
@@ -383,6 +384,16 @@ public sealed class FunctionInvalidJsonTests
         public Task<LearnerState> SaveLearnerStateAsync(
             LearnerState state,
             LearnerStateVersion? expectedVersion,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class StubLearningSessionCompletionService : ILearningSessionCompletionService
+    {
+        public Task<ResumeCheckpointResponse> CompleteAsync(
+            CompleteLearningSessionCommand command,
             CancellationToken cancellationToken)
         {
             throw new NotSupportedException();

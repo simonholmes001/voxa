@@ -55,8 +55,14 @@ public struct OnboardingDraft: Sendable, Equatable, Codable {
     public var minutesPerDay: Int?
     public var placementLevel: CEFRLevel?
     public var placementAnswers: [Bool]
+    public var startingFromZero: Bool
     public var stepIndex: Int
     public var isCompleted: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case targetLanguage, nativeLanguage, goals, minutesPerDay, placementLevel
+        case placementAnswers, startingFromZero, stepIndex, isCompleted
+    }
 
     public init(
         targetLanguage: String? = nil,
@@ -65,6 +71,7 @@ public struct OnboardingDraft: Sendable, Equatable, Codable {
         minutesPerDay: Int? = nil,
         placementLevel: CEFRLevel? = nil,
         placementAnswers: [Bool] = [],
+        startingFromZero: Bool = false,
         stepIndex: Int = 0,
         isCompleted: Bool = false
     ) {
@@ -74,7 +81,21 @@ public struct OnboardingDraft: Sendable, Equatable, Codable {
         self.minutesPerDay = minutesPerDay
         self.placementLevel = placementLevel
         self.placementAnswers = placementAnswers
+        self.startingFromZero = startingFromZero
         self.stepIndex = stepIndex
         self.isCompleted = isCompleted
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        targetLanguage = try values.decodeIfPresent(String.self, forKey: .targetLanguage)
+        nativeLanguage = try values.decodeIfPresent(String.self, forKey: .nativeLanguage)
+        goals = try values.decodeIfPresent([String].self, forKey: .goals) ?? []
+        minutesPerDay = try values.decodeIfPresent(Int.self, forKey: .minutesPerDay)
+        placementLevel = try values.decodeIfPresent(CEFRLevel.self, forKey: .placementLevel)
+        placementAnswers = try values.decodeIfPresent([Bool].self, forKey: .placementAnswers) ?? []
+        startingFromZero = try values.decodeIfPresent(Bool.self, forKey: .startingFromZero) ?? false
+        stepIndex = try values.decodeIfPresent(Int.self, forKey: .stepIndex) ?? 0
+        isCompleted = try values.decodeIfPresent(Bool.self, forKey: .isCompleted) ?? false
     }
 }

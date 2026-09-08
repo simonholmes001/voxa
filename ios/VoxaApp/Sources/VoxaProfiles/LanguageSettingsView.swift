@@ -93,7 +93,7 @@ public struct LanguageSettingsView: View {
                 statusRow
             }
         }
-        .navigationTitle("\(model.displayName) settings")
+        .navigationTitle(shortTitle)
         .onAppear {
             if let minutes = model.minutesPerDay,
                !DailyTimeSelection.isPreset(minutes) {
@@ -138,6 +138,14 @@ public struct LanguageSettingsView: View {
         case .duplicate: return "You've already added that goal."
         case let .limitReached(max): return "You can add up to \(max) custom goals."
         }
+    }
+
+    private var shortTitle: String {
+        model.displayName.replacingOccurrences(
+            of: #"\s*\([^)]*\)"#,
+            with: "",
+            options: .regularExpression
+        )
     }
 }
 #endif

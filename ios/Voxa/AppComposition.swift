@@ -22,16 +22,25 @@ enum AppComposition {
         let onboardingService = makeOnboardingService(authModel: authModel)
         let onboardingModel = makeOnboardingModel(service: onboardingService)
         let languageSettingsService = makeLanguageSettingsService(authModel: authModel)
+        let homeModel = makeHomeModel(
+            authModel: authModel,
+            onboardingService: onboardingService,
+            onboardingModel: onboardingModel
+        )
+        let profileModel = makeProfileModel(authModel: authModel)
         return RootView(
             authModel: authModel,
             onboardingModel: onboardingModel,
-            homeModel: makeHomeModel(
+            homeModel: homeModel,
+            talkModel: makeTalkModel(
                 authModel: authModel,
-                onboardingService: onboardingService,
-                onboardingModel: onboardingModel
+                onboardingModel: onboardingModel,
+                onSessionCompleted: {
+                    await homeModel.resumeIfAvailable()
+                    await profileModel.refresh()
+                }
             ),
-            talkModel: makeTalkModel(authModel: authModel, onboardingModel: onboardingModel),
-            profileModel: makeProfileModel(authModel: authModel),
+            profileModel: profileModel,
             makeLanguageSettingsModel: { profile in
                 LanguageSettingsViewModel(profile: profile, service: languageSettingsService)
             }
@@ -104,7 +113,7 @@ enum AppComposition {
         onboardingModel: OnboardingViewModel
     ) -> HomeViewModel {
         let server = MainActorProfileProvider {
-            learnerSummary(from: try await onboardingService.resume())
+            learnerSummary(from: try await onboardingService.resumeCheckpoint())
         }
         let local = MainActorProfileProvider { [weak onboardingModel] in
             learnerSummary(from: onboardingModel?.makeProfile(), isStale: true)
@@ -123,14 +132,29 @@ enum AppComposition {
     }
 
     /// Maps an onboarding profile into the display-ready Home summary.
-    static func learnerSummary(from profile: OnboardingProfile?, isStale: Bool = false) -> LearnerProfileSummary? {
+    static func learnerSummary(
+        from profile: OnboardingProfile?,
+        isStale: Bool = false,
+        activePlanTitle: String? = nil,
+        currentLessonTitle: String? = nil,
+        currentLessonStepIndex: Int? = nil,
+        dueReviewCount: Int = 0,
+        recentSessionCount: Int = 0,
+        minutesPracticedToday: Int = 0
+    ) -> LearnerProfileSummary? {
         guard let profile else { return nil }
         return LearnerProfileSummary(
             languageName: OnboardingLanguages.displayName(forKey: profile.targetLanguage),
             levelName: profile.placementLevel.displayName,
             goalName: profile.goals.map(GoalSelection.displayTitle).joined(separator: ", "),
             dailyMinutes: profile.minutesPerDay,
-            isStale: isStale
+            isStale: isStale,
+            activePlanTitle: activePlanTitle,
+            currentLessonTitle: currentLessonTitle,
+            currentLessonStepIndex: currentLessonStepIndex,
+            dueReviewCount: dueReviewCount,
+            recentSessionCount: recentSessionCount,
+            minutesPracticedToday: minutesPracticedToday
         )
     }
 
@@ -142,9 +166,58 @@ enum AppComposition {
         let service: any OnboardingService
 
         func resumeSession() async throws -> LearnerProfileSummary? {
-            let profile = try await service.resume()
-            return AppComposition.learnerSummary(from: profile)
+            let checkpoint = try await service.resumeCheckpoint()
+            return AppComposition.learnerSummary(from: checkpoint)
         }
+    }
+
+    /// Maps a resume checkpoint into the display-ready Home summary, preserving
+    /// current plan/review context when the backend supplies it.
+    static func learnerSummary(
+        from checkpoint: OnboardingResumeCheckpoint?,
+        isStale: Bool = false,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> LearnerProfileSummary? {
+        guard let checkpoint else { return nil }
+        return learnerSummary(
+            from: checkpoint.profile,
+            isStale: isStale,
+            activePlanTitle: checkpoint.activePlan?.title,
+            currentLessonTitle: displayTitle(forKnowledgeUnitId: checkpoint.currentLesson?.knowledgeUnitId),
+            currentLessonStepIndex: checkpoint.currentLesson?.stepIndex,
+            dueReviewCount: checkpoint.reviewQueue.filter { $0.dueAt <= now }.count,
+            recentSessionCount: checkpoint.recentSessions.count,
+            minutesPracticedToday: minutesPracticedToday(
+                from: checkpoint.recentSessions,
+                now: now,
+                calendar: calendar
+            )
+        )
+    }
+
+    static func minutesPracticedToday(
+        from sessions: [SessionSummary],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        let seconds = sessions
+            .filter { calendar.isDate($0.startedAt, inSameDayAs: now) }
+            .reduce(0) { total, session in total + max(0, session.durationSeconds) }
+        return seconds / 60
+    }
+
+    static func displayTitle(forKnowledgeUnitId knowledgeUnitId: String?) -> String? {
+        guard let knowledgeUnitId else { return nil }
+        let words = knowledgeUnitId
+            .split(whereSeparator: { $0 == "-" || $0 == "_" })
+            .map(String.init)
+        guard !words.isEmpty else { return nil }
+        return words.map { word in
+            let first = word.prefix(1).uppercased()
+            let remainder = String(word.dropFirst())
+            return first + remainder
+        }.joined(separator: " ")
     }
 
     static func isHomeProfileFallbackEligible(_ error: Error) -> Bool {
@@ -192,7 +265,8 @@ enum AppComposition {
     @MainActor
     static func makeTalkModel(
         authModel: AuthViewModel,
-        onboardingModel: OnboardingViewModel
+        onboardingModel: OnboardingViewModel,
+        onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {}
     ) -> TalkSessionViewModel {
         TalkSessionViewModel(
             settingsProvider: { [weak onboardingModel] in
@@ -200,11 +274,13 @@ enum AppComposition {
             },
             permission: SystemMicrophonePermission(),
             service: makeRealtimeSessionService(),
+            completionService: makeRealtimeSessionCompletionService(),
             transport: makeRealtimeTransport(),
             accessTokenProvider: { [weak authModel] in authModel?.state.session?.accessToken },
             onAuthenticationRequired: { [weak authModel] in
                 await authModel?.signOut()
-            }
+            },
+            onSessionCompleted: onSessionCompleted
         )
     }
 
@@ -243,6 +319,13 @@ enum AppComposition {
     static func makeRealtimeSessionService() -> any RealtimeSessionService {
         guard let baseURL = backendBaseURL() else {
             return NotConfiguredRealtimeSessionService()
+        }
+        return VoxaBackendRealtimeSessionService(baseURL: baseURL)
+    }
+
+    static func makeRealtimeSessionCompletionService() -> (any RealtimeSessionCompletionService)? {
+        guard let baseURL = backendBaseURL() else {
+            return nil
         }
         return VoxaBackendRealtimeSessionService(baseURL: baseURL)
     }

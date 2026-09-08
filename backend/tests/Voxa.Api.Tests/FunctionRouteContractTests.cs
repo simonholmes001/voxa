@@ -14,6 +14,7 @@ public sealed class FunctionRouteContractTests
     [InlineData(nameof(VoxaHttpFunctions.SubmitOnboardingAsync), "onboarding", "post")]
     [InlineData(nameof(VoxaHttpFunctions.IssueRealtimeSessionAsync), "realtime/session", "post")]
     [InlineData(nameof(VoxaHttpFunctions.ResumeSessionAsync), "session/resume", "get")]
+    [InlineData(nameof(VoxaHttpFunctions.CompleteSessionAsync), "session/complete", "post")]
     [InlineData(nameof(VoxaHttpFunctions.ListLanguageProfilesAsync), "language-profiles", "get")]
     [InlineData(nameof(VoxaHttpFunctions.SelectLanguageProfileAsync), "language-profiles/{languageKey}/select", "post")]
     [InlineData(nameof(VoxaHttpFunctions.DeploymentHealthAsync), "health/deployment", "get")]

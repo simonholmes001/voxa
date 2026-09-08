@@ -72,6 +72,40 @@ final class VoxaBackendOnboardingServiceTests: XCTestCase {
         XCTAssertEqual(profile?.placementLevel, .b1)
     }
 
+    func testResumeCheckpointDecodesPlanLessonReviewQueueAndRecentSessions() async throws {
+        StubURLProtocol.handler = { request, _ in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(Self.resumeCheckpointJSON.utf8))
+        }
+
+        let checkpoint = try await service.resumeCheckpoint()
+
+        XCTAssertEqual(checkpoint?.profile.targetLanguage, "de-DE")
+        XCTAssertEqual(checkpoint?.activePlan?.title, "Survival German")
+        XCTAssertEqual(checkpoint?.activePlan?.knowledgeUnitIds, ["station-directions", "tickets"])
+        XCTAssertEqual(checkpoint?.currentLesson?.lessonId, "lesson-1")
+        XCTAssertEqual(checkpoint?.currentLesson?.knowledgeUnitId, "station-directions")
+        XCTAssertEqual(checkpoint?.currentLesson?.stepIndex, 3)
+        XCTAssertEqual(checkpoint?.reviewQueue.first?.knowledgeUnitId, "ticket")
+        XCTAssertEqual(checkpoint?.reviewQueue.first?.priority, 2)
+        XCTAssertEqual(checkpoint?.recentSessions.first?.durationSeconds, 600)
+        XCTAssertEqual(checkpoint?.recentSessions.first?.lessonId, "lesson-1")
+    }
+
+    func testResumeCheckpointSuppressesEmptyPlanLessonAndQueueSentinels() async throws {
+        StubURLProtocol.handler = { request, _ in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(Self.emptyCheckpointJSON.utf8))
+        }
+
+        let checkpoint = try await service.resumeCheckpoint()
+
+        XCTAssertNil(checkpoint?.activePlan)
+        XCTAssertNil(checkpoint?.currentLesson)
+        XCTAssertEqual(checkpoint?.reviewQueue, [])
+        XCTAssertEqual(checkpoint?.recentSessions, [])
+    }
+
     func testResumeTransportFailureMapsToTransportUnavailable() async {
         StubURLProtocol.handler = { _, _ in throw URLError(.notConnectedToInternet) }
 
@@ -127,6 +161,86 @@ final class VoxaBackendOnboardingServiceTests: XCTestCase {
         "knowledgeUnitIds": ["opinions", "stories", "travel"]
       },
       "version": 1
+    }
+    """
+
+    private static let resumeCheckpointJSON = """
+    {
+      "correlationId": "corr-test",
+      "version": 2,
+      "profile": {
+        "targetLanguage": "de-DE",
+        "nativeLanguage": "en-US",
+        "proficiencyLevel": "A1",
+        "goals": ["travel"],
+        "dailyMinutes": 30
+      },
+      "activePlan": {
+        "planId": "plan-1",
+        "title": "Survival German",
+        "knowledgeUnitIds": ["station-directions", "tickets"]
+      },
+      "currentLesson": {
+        "lessonId": "lesson-1",
+        "knowledgeUnitId": "station-directions",
+        "stepIndex": 3,
+        "updatedAt": "2026-08-29T07:00:00Z"
+      },
+      "reviewQueue": [
+        {
+          "knowledgeUnitId": "ticket",
+          "dueAt": "2026-08-30T07:00:00Z",
+          "priority": 2
+        }
+      ],
+      "recentSessions": [
+        {
+          "sessionId": "session-1",
+          "startedAt": "2026-08-29T07:00:00Z",
+          "durationSeconds": 600,
+          "lessonId": "lesson-1"
+        }
+      ]
+    }
+    """
+
+    private static let emptyCheckpointJSON = """
+    {
+      "correlationId": "corr-test",
+      "version": 2,
+      "profile": {
+        "targetLanguage": "de-DE",
+        "nativeLanguage": "en-US",
+        "proficiencyLevel": "A1",
+        "goals": ["travel"],
+        "dailyMinutes": 30
+      },
+      "activePlan": {
+        "planId": "",
+        "title": "",
+        "knowledgeUnitIds": []
+      },
+      "currentLesson": {
+        "lessonId": "",
+        "knowledgeUnitId": "",
+        "stepIndex": 0,
+        "updatedAt": "1970-01-01T00:00:00Z"
+      },
+      "reviewQueue": [
+        {
+          "knowledgeUnitId": "",
+          "dueAt": "1970-01-01T00:00:00Z",
+          "priority": 0
+        }
+      ],
+      "recentSessions": [
+        {
+          "sessionId": "",
+          "startedAt": "1970-01-01T00:00:00Z",
+          "durationSeconds": 0,
+          "lessonId": ""
+        }
+      ]
     }
     """
 }

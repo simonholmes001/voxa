@@ -90,6 +90,28 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(model.placementEstimate, .a2)
     }
 
+    func testStartingFromZeroClearsPlacementAnswersAndUsesA1() {
+        let model = OnboardingViewModel(store: InMemoryOnboardingDraftStore())
+        model.answerPlacement(0, true)
+
+        model.setStartingFromZero(true)
+
+        XCTAssertTrue(model.draft.startingFromZero)
+        XCTAssertEqual(model.draft.placementAnswers, [false, false, false, false, false])
+        XCTAssertEqual(model.placementEstimate, .a1)
+    }
+
+    func testSelectingAnAbilityLeavesStartingFromZeroMode() {
+        let model = OnboardingViewModel(store: InMemoryOnboardingDraftStore())
+        model.setStartingFromZero(true)
+
+        model.answerPlacement(0, true)
+
+        XCTAssertFalse(model.draft.startingFromZero)
+        XCTAssertEqual(model.placementEstimate, .a1)
+        XCTAssertTrue(model.draft.placementAnswers[0])
+    }
+
     func testFinishWithIncompleteProfileFailsWithoutSubmitting() async {
         let service = FakeOnboardingService()
         let model = OnboardingViewModel(store: InMemoryOnboardingDraftStore(), service: service)

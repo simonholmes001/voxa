@@ -6,37 +6,53 @@ import VoxaRealtime
 
 /// Destination for a top-level route.
 ///
-/// The Home route hosts the Home/Today surface and the Talk route hosts the
-/// Realtime voice session, when their view models are provided; other routes
-/// render a Dynamic Type-friendly placeholder until their own issues land.
+/// Home hosts the learning dashboard, Talk hosts the Realtime tutor, and
+/// Learn/Review/Progress render assistant-plan surfaces from the active
+/// profile. Settings renders the language manager when its dependencies are
+/// available.
 struct RouteDestinationView: View {
     let route: AppRoute
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
     var languageManager: LanguageManagerContext?
-    var onStartTalk: () -> Void = {}
+    var onContinueLearning: () -> Void = {}
+    var onStartTalk: (RealtimeTutorIntent) -> Void = { _ in }
 
     var body: some View {
         switch route {
         case .home where homeModel != nil:
-            HomeView(model: homeModel!, onStartTalk: onStartTalk)
+            HomeView(
+                model: homeModel!,
+                talkModel: talkModel,
+                languages: homeLanguages,
+                onContinueLearning: onContinueLearning,
+                onVoicePractice: { onStartTalk(.openPractice) },
+                onReviewPractice: { topic in
+                    onStartTalk(.review(dueCount: learningContext.dueReviewCount, focusTitle: topic))
+                },
+                onSelectLanguage: selectLanguage
+            )
         case .talk where talkModel != nil:
             TalkView(model: talkModel!)
         case .learn:
-            MvpRouteView(
-                route: route,
-                symbol: "book.closed",
-                title: "Build your next lesson",
-                message: "Lessons will appear here after your learning plan is ready.",
-                detail: "Start a Talk session to practise while lesson content is being prepared."
+            LearningRouteView(
+                content: learningPlan.lesson,
+                primaryAction: { onStartTalk(.lesson(title: learningContext.activePlanTitle)) },
+                rowAction: { row in onStartTalk(.lesson(title: row.title)) }
             )
         case .review:
-            MvpRouteView(
-                route: route,
-                symbol: "arrow.triangle.2.circlepath",
-                title: "Review when you're ready",
-                message: "Your review queue will appear here after you complete a learning session.",
-                detail: "There is nothing due yet."
+            LearningRouteView(
+                content: learningPlan.review,
+                primaryAction: { onStartTalk(.review(dueCount: learningContext.dueReviewCount)) },
+                rowAction: { row in
+                    onStartTalk(.review(dueCount: learningContext.dueReviewCount, focusTitle: row.title))
+                }
+            )
+        case .progress:
+            LearningRouteView(
+                content: learningPlan.progress,
+                primaryAction: onContinueLearning,
+                rowAction: { _ in onContinueLearning() }
             )
         case .settings where languageManager != nil:
             LanguageManagementView(
@@ -49,16 +65,67 @@ struct RouteDestinationView: View {
                 onSignOut: languageManager!.onSignOut
             )
         case .settings:
-            MvpRouteView(
-                route: route,
-                symbol: "person.crop.circle",
-                title: "Your learning settings",
-                message: "Language profiles and account preferences are managed here.",
-                detail: "Select a language from the profile chooser to edit its onboarding settings."
+            LearningRouteView(
+                content: learningPlan.settings,
+                primaryAction: languageManager?.onAddLanguage ?? {},
+                rowAction: { _ in languageManager?.onAddLanguage() }
             )
         default:
             placeholder
         }
+    }
+
+    private var homeLanguages: [LearnerLanguageSummary] {
+        guard let languageManager else { return [] }
+        return languageManager.profileModel.allProfiles.map { profile in
+            LearnerLanguageSummary(
+                id: profile.languageKey,
+                name: shortLanguageName(profile.displayName),
+                levelName: profile.profile.placementLevel.displayName,
+                dailyMinutes: profile.profile.minutesPerDay,
+                isActive: profile.languageKey == languageManager.profileModel.activeLanguageKey
+            )
+        }
+    }
+
+    private func selectLanguage(_ id: String) {
+        guard let languageManager,
+              let profile = languageManager.profileModel.allProfiles.first(where: { $0.languageKey == id }),
+              profile.languageKey != languageManager.profileModel.activeLanguageKey
+        else { return }
+        languageManager.onSwitch(profile)
+    }
+
+    private func shortLanguageName(_ displayName: String) -> String {
+        LearningAssistantPlanFactory.shortLanguageName(displayName)
+    }
+
+    private var learningPlan: LearningAssistantPlan {
+        LearningAssistantPlanFactory.makePlan(for: learningContext)
+    }
+
+    private var learningContext: LearningAssistantContext {
+        if let homeModel,
+           case let .ready(summary) = homeModel.state {
+            return LearningAssistantPlanFactory.context(
+                activeProfile: activeLanguageProfile,
+                homeSummary: summary
+            )
+        }
+
+        return LearningAssistantPlanFactory.context(
+            activeProfile: activeLanguageProfile,
+            homeSummary: nil
+        )
+    }
+
+    private var activeLanguageProfile: LanguageProfile? {
+        guard let languageManager else { return nil }
+        if let activeKey = languageManager.profileModel.activeLanguageKey,
+           let active = languageManager.profileModel.allProfiles.first(where: { $0.languageKey == activeKey }) {
+            return active
+        }
+        return languageManager.profileModel.allProfiles.first
     }
 
     private var placeholder: some View {
@@ -86,34 +153,69 @@ struct RouteDestinationView: View {
     }
 }
 
-private struct MvpRouteView: View {
-    let route: AppRoute
-    let symbol: String
-    let title: String
-    let message: String
-    let detail: String
+private struct LearningRouteView: View {
+    let content: LearningRouteContent
+    let primaryAction: () -> Void
+    let rowAction: (LearningRouteRow) -> Void
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Image(systemName: symbol)
-                    .font(.system(size: 44, weight: .medium))
-                    .foregroundStyle(.tint)
-                    .accessibilityHidden(true)
-                Text(title)
-                    .font(.largeTitle)
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 12) {
+                    Image(systemName: content.symbol)
+                        .font(.system(size: 34, weight: .medium))
+                        .foregroundStyle(.tint)
+                        .accessibilityHidden(true)
+                    Text(content.title)
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+                Text(content.headline)
+                    .font(.title)
                     .fontWeight(.bold)
-                Text(message)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                Text(detail)
+                Text(content.detail)
                     .foregroundStyle(.secondary)
+                Button(action: primaryAction) {
+                    Label(content.primaryTitle, systemImage: content.primarySymbol)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                VStack(spacing: 10) {
+                    ForEach(content.rows) { row in
+                        Button {
+                            rowAction(row)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: row.symbol)
+                                    .font(.title3)
+                                    .foregroundStyle(.tint)
+                                    .frame(width: 28)
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(row.title)
+                                        .font(.body)
+                                        .fontWeight(.semibold)
+                                    Text(row.detail)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding()
+                        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
             }
             .frame(maxWidth: 640, alignment: .leading)
             .padding()
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .navigationTitle(route.placeholderContent().headline)
+        .navigationTitle(content.title)
     }
 }
 
