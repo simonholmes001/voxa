@@ -117,18 +117,12 @@ public final class WebRTCRealtimeTransport: NSObject, RealtimeTransport, @unchec
         rtcAudioSession.lockForConfiguration()
         defer { rtcAudioSession.unlockForConfiguration() }
 
-        var error: NSError?
-        guard rtcAudioSession.setCategory(
-            AVAudioSession.Category.playAndRecord.rawValue,
-            mode: AVAudioSession.Mode.videoChat.rawValue,
-            options: [.defaultToSpeaker, .allowBluetoothHFP],
-            error: &error
-        ) else {
-            throw error ?? NSError(domain: "VoxaAudioSession", code: 1)
-        }
-        guard rtcAudioSession.setActive(true, error: &error) else {
-            throw error ?? NSError(domain: "VoxaAudioSession", code: 2)
-        }
+        try rtcAudioSession.setCategory(
+            .playAndRecord,
+            mode: .videoChat,
+            options: [.defaultToSpeaker, .allowBluetoothHFP]
+        )
+        try rtcAudioSession.setActive(true)
 
         // `defaultToSpeaker` only affects the initial route. Explicitly select
         // the speaker so a previous receiver route cannot leave the tutor
@@ -136,7 +130,7 @@ public final class WebRTCRealtimeTransport: NSObject, RealtimeTransport, @unchec
         if !rtcAudioSession.currentRoute.outputs.contains(where: { output in
             output.portType == .bluetoothHFP || output.portType == .bluetoothA2DP || output.portType == .bluetoothLE
         }) {
-            _ = rtcAudioSession.overrideOutputAudioPort(.speaker, error: &error)
+            try? rtcAudioSession.overrideOutputAudioPort(.speaker)
         }
         #endif
     }
@@ -145,7 +139,7 @@ public final class WebRTCRealtimeTransport: NSObject, RealtimeTransport, @unchec
         #if os(iOS)
         let rtcAudioSession = RTCAudioSession.sharedInstance()
         rtcAudioSession.lockForConfiguration()
-        _ = rtcAudioSession.setActive(false, error: nil)
+        try? rtcAudioSession.setActive(false)
         rtcAudioSession.unlockForConfiguration()
         #endif
     }
