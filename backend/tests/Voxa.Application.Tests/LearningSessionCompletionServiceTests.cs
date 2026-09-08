@@ -84,6 +84,62 @@ public sealed class LearningSessionCompletionServiceTests
                 CancellationToken.None));
     }
 
+    [Fact]
+    public async Task CompleteAsyncReturnsRecordedSessionWhenSaveBecomesStale()
+    {
+        var tenantId = TenantId.Create("tenant-a");
+        var userId = UserId.Create("user-a");
+        var repository = new RecordingLearnerStateRepository
+        {
+            RecordSessionOnNextStaleSave = "session-123"
+        };
+        await repository.SaveAsync(CreateState(tenantId, userId), expectedVersion: null, CancellationToken.None);
+        var service = new LearningSessionCompletionService(repository);
+
+        var checkpoint = await service.CompleteAsync(
+            CompleteLearningSessionCommand.Create(
+                tenantId.Value,
+                userId.Value,
+                "session-123",
+                lessonId: "lesson-1",
+                knowledgeUnitId: "greetings",
+                durationSeconds: 300,
+                sessionIntent: "lesson",
+                correlationId: "corr-complete"),
+            CancellationToken.None);
+
+        Assert.Equal(2, checkpoint.Version);
+        Assert.Single(checkpoint.RecentSessions);
+        Assert.Equal("session-123", checkpoint.RecentSessions.First().SessionId);
+    }
+
+    [Fact]
+    public async Task CompleteAsyncDoesNotReplaceCurrentLessonForReviewFocus()
+    {
+        var tenantId = TenantId.Create("tenant-a");
+        var userId = UserId.Create("user-a");
+        var repository = new RecordingLearnerStateRepository();
+        await repository.SaveAsync(CreateState(tenantId, userId), expectedVersion: null, CancellationToken.None);
+        var service = new LearningSessionCompletionService(repository);
+
+        var checkpoint = await service.CompleteAsync(
+            CompleteLearningSessionCommand.Create(
+                tenantId.Value,
+                userId.Value,
+                "review-123",
+                lessonId: "different-lesson",
+                knowledgeUnitId: "different-unit",
+                durationSeconds: 120,
+                sessionIntent: "review",
+                correlationId: "corr-review"),
+            CancellationToken.None);
+
+        Assert.Equal("lesson-1", checkpoint.CurrentLesson.LessonId);
+        Assert.Equal("greetings", checkpoint.CurrentLesson.KnowledgeUnitId);
+        Assert.Equal(1, checkpoint.CurrentLesson.StepIndex);
+        Assert.Equal("different-unit", checkpoint.ReviewQueue.First().KnowledgeUnitId);
+    }
+
     private static LearnerState CreateState(TenantId tenantId, UserId userId)
     {
         return LearnerState.Create(
@@ -100,6 +156,10 @@ public sealed class LearningSessionCompletionServiceTests
     {
         private readonly Dictionary<string, LearnerState> states = new();
 
+        public string? RecordSessionOnNextStaleSave { get; init; }
+
+        private bool hasRecordedSessionOnStaleSave;
+
         public Task<LearnerState?> GetAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
         {
             states.TryGetValue(Key(tenantId, userId), out var state);
@@ -113,6 +173,21 @@ public sealed class LearningSessionCompletionServiceTests
         {
             var key = Key(state.TenantId, state.UserId);
             states.TryGetValue(key, out var current);
+            if (current is not null && RecordSessionOnNextStaleSave is not null && !hasRecordedSessionOnStaleSave)
+            {
+                hasRecordedSessionOnStaleSave = true;
+                var concurrentState = current with
+                {
+                    RecentSessions = new RecentSessionSummaries(
+                    [new SessionSummary(RecordSessionOnNextStaleSave, DateTimeOffset.UtcNow, 300, "lesson-1")])
+                };
+                states[key] = concurrentState.WithVersion(current.Version.Next());
+                throw new StaleLearnerStateVersionException(
+                    state.TenantId,
+                    state.UserId,
+                    expectedVersion,
+                    states[key].Version);
+            }
             if (current is not null && expectedVersion != current.Version)
             {
                 throw new StaleLearnerStateVersionException(state.TenantId, state.UserId, expectedVersion, current.Version);

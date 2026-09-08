@@ -45,6 +45,15 @@ public sealed class LearningSessionCompletionEndpoint(ILearningSessionCompletion
         {
             return Failure("learner_state_not_found", "Learner state was not found.", requestCorrelationId, 404, retryable: false);
         }
+        catch (StaleLearnerStateVersionException)
+        {
+            return Failure(
+                "learner_state_conflict",
+                "Learner state changed while the session was being completed. Please retry.",
+                requestCorrelationId,
+                409,
+                retryable: true);
+        }
     }
 
     private static ApiResponse<ResumeCheckpointResponse> Failure(

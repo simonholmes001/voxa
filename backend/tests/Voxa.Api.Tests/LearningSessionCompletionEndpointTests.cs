@@ -64,6 +64,22 @@ public sealed class LearningSessionCompletionEndpointTests
         Assert.Single(response.Body?.ReviewQueue ?? []);
     }
 
+    [Fact]
+    public async Task PostMapsStateVersionConflictToRetryableConflict()
+    {
+        var endpoint = new LearningSessionCompletionEndpoint(new StaleLearningSessionCompletionService());
+
+        var response = await endpoint.PostAsync(
+            Principal(),
+            new LearningSessionCompletionHttpRequest("session-1", 60),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(409, response.StatusCode);
+        Assert.Equal("learner_state_conflict", response.Error?.Code);
+        Assert.True(response.Error?.Retryable);
+    }
+
     private static AppSessionPrincipal Principal()
     {
         return new AppSessionPrincipal(
@@ -82,6 +98,20 @@ public sealed class LearningSessionCompletionEndpointTests
         {
             Command = command;
             return Task.FromResult(checkpoint ?? throw new LearnerStateNotFoundException(command.TenantId, command.UserId));
+        }
+    }
+
+    private sealed class StaleLearningSessionCompletionService : ILearningSessionCompletionService
+    {
+        public Task<ResumeCheckpointResponse> CompleteAsync(
+            CompleteLearningSessionCommand command,
+            CancellationToken cancellationToken)
+        {
+            throw new StaleLearnerStateVersionException(
+                command.TenantId,
+                command.UserId,
+                LearnerStateVersion.Create(1),
+                LearnerStateVersion.Create(2));
         }
     }
 }

@@ -57,42 +57,58 @@ public sealed class LearningSessionCompletionService(ILearnerStateRepository rep
 {
     private const int MaxRecentSessions = 20;
     private const int MaxReviewItems = 50;
+    private const int MaxConcurrencyAttempts = 3;
 
     public async Task<ResumeCheckpointResponse> CompleteAsync(
         CompleteLearningSessionCommand command,
         CancellationToken cancellationToken)
     {
-        var state = await repository.GetAsync(command.TenantId, command.UserId, cancellationToken);
-        if (state is null)
+        for (var attempt = 0; attempt < MaxConcurrencyAttempts; attempt++)
         {
-            throw new LearnerStateNotFoundException(command.TenantId, command.UserId);
+            var state = await repository.GetAsync(command.TenantId, command.UserId, cancellationToken);
+            if (state is null)
+            {
+                throw new LearnerStateNotFoundException(command.TenantId, command.UserId);
+            }
+
+            var sessionAlreadyRecorded = state.RecentSessions.Items.Any(
+                item => string.Equals(item.SessionId, command.SessionId, StringComparison.OrdinalIgnoreCase));
+            if (sessionAlreadyRecorded)
+            {
+                return state.ToResumeCheckpoint(command.CorrelationId);
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var lessonId = command.LessonId ?? state.CurrentLesson.LessonId;
+            var knowledgeUnitId = command.KnowledgeUnitId ?? state.CurrentLesson.KnowledgeUnitId;
+            var isLessonSession = string.Equals(command.SessionIntent, "lesson", StringComparison.OrdinalIgnoreCase);
+
+            var updated = state with
+            {
+                CurrentLesson = isLessonSession
+                    ? NextLessonCheckpoint(state.CurrentLesson, lessonId, knowledgeUnitId, command.SessionIntent, now)
+                    : state.CurrentLesson,
+                ReviewQueue = NextReviewQueue(state.ReviewQueue, knowledgeUnitId, now),
+                RecentSessions = NextRecentSessions(state.RecentSessions, command, lessonId, now)
+            };
+
+            try
+            {
+                var saved = await repository.SaveAsync(updated, state.Version, cancellationToken);
+                return saved.ToResumeCheckpoint(command.CorrelationId);
+            }
+            catch (StaleLearnerStateVersionException)
+            {
+                if (attempt == MaxConcurrencyAttempts - 1)
+                {
+                    throw;
+                }
+
+                // Re-read and retry so a concurrent duplicate completion becomes idempotent.
+            }
         }
 
-        var sessionAlreadyRecorded = state.RecentSessions.Items.Any(
-            item => string.Equals(item.SessionId, command.SessionId, StringComparison.OrdinalIgnoreCase));
-        if (sessionAlreadyRecorded)
-        {
-            return state.ToResumeCheckpoint(command.CorrelationId);
-        }
-
-        var now = DateTimeOffset.UtcNow;
-        var lessonId = command.LessonId ?? state.CurrentLesson.LessonId;
-        var knowledgeUnitId = command.KnowledgeUnitId ?? state.CurrentLesson.KnowledgeUnitId;
-
-        var updated = state with
-        {
-            CurrentLesson = NextLessonCheckpoint(
-                state.CurrentLesson,
-                lessonId,
-                knowledgeUnitId,
-                command.SessionIntent,
-                now),
-            ReviewQueue = NextReviewQueue(state.ReviewQueue, knowledgeUnitId, now),
-            RecentSessions = NextRecentSessions(state.RecentSessions, command, lessonId, now)
-        };
-
-        var saved = await repository.SaveAsync(updated, state.Version, cancellationToken);
-        return saved.ToResumeCheckpoint(command.CorrelationId);
+        throw new InvalidOperationException("Session completion did not produce a result.");
     }
 
     private static LessonCheckpoint NextLessonCheckpoint(
