@@ -17,6 +17,7 @@ public sealed class FunctionRouteContractTests
     [InlineData(nameof(VoxaHttpFunctions.CompleteSessionAsync), "session/complete", "post")]
     [InlineData(nameof(VoxaHttpFunctions.ListLanguageProfilesAsync), "language-profiles", "get")]
     [InlineData(nameof(VoxaHttpFunctions.SelectLanguageProfileAsync), "language-profiles/{languageKey}/select", "post")]
+    [InlineData(nameof(VoxaHttpFunctions.DeleteLanguageProfileAsync), "language-profiles/{languageKey}", "delete")]
     [InlineData(nameof(VoxaHttpFunctions.DeploymentHealthAsync), "health/deployment", "get")]
     [InlineData(nameof(VoxaHttpFunctions.ResetLearnerStateAsync), "dev/learner-state", "delete")]
     public void FunctionRoutesMatchMobileApiContract(string methodName, string route, string method)

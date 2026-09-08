@@ -41,4 +41,11 @@ public interface ILearnerStateRepository
         CancellationToken cancellationToken);
 
     Task DeleteAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken);
+
+    Task DeleteLanguageAsync(
+        TenantId tenantId,
+        UserId userId,
+        string targetLanguage,
+        CancellationToken cancellationToken)
+        => Task.FromException(new NotSupportedException("Targeted language deletion is not supported by this repository."));
 }

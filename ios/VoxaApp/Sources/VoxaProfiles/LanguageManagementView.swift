@@ -16,8 +16,10 @@ public struct LanguageManagementView: View {
     private let onSwitch: (LanguageProfile) -> Void
     private let onAddLanguage: () -> Void
     private let onSaved: () async -> Void
+    private let onDelete: (LanguageProfile) async -> Bool
     private let onSignOut: () -> Void
     @State private var editingProfile: LanguageProfile?
+    @State private var profileToDelete: LanguageProfile?
 
     public init(
         profiles: [LanguageProfile],
@@ -26,6 +28,7 @@ public struct LanguageManagementView: View {
         onSwitch: @escaping (LanguageProfile) -> Void,
         onAddLanguage: @escaping () -> Void,
         onSaved: @escaping () async -> Void,
+        onDelete: @escaping (LanguageProfile) async -> Bool = { _ in false },
         onSignOut: @escaping () -> Void
     ) {
         self.profiles = profiles
@@ -34,6 +37,7 @@ public struct LanguageManagementView: View {
         self.onSwitch = onSwitch
         self.onAddLanguage = onAddLanguage
         self.onSaved = onSaved
+        self.onDelete = onDelete
         self.onSignOut = onSignOut
     }
 
@@ -62,6 +66,13 @@ public struct LanguageManagementView: View {
                             LanguageRow(profile: profile, isActive: profile.languageKey == activeKey)
                         }
                         .buttonStyle(.plain)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                profileToDelete = profile
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
@@ -83,6 +94,24 @@ public struct LanguageManagementView: View {
             }
         }
         .navigationTitle("Languages")
+        .confirmationDialog(
+            "Delete \(profileToDelete?.displayName ?? "language")?",
+            isPresented: Binding(
+                get: { profileToDelete != nil },
+                set: { if !$0 { profileToDelete = nil } }
+            ),
+            presenting: profileToDelete
+        ) { profile in
+            Button("Delete", role: .destructive) {
+                Task {
+                    if await onDelete(profile) { await onSaved() }
+                    profileToDelete = nil
+                }
+            }
+            Button("Cancel", role: .cancel) { profileToDelete = nil }
+        } message: { profile in
+            Text("This removes your progress for \(profile.displayName).")
+        }
         .sheet(item: $editingProfile) { profile in
             NavigationStack {
                 LanguageDetailView(

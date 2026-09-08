@@ -62,6 +62,7 @@ struct RouteDestinationView: View {
                 onSwitch: languageManager!.onSwitch,
                 onAddLanguage: languageManager!.onAddLanguage,
                 onSaved: { await languageManager!.profileModel.refresh() },
+                onDelete: languageManager!.onDelete,
                 onSignOut: languageManager!.onSignOut
             )
         case .settings:

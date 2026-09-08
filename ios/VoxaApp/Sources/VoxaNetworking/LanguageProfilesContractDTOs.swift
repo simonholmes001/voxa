@@ -41,3 +41,8 @@ struct SelectLanguageResponseDTO: Decodable {
     let correlationId: String
     let activeLanguageKey: String
 }
+
+struct DeleteLanguageResponseDTO: Decodable {
+    let correlationId: String
+    let deletedLanguageKey: String
+}

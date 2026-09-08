@@ -6,6 +6,14 @@ public protocol LanguageProfilesService: Sendable {
     /// `POST /api/language-profiles/{languageKey}/select`; returns the new
     /// active language key.
     func selectActive(languageKey: String) async throws -> String
+    /// `DELETE /api/language-profiles/{languageKey}`.
+    func delete(languageKey: String) async throws
+}
+
+public extension LanguageProfilesService {
+    func delete(languageKey: String) async throws {
+        throw LanguageProfilesError.notConfigured("Language deletion is not configured for this service.")
+    }
 }
 
 public enum LanguageProfilesError: Error, Equatable {
@@ -31,6 +39,10 @@ public struct NotConfiguredLanguageProfilesService: LanguageProfilesService {
     }
 
     public func selectActive(languageKey: String) async throws -> String {
+        throw LanguageProfilesError.notConfigured(reason)
+    }
+
+    public func delete(languageKey: String) async throws {
         throw LanguageProfilesError.notConfigured(reason)
     }
 }

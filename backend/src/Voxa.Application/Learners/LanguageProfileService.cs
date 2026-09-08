@@ -40,6 +40,25 @@ public sealed class LanguageProfileService(ILearnerStateRepository repository)
         return new SelectLanguageProfileResponse(correlationId.Value, state.Profile.TargetLanguage);
     }
 
+    public async Task<DeleteLanguageProfileResponse> DeleteAsync(
+        TenantId tenantId,
+        UserId userId,
+        string targetLanguage,
+        CorrelationId correlationId,
+        CancellationToken cancellationToken)
+    {
+        var state = await repository.GetAsync(tenantId, userId, targetLanguage, cancellationToken)
+            ?? throw new LearnerStateNotFoundException(tenantId, userId);
+
+        await repository.DeleteLanguageAsync(
+            tenantId,
+            userId,
+            state.Profile.TargetLanguage,
+            cancellationToken);
+
+        return new DeleteLanguageProfileResponse(correlationId.Value, state.Profile.TargetLanguage);
+    }
+
     private static LanguageProfileContract ToContract(LearnerState state)
     {
         var profile = new LearnerProfileContract(
@@ -68,7 +87,9 @@ public sealed class LanguageProfileService(ILearnerStateRepository repository)
     {
         try
         {
-            return System.Globalization.CultureInfo.GetCultureInfo(languageKey).DisplayName;
+            var displayName = System.Globalization.CultureInfo.GetCultureInfo(languageKey).DisplayName;
+            var qualifierStart = displayName.IndexOf(" (", StringComparison.Ordinal);
+            return qualifierStart > 0 ? displayName[..qualifierStart] : displayName;
         }
         catch (CultureNotFoundException)
         {

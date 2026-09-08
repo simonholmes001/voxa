@@ -52,6 +52,14 @@ public struct VoxaBackendLanguageProfilesService: LanguageProfilesService {
         return dto.activeLanguageKey
     }
 
+    public func delete(languageKey: String) async throws {
+        let token = try await requireToken()
+        let encoded = languageKey.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? languageKey
+        let _: DeleteLanguageResponseDTO = try await send(
+            path: "api/language-profiles/\(encoded)", method: "DELETE", body: nil, accessToken: token
+        )
+    }
+
     private func requireToken() async throws -> String {
         guard let token = await accessTokenProvider() else {
             Self.logger.error("Profile request blocked: no access token")

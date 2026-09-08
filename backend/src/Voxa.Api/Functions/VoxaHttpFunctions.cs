@@ -249,6 +249,29 @@ public sealed class VoxaHttpFunctions(
             cancellationToken);
     }
 
+    [Function("language-profile-delete")]
+    public async Task<HttpResponseData> DeleteLanguageProfileAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "language-profiles/{languageKey}")] HttpRequestData request,
+        string languageKey,
+        CancellationToken cancellationToken)
+    {
+        var principal = Principal(request);
+        if (principal is null)
+        {
+            return await UnauthorizedAsync<DeleteLanguageProfileResponse>(request, cancellationToken);
+        }
+
+        return await WriteAsync(
+            request,
+            await languageProfiles.DeleteAsync(
+                languageKey,
+                principal.TenantId,
+                principal.UserId,
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
     [Function("health-deployment")]
     public async Task<HttpResponseData> DeploymentHealthAsync(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "health/deployment")] HttpRequestData request,

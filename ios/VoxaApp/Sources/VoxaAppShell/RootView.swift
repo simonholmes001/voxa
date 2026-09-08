@@ -223,6 +223,9 @@ public struct RootView: View {
                 }
             },
             onAddLanguage: { startAddingLanguage() },
+            onDelete: { profile in
+                await profileModel.deleteLanguage(profile.languageKey)
+            },
             onSignOut: { Task { await signOut() } }
         )
     }
@@ -244,6 +247,7 @@ struct LanguageManagerContext {
     let makeSettingsModel: @MainActor (LanguageProfile) -> LanguageSettingsViewModel
     let onSwitch: (LanguageProfile) -> Void
     let onAddLanguage: () -> Void
+    let onDelete: (LanguageProfile) async -> Bool
     let onSignOut: () -> Void
 }
 

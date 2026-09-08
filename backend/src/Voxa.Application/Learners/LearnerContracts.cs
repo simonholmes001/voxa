@@ -36,6 +36,10 @@ public sealed record SelectLanguageProfileResponse(
     string CorrelationId,
     string ActiveLanguageKey);
 
+public sealed record DeleteLanguageProfileResponse(
+    string CorrelationId,
+    string DeletedLanguageKey);
+
 public sealed record ActiveLearningPlanContract(
     string PlanId,
     string Title,
