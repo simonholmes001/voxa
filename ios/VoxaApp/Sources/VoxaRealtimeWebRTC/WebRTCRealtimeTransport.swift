@@ -78,6 +78,10 @@ public final class WebRTCRealtimeTransport: NSObject, RealtimeTransport, @unchec
 
             let offer = try await createOffer(on: pc)
             try await setLocalDescription(offer, on: pc)
+            // WebRTC may initialize Voice I/O while creating the offer. Apply
+            // the route again after that initialization so playback is not
+            // left on the receiver path.
+            try configureAudioSession()
 
             let answer = try await callsExchanger.createCall(
                 offerSDP: offer.sdp,
@@ -119,7 +123,7 @@ public final class WebRTCRealtimeTransport: NSObject, RealtimeTransport, @unchec
 
         try rtcAudioSession.setCategory(
             .playAndRecord,
-            mode: .videoChat,
+            mode: .voiceChat,
             options: [.defaultToSpeaker, .allowBluetoothHFP]
         )
         try rtcAudioSession.setActive(true)
