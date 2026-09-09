@@ -37,6 +37,7 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "low",
                 ModelRouteSource.ConfigDefault,
                 null)),
+            EmbeddedPromptRegistry.CreateDefault(),
             NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         var credential = await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
@@ -82,6 +83,7 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "low",
                 ModelRouteSource.ConfigDefault,
                 null)),
+            EmbeddedPromptRegistry.CreateDefault(),
             NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         var credential = await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
@@ -107,6 +109,7 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "low",
                 ModelRouteSource.ConfigDefault,
                 null)),
+            EmbeddedPromptRegistry.CreateDefault(),
             NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         await Assert.ThrowsAsync<RealtimeSessionIssueException>(() =>
@@ -141,6 +144,7 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
             client,
             new OpenAiRealtimeOptions("server-api-key"),
             router,
+            EmbeddedPromptRegistry.CreateDefault(),
             NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         var credential = await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
@@ -181,11 +185,14 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "low",
                 ModelRouteSource.ConfigDefault,
                 null)),
+            EmbeddedPromptRegistry.CreateDefault(),
             NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         await issuer.IssueAsync(CreateRequest(sessionIntent: "lesson", focusTitle: "Survival German"), CancellationToken.None);
 
-        Assert.Contains("Run an assistant-led lesson focused on Survival German", handler.Body, StringComparison.Ordinal);
+        // New: lesson intent resolves to the guided-lesson prompt template.
+        Assert.Contains("Activity: Guided lesson on", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("Survival German", handler.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("metadata", handler.Body, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -215,12 +222,17 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "low",
                 ModelRouteSource.ConfigDefault,
                 null)),
+            EmbeddedPromptRegistry.CreateDefault(),
             NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         await issuer.IssueAsync(CreateRequest(sessionIntent: "review", dueReviewCount: 3), CancellationToken.None);
 
-        Assert.Contains("Prioritize the 3 review items currently due", handler.Body, StringComparison.Ordinal);
-        Assert.Contains("Focus the review on recent tutor evidence", handler.Body, StringComparison.Ordinal);
+        // review intent resolves to the review prompt; dueReviewCount is
+        // interpolated into the "Number of due items to prioritise" sentence,
+        // and the review prompt asks for production before explanation.
+        Assert.Contains("Activity: Review", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("Number of due items to prioritise: 3", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("PRODUCE it first", handler.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("metadata", handler.Body, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -250,12 +262,15 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "low",
                 ModelRouteSource.ConfigDefault,
                 null)),
+            EmbeddedPromptRegistry.CreateDefault(),
             NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         await issuer.IssueAsync(CreateRequest(sessionIntent: "review", focusTitle: "Pronunciation"), CancellationToken.None);
 
-        Assert.Contains("Focus the review on Pronunciation", handler.Body, StringComparison.Ordinal);
-        Assert.Contains("recent mistakes, weak words, and pronunciation targets", handler.Body, StringComparison.Ordinal);
+        // focusTitle "Pronunciation" is interpolated into the review prompt's
+        // "Focus for this session" sentence.
+        Assert.Contains("Focus for this session: Pronunciation", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("Activity: Review", handler.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -281,6 +296,7 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "low",
                 ModelRouteSource.ConfigDefault,
                 null)),
+            EmbeddedPromptRegistry.CreateDefault(),
             NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
@@ -320,12 +336,147 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 "low",
                 ModelRouteSource.ConfigDefault,
                 null)),
+            EmbeddedPromptRegistry.CreateDefault(),
             NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
 
         Assert.Contains("handoff phrase in fr-FR", handler.Body, StringComparison.Ordinal);
         Assert.Contains("stop and wait for the learner", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("pronunciation_drill", "realtime-tutor/pronunciation-drill")]
+    [InlineData("roleplay", "realtime-tutor/roleplay")]
+    [InlineData("mistakes_replay", "realtime-tutor/mistakes-replay")]
+    [InlineData("vocabulary_drill", "realtime-tutor/vocabulary-drill")]
+    [InlineData("listening_practice", "realtime-tutor/listening-practice")]
+    [InlineData("key_language", "realtime-tutor/key-language")]
+    [InlineData("open_practice", "realtime-tutor/open-practice")]
+    [InlineData("practice", "realtime-tutor/open-practice")]
+    [InlineData("guided_lesson", "realtime-tutor/guided-lesson")]
+    [InlineData("something_the_router_does_not_know", "realtime-tutor/open-practice")]
+    [InlineData(null, "realtime-tutor/open-practice")]
+    public void ResolvePromptRefRoutesEachIntentToItsActivityPromptWithOpenPracticeFallback(
+        string? intent,
+        string expectedPromptId)
+    {
+        var settings = new RealtimeSessionSettingsContract(
+            CoachingMode: "tutor",
+            ProficiencyBand: "A1-A2",
+            TargetLanguage: "fr-FR",
+            SessionIntent: intent);
+
+        var promptRef = OpenAiRealtimeClientSecretIssuer.ResolvePromptRef(settings);
+
+        Assert.Equal(expectedPromptId, promptRef.Id);
+        Assert.Equal(1, promptRef.Version);
+    }
+
+    [Fact]
+    public async Task IssueAsyncAddsPronunciationDrillIntentToRealtimeInstructions()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": { "type": "realtime", "model": "gpt-realtime-2.1" }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            EmbeddedPromptRegistry.CreateDefault(),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(CreateRequest(sessionIntent: "pronunciation_drill"), CancellationToken.None);
+
+        Assert.Contains("Activity: Pronunciation drill", handler.Body, StringComparison.Ordinal);
+        // Pronunciation prompt has activity-specific feedback style — targeted
+        // articulatory feedback rather than "try again". Confirming the
+        // content actually differs from open-practice.
+        Assert.Contains("articulatory", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task IssueAsyncAddsRoleplayScenarioTitleToRealtimeInstructions()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": { "type": "realtime", "model": "gpt-realtime-2.1" }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            EmbeddedPromptRegistry.CreateDefault(),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(
+            CreateRequest(sessionIntent: "roleplay", focusTitle: "Order coffee in Paris"),
+            CancellationToken.None);
+
+        Assert.Contains("Scenario roleplay", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("Order coffee in Paris", handler.Body, StringComparison.Ordinal);
+        // Roleplay prompt explicitly forbids in-scene correction — a
+        // regression that surfaced grammar corrections during roleplay
+        // would fail this.
+        Assert.Contains("NONE inside the scene", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task IssueAsyncFallsBackToOpenPracticePromptForUnknownIntent()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": { "type": "realtime", "model": "gpt-realtime-2.1" }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            EmbeddedPromptRegistry.CreateDefault(),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(CreateRequest(sessionIntent: "totally_made_up_intent"), CancellationToken.None);
+
+        // Unknown intent must NOT throw. It falls back to open-practice, so
+        // the body carries the free-conversation activity marker.
+        Assert.Contains("Activity: Free conversation practice", handler.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -344,6 +495,7 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
                 null,
                 ModelRouteSource.ConfigDefault,
                 null)),
+            EmbeddedPromptRegistry.CreateDefault(),
             NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
 
         await Assert.ThrowsAsync<RealtimeSessionIssueException>(() =>

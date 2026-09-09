@@ -301,7 +301,7 @@ final class TalkSessionViewModelTests: XCTestCase {
         XCTAssertEqual(completionService.completedWith.count, 1)
         XCTAssertEqual(completionService.completedWith.first?.0.sessionId, "corr-1")
         XCTAssertEqual(completionService.completedWith.first?.0.durationSeconds, 420)
-        XCTAssertEqual(completionService.completedWith.first?.0.sessionIntent, "lesson")
+        XCTAssertEqual(completionService.completedWith.first?.0.sessionIntent, "guided_lesson")
         XCTAssertEqual(completionService.completedWith.first?.1, "access-token")
         let completedCount = await completionObserver.count()
         XCTAssertEqual(completedCount, 1)
@@ -350,7 +350,7 @@ final class TalkSessionViewModelTests: XCTestCase {
         XCTAssertEqual(service.createdWith.first?.0.coachingMode, custom.coachingMode)
         XCTAssertEqual(service.createdWith.first?.0.proficiencyBand, custom.proficiencyBand)
         XCTAssertEqual(service.createdWith.first?.0.targetLanguage, custom.targetLanguage)
-        XCTAssertEqual(service.createdWith.first?.0.sessionIntent, "practice")
+        XCTAssertEqual(service.createdWith.first?.0.sessionIntent, "open_practice")
     }
 
     func testPreparedLessonIntentIsSentToService() async {
@@ -365,7 +365,7 @@ final class TalkSessionViewModelTests: XCTestCase {
 
         await model.start()
 
-        XCTAssertEqual(service.createdWith.first?.0.sessionIntent, "lesson")
+        XCTAssertEqual(service.createdWith.first?.0.sessionIntent, "guided_lesson")
         XCTAssertEqual(service.createdWith.first?.0.focusTitle, "Survival German")
     }
 
