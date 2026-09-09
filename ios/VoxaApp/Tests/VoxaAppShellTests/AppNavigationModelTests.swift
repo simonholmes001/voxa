@@ -8,8 +8,8 @@ final class AppNavigationModelTests: XCTestCase {
     }
 
     func testInitialRouteCanBeOverridden() {
-        let model = AppNavigationModel(selectedRoute: .learn)
-        XCTAssertEqual(model.selectedRoute, .learn)
+        let model = AppNavigationModel(selectedRoute: .practice)
+        XCTAssertEqual(model.selectedRoute, .practice)
     }
 
     func testSelectUpdatesSelectedRoute() {

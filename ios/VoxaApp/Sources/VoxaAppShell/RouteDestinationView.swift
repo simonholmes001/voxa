@@ -34,11 +34,10 @@ struct RouteDestinationView: View {
             )
         case .talk where talkModel != nil:
             TalkView(model: talkModel!)
-        case .learn:
-            LearningRouteView(
-                content: learningPlan.lesson,
-                primaryAction: { onStartTalk(.lesson(title: learningContext.activePlanTitle)) },
-                rowAction: { row in onStartTalk(.lesson(title: row.title)) }
+        case .practice:
+            PracticeHubView(
+                summary: practiceSummary,
+                onStartTalk: onStartTalk
             )
         case .review:
             LearningRouteView(
@@ -118,6 +117,18 @@ struct RouteDestinationView: View {
             activeProfile: activeLanguageProfile,
             homeSummary: nil
         )
+    }
+
+    /// The learner summary the Practice tab uses to compute today's
+    /// recommendation and to decide which tiles need enough context to show
+    /// (guided lesson, key-language brief). Nil if Home hasn't loaded yet;
+    /// PracticeHubView degrades gracefully to the core tiles + free-
+    /// conversation Today card in that case.
+    private var practiceSummary: LearnerProfileSummary? {
+        if let homeModel, case let .ready(summary) = homeModel.state {
+            return summary
+        }
+        return nil
     }
 
     private var activeLanguageProfile: LanguageProfile? {
@@ -221,6 +232,6 @@ private struct LearningRouteView: View {
 }
 
 #Preview {
-    RouteDestinationView(route: .learn)
+    RouteDestinationView(route: .practice)
 }
 #endif

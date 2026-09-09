@@ -306,7 +306,7 @@ private struct TabLayout: View {
                         homeModel: homeModel,
                         talkModel: talkModel,
                         languageManager: languageManager,
-                        onContinueLearning: { model.selectedRoute = .learn },
+                        onContinueLearning: { model.selectedRoute = .practice },
                         onStartTalk: { intent in
                             talkModel?.prepare(intent)
                             model.selectedRoute = .talk
@@ -363,7 +363,7 @@ private struct SplitLayout: View {
                     homeModel: homeModel,
                     talkModel: talkModel,
                     languageManager: languageManager,
-                    onContinueLearning: { model.selectedRoute = .learn },
+                    onContinueLearning: { model.selectedRoute = .practice },
                     onStartTalk: { intent in
                         talkModel?.prepare(intent)
                         model.selectedRoute = .talk
