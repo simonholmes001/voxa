@@ -17,6 +17,7 @@ public sealed class VoxaHttpFunctions(
     RefreshAppSessionEndpoint refreshSession,
     LogoutAppSessionEndpoint logout,
     RealtimeSessionEndpoint realtimeSession,
+    RealtimeDebriefEndpoint realtimeDebrief,
     LearningSessionCompletionEndpoint learningSessionCompletion,
     ResumeSessionEndpoint resumeSession,
     LanguageProfilesEndpoint languageProfiles,
@@ -148,6 +149,27 @@ public sealed class VoxaHttpFunctions(
             await realtimeSession.PostAsync(
                 Principal(request),
                 body.Value ?? new RealtimeSessionHttpRequest(null, null, null),
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("realtime-debrief")]
+    public async Task<HttpResponseData> GenerateRealtimeDebriefAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "realtime/debrief")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadJsonAsync<SessionDebriefHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
+        return await WriteAsync(
+            request,
+            await realtimeDebrief.PostAsync(
+                Principal(request),
+                body.Value ?? new SessionDebriefHttpRequest(null, null, null),
                 CorrelationId(request),
                 cancellationToken),
             cancellationToken);
