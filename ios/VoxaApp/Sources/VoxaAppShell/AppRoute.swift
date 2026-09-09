@@ -6,7 +6,7 @@
 public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
     case home
     case talk
-    case learn
+    case practice
     case review
     case progress
     case settings
@@ -18,7 +18,7 @@ public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
         switch self {
         case .home: return "Home"
         case .talk: return "Talk"
-        case .learn: return "Learn"
+        case .practice: return "Practice"
         case .review: return "Review"
         case .progress: return "Progress"
         case .settings: return "Settings"
@@ -30,7 +30,7 @@ public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
         switch self {
         case .home: return "house"
         case .talk: return "waveform"
-        case .learn: return "book"
+        case .practice: return "square.grid.2x2"
         case .review: return "arrow.triangle.2.circlepath"
         case .progress: return "chart.bar"
         case .settings: return "gearshape"
@@ -57,11 +57,11 @@ public extension AppRoute {
     /// Returns purposeful fallback content for device testing and demos.
     func placeholderContent() -> RoutePlaceholderContent {
         switch self {
-        case .learn:
+        case .practice:
             return RoutePlaceholderContent(
-                headline: "Learn",
-                subheadline: "Continue a tutor-led lesson built from your goal, level, and recent mistakes.",
-                actionTitle: "Continue Learning"
+                headline: "Practice",
+                subheadline: "Pick an activity, or take today's recommended session — free conversation, a lesson, pronunciation, listening, or a scenario roleplay.",
+                actionTitle: "Start talking"
             )
         case .review:
             return RoutePlaceholderContent(

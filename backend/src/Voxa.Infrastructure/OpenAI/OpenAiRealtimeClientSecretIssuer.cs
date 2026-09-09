@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
@@ -13,6 +14,7 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
     HttpClient httpClient,
     OpenAiRealtimeOptions options,
     IModelRouter modelRouter,
+    IPromptRegistry promptRegistry,
     ILogger<OpenAiRealtimeClientSecretIssuer> logger) : IRealtimeClientSecretIssuer
 {
     public async Task<RealtimeSessionCredential> IssueAsync(
@@ -62,7 +64,7 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
                                 InterruptResponse: true)),
                         new OpenAiRealtimeAudioOutput(
                             new OpenAiRealtimeAudioFormat("audio/pcm", 24_000))),
-                    BuildInstructions(request.Settings))))
+                    BuildInstructions(request.Settings, promptRegistry, logger))))
         };
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
 
@@ -105,46 +107,90 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
             request.Settings);
     }
 
-    private static string BuildInstructions(RealtimeSessionSettingsContract settings)
+    /// <summary>
+    /// Resolves the correct Realtime tutor prompt for the learner's session
+    /// intent (activity), renders it with the caller's variables, and returns
+    /// the composed system prompt. Falls back to open-practice for unknown or
+    /// empty intents so a client with a stale intent name still gets a valid
+    /// session instead of a 503.
+    /// </summary>
+    private static string BuildInstructions(
+        RealtimeSessionSettingsContract settings,
+        IPromptRegistry promptRegistry,
+        ILogger logger)
     {
-        var baseInstructions = string.Join(
-            " ",
-            "You are Voxa, a spoken language-learning tutor.",
-            $"Target language: {settings.TargetLanguage}.",
-            $"Learner level: {settings.ProficiencyBand}.",
-            "Keep replies short enough for a voice conversation.",
-            "Coach through natural conversation, ask one question at a time, and correct gently after the learner answers.",
-            // Pedagogical handoff protocol. Also doubles as a natural,
-            // teachable phrase — polite yielding is real target-language skill.
-            $"End every substantive turn with a short, natural handoff phrase in {settings.TargetLanguage} (for example \"À toi\" in French, \"Tu turno\" in Spanish, \"Du bist dran\" in German, or the equivalent in your target language). After the handoff, stop and wait for the learner to reply.");
-
-        return settings.SessionIntent?.ToLowerInvariant() switch
+        var promptRef = ResolvePromptRef(settings);
+        var variables = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            "lesson" => string.Join(
-                " ",
-                baseInstructions,
-                $"Run an assistant-led lesson focused on {TextOrDefault(settings.FocusTitle, "today's learning plan")}.",
-                "Structure the session as warm-up, key phrases, short roleplay, correction, and retry."),
-            "review" => string.Join(
-                " ",
-                baseInstructions,
-                string.IsNullOrWhiteSpace(settings.FocusTitle)
-                    ? "Focus the review on recent tutor evidence."
-                    : $"Focus the review on {settings.FocusTitle.Trim()}.",
-                settings.DueReviewCount is > 0
-                    ? $"Prioritize the {settings.DueReviewCount.Value} review items currently due."
-                    : "Run a review conversation using recent mistakes, weak words, and pronunciation targets.",
-                "Ask the learner to produce language before explaining."),
-            _ => string.Join(
-                " ",
-                baseInstructions,
-                "Run open speaking practice adapted to the learner's goal and current level.")
+            ["targetLanguage"] = settings.TargetLanguage,
+            ["proficiencyBand"] = settings.ProficiencyBand,
+            ["focusTitle"] = ResolveFocusTitle(settings, promptRef.Id),
+            ["dueReviewCount"] = settings.DueReviewCount is > 0
+                ? settings.DueReviewCount.Value.ToString(CultureInfo.InvariantCulture)
+                : "",
+        };
+
+        try
+        {
+            var rendered = promptRegistry.Render(promptRef, variables);
+            return rendered.System ?? "";
+        }
+        catch (PromptRegistryException exception)
+        {
+            logger.LogError(
+                exception,
+                "Realtime tutor prompt render failed. promptId={PromptId} version={Version}",
+                promptRef.Id,
+                promptRef.Version);
+            throw new RealtimeSessionIssueException(
+                $"Realtime tutor prompt '{promptRef.Id}' v{promptRef.Version} could not be rendered.");
+        }
+    }
+
+    /// <summary>
+    /// Maps a client-supplied SessionIntent string to the versioned tutor
+    /// prompt that governs that activity. Accepts both new snake_case values
+    /// (open_practice, guided_lesson, pronunciation_drill, …) and the legacy
+    /// short forms (practice, lesson, review) that older clients still send.
+    /// Unknown intents fall back to open-practice.
+    /// </summary>
+    public static PromptRef ResolvePromptRef(RealtimeSessionSettingsContract settings)
+    {
+        var intent = settings.SessionIntent?.Trim().ToLowerInvariant() ?? "";
+        return intent switch
+        {
+            "open_practice" or "practice" or "" => new PromptRef("realtime-tutor/open-practice", 1),
+            "guided_lesson" or "lesson" => new PromptRef("realtime-tutor/guided-lesson", 1),
+            "review" => new PromptRef("realtime-tutor/review", 1),
+            "pronunciation_drill" => new PromptRef("realtime-tutor/pronunciation-drill", 1),
+            "roleplay" => new PromptRef("realtime-tutor/roleplay", 1),
+            "mistakes_replay" => new PromptRef("realtime-tutor/mistakes-replay", 1),
+            "vocabulary_drill" => new PromptRef("realtime-tutor/vocabulary-drill", 1),
+            "listening_practice" => new PromptRef("realtime-tutor/listening-practice", 1),
+            "key_language" => new PromptRef("realtime-tutor/key-language", 1),
+            _ => new PromptRef("realtime-tutor/open-practice", 1),
         };
     }
 
-    private static string TextOrDefault(string? value, string fallback)
+    /// <summary>
+    /// Some prompts declare focusTitle as required — if the client hasn't
+    /// supplied one (which is normal for "start a lesson" surfaces that only
+    /// know the general activity), we supply a prompt-appropriate default so
+    /// the registry render doesn't fail on a missing required variable.
+    /// </summary>
+    private static string ResolveFocusTitle(RealtimeSessionSettingsContract settings, string promptId)
     {
-        return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        if (!string.IsNullOrWhiteSpace(settings.FocusTitle))
+        {
+            return settings.FocusTitle.Trim();
+        }
+        return promptId switch
+        {
+            "realtime-tutor/guided-lesson" => "today's learning plan",
+            "realtime-tutor/roleplay" => "a natural everyday situation",
+            "realtime-tutor/key-language" => "the language coming up next",
+            _ => "",
+        };
     }
 }
 

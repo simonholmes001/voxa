@@ -44,4 +44,37 @@ final class RealtimeStateTests: XCTestCase {
         XCTAssertEqual(applied.focusTitle, "Pronunciation")
         XCTAssertEqual(applied.dueReviewCount, 2)
     }
+
+    /// Locks in the client-side half of the SessionIntent contract: every new
+    /// activity emits the snake_case string that the backend router
+    /// (`OpenAiRealtimeClientSecretIssuer.ResolvePromptRef`) matches on. A
+    /// mismatch here would silently fall the backend back to open-practice.
+    func testEveryTutorIntentEmitsBackendRecognisedSessionIntentString() {
+        let base = RealtimeCoachingSettings(proficiencyBand: "A1-A2", targetLanguage: "fr-FR")
+
+        XCTAssertEqual(base.applying(.openPractice).sessionIntent, "open_practice")
+        XCTAssertEqual(base.applying(.lesson(title: "Past tense")).sessionIntent, "guided_lesson")
+        XCTAssertEqual(base.applying(.review(dueCount: 5)).sessionIntent, "review")
+        XCTAssertEqual(base.applying(.pronunciationDrill()).sessionIntent, "pronunciation_drill")
+        XCTAssertEqual(base.applying(.roleplay(scenarioTitle: "Café order")).sessionIntent, "roleplay")
+        XCTAssertEqual(base.applying(.mistakesReplay()).sessionIntent, "mistakes_replay")
+        XCTAssertEqual(base.applying(.vocabularyDrill()).sessionIntent, "vocabulary_drill")
+        XCTAssertEqual(base.applying(.listeningPractice()).sessionIntent, "listening_practice")
+        XCTAssertEqual(base.applying(.keyLanguage(topic: "Past tense")).sessionIntent, "key_language")
+    }
+
+    func testActivitiesThatCarryATitleForwardItAsFocusTitle() {
+        let base = RealtimeCoachingSettings(proficiencyBand: "A1-A2", targetLanguage: "fr-FR")
+
+        XCTAssertEqual(
+            base.applying(.roleplay(scenarioTitle: "Order coffee in Paris")).focusTitle,
+            "Order coffee in Paris")
+        XCTAssertEqual(
+            base.applying(.keyLanguage(topic: "French past tense")).focusTitle,
+            "French past tense")
+        XCTAssertEqual(
+            base.applying(.pronunciationDrill(focusTitle: "French u vowel")).focusTitle,
+            "French u vowel")
+        XCTAssertNil(base.applying(.pronunciationDrill()).focusTitle)
+    }
 }

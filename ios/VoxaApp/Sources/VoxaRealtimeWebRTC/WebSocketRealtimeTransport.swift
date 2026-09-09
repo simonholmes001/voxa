@@ -29,6 +29,16 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     // them when their event arrives — and never discards unrelated events.
     private let handshakeLock = NSLock()
     private var handshakeWaiters: [String: HandshakeContinuation] = [:]
+    // Captured transcript — the assistant side comes from
+    // `response.output_audio_transcript.done` events (free with the audio
+    // response), the learner side from
+    // `conversation.item.input_audio_transcription.completed` events which
+    // require Whisper input transcription to be enabled in session.update.
+    // Ordered by arrival. `capturedTranscript()` returns a snapshot after
+    // disconnect so the debrief can run over what actually happened.
+    private let transcriptLock = NSLock()
+    private var transcriptTurns: [TranscriptTurn] = []
+    private var lastCapturedRole: String?
     // The engine + player pair is a long-lived AVAudioEngine graph — attaching
     // an already-attached node raises an ObjC NSInternalInconsistencyException
     // that Swift can't catch and crashes the app. Every connect() flows through
@@ -63,6 +73,14 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         guard !credential.isExpired() else {
             throw RealtimeTransportError.connectionFailed("Session credential has expired")
         }
+        // Fresh transcript for the new session. The PREVIOUS session's
+        // transcript was accessible via capturedTranscript() up until this
+        // reset — the view model's post-session debrief step reads it while
+        // the connection is still torn down.
+        transcriptLock.lock()
+        transcriptTurns = []
+        lastCapturedRole = nil
+        transcriptLock.unlock()
         var components = URLComponents()
         components.scheme = "wss"
         components.host = "api.openai.com"
@@ -114,7 +132,9 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     private func sendSessionUpdate(on socket: URLSessionWebSocketTask) async throws {
         // Instructions are intentionally NOT set here — they came from the
         // backend at client_secret mint time and we don't overwrite them.
-        // Only the strict turn-taking config, which the mint endpoint drops.
+        // Only the strict turn-taking config, which the mint endpoint drops,
+        // and Whisper input transcription so the debrief pass has the
+        // learner's turns to work with.
         //
         // Built as a JSON literal because Foundation's JSONSerialization
         // renders Doubles with 17+ decimal digits, which OpenAI rejects with
@@ -129,8 +149,11 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         //   make monologue architecturally impossible — the server never
         //   auto-creates a response, and it does cancel the current one if
         //   the learner starts speaking.
+        // input.transcription.model=whisper-1: enables per-utterance Whisper
+        //   transcription so the debrief pipeline sees what the learner said.
+        //   Adds one Whisper call per learner turn — cost per session is small.
         let payload = """
-        {"type":"session.update","session":{"type":"realtime","output_modalities":["audio"],"audio":{"input":{"format":{"type":"audio/pcm","rate":24000},"turn_detection":{"type":"server_vad","threshold":0.85,"prefix_padding_ms":300,"silence_duration_ms":1500,"create_response":false,"interrupt_response":true}},"output":{"format":{"type":"audio/pcm","rate":24000}}}}}
+        {"type":"session.update","session":{"type":"realtime","output_modalities":["audio"],"audio":{"input":{"format":{"type":"audio/pcm","rate":24000},"transcription":{"model":"whisper-1"},"turn_detection":{"type":"server_vad","threshold":0.85,"prefix_padding_ms":300,"silence_duration_ms":1500,"create_response":false,"interrupt_response":true}},"output":{"format":{"type":"audio/pcm","rate":24000}}}}}
         """
         try await socket.send(.string(payload))
     }
@@ -363,6 +386,17 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
                         #if os(iOS)
                         self.schedule(audio: amplified)
                         #endif
+                    case "conversation.item.input_audio_transcription.completed":
+                        // Whisper transcription of one learner utterance.
+                        if let transcript = object["transcript"] as? String {
+                            self.appendTranscript(role: TranscriptTurn.learnerRole, text: transcript)
+                        }
+                    case "response.output_audio_transcript.done", "response.audio_transcript.done":
+                        // Server-side transcript of the assistant's spoken
+                        // response — free with the audio delivery.
+                        if let transcript = object["transcript"] as? String {
+                            self.appendTranscript(role: TranscriptTurn.tutorRole, text: transcript)
+                        }
                     case "input_audio_buffer.speech_stopped":
                         // Server VAD said "a user turn ended". If the mic
                         // gate is currently ACTIVE, this was almost certainly
@@ -420,6 +454,30 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         assistantStateLock.unlock()
         guard end > 0 else { return false }
         return Date().timeIntervalSince1970 < end + Self.micGateTailSeconds
+    }
+
+    /// Appends one turn to the accumulating session transcript. Consecutive
+    /// same-role events are collapsed into a single turn — that matches how
+    /// the debrief prompt formats "N. [role] text" (one line per turn).
+    private func appendTranscript(role: String, text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        transcriptLock.lock()
+        if lastCapturedRole == role, var last = transcriptTurns.last {
+            last = TranscriptTurn(role: role, text: last.text + " " + trimmed)
+            transcriptTurns[transcriptTurns.count - 1] = last
+        } else {
+            transcriptTurns.append(TranscriptTurn(role: role, text: trimmed))
+            lastCapturedRole = role
+        }
+        transcriptLock.unlock()
+    }
+
+    public func capturedTranscript() -> [TranscriptTurn] {
+        transcriptLock.lock()
+        let snapshot = transcriptTurns
+        transcriptLock.unlock()
+        return snapshot
     }
 
     /// Registers our intent to create a response. `response.created` events

@@ -83,11 +83,16 @@ public static class VoxaApiServiceCollectionExtensions
         {
             client.BaseAddress = new Uri("https://api.openai.com/");
         });
+        services.AddHttpClient<IDebriefService, OpenAiDebriefService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.openai.com/");
+        });
         services.AddSingleton(new OpenAiRealtimeOptions(openAiApiKey));
         services.AddSingleton<SignInWithAppleEndpoint>();
         services.AddSingleton<RefreshAppSessionEndpoint>();
         services.AddSingleton<LogoutAppSessionEndpoint>();
         services.AddSingleton<RealtimeSessionEndpoint>();
+        services.AddSingleton<RealtimeDebriefEndpoint>();
         services.AddSingleton<LearningSessionCompletionEndpoint>();
         services.AddSingleton<ResumeSessionEndpoint>();
         services.AddSingleton<LanguageProfilesEndpoint>();

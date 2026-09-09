@@ -2,11 +2,11 @@ import XCTest
 @testable import VoxaAppShell
 
 final class RoutePlaceholderTests: XCTestCase {
-    func testLearnPlaceholderContent() {
-        let content = AppRoute.learn.placeholderContent()
-        XCTAssertEqual(content.headline, "Learn")
-        XCTAssertTrue(content.subheadline.contains("tutor-led lesson"))
-        XCTAssertEqual(content.actionTitle, "Continue Learning")
+    func testPracticePlaceholderContent() {
+        let content = AppRoute.practice.placeholderContent()
+        XCTAssertEqual(content.headline, "Practice")
+        XCTAssertTrue(content.subheadline.contains("today's recommended session"))
+        XCTAssertEqual(content.actionTitle, "Start talking")
     }
 
     func testReviewPlaceholderContent() {

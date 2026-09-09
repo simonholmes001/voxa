@@ -5,7 +5,7 @@ final class AppRouteTests: XCTestCase {
     func testPrimaryRoutesExistInExpectedOrder() {
         XCTAssertEqual(
             AppRoute.allCases,
-            [.home, .talk, .learn, .review, .progress, .settings]
+            [.home, .talk, .practice, .review, .progress, .settings]
         )
     }
 
