@@ -9,12 +9,22 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     private let playbackGain: Float
     private let session: URLSession
     private var socket: URLSessionWebSocketTask?
+    private let assistantStateLock = NSLock()
+    private var lastAssistantSpeechTime: TimeInterval = 0
+    private static let micGateTailSeconds: TimeInterval = 0.5
     #if os(iOS)
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
+    private var inputConverter: AVAudioConverter?
+    private static let playbackFormat: AVAudioFormat = AVAudioFormat(
+        commonFormat: .pcmFormatFloat32,
+        sampleRate: 24_000,
+        channels: 1,
+        interleaved: false
+    )!
     #endif
 
-    public init(playbackGain: Float = 2.0, session: URLSession = .shared) {
+    public init(playbackGain: Float = 3.0, session: URLSession = .shared) {
         self.playbackGain = playbackGain
         self.session = session
         super.init()
@@ -35,7 +45,8 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
 
         var request = URLRequest(url: url)
         request.setValue("Bearer \(credential.clientSecret)", forHTTPHeaderField: "Authorization")
-        request.setValue("realtime=v1", forHTTPHeaderField: "OpenAI-Beta")
+        // No OpenAI-Beta header — the Realtime beta is no longer accepted; the
+        // GA API is served at /v1/realtime when the beta signal is absent.
         let socket = session.webSocketTask(with: request)
         self.socket = socket
         socket.resume()
@@ -55,6 +66,9 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     public func disconnect() async {
         socket?.cancel(with: .normalClosure, reason: nil)
         socket = nil
+        assistantStateLock.lock()
+        lastAssistantSpeechTime = 0
+        assistantStateLock.unlock()
         #if os(iOS)
         engine.stop()
         player.stop()
@@ -72,15 +86,41 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
                 "audio": [
                     "input": [
                         "format": ["type": "audio/pcm", "rate": 24_000],
-                        "turn_detection": ["type": "server_vad"]
+                        // Raise threshold and silence duration: the tutor's own
+                        // audio leaking through the speaker → mic path was
+                        // triggering false end-of-turn events, which both cut
+                        // the tutor mid-sentence and drove endless auto-replies.
+                        "turn_detection": [
+                            "type": "server_vad",
+                            "threshold": 0.75,
+                            "prefix_padding_ms": 300,
+                            "silence_duration_ms": 700,
+                            "create_response": true,
+                            "interrupt_response": true
+                        ]
                     ],
-                    "output": ["format": ["type": "audio/pcm"]]
+                    "output": ["format": ["type": "audio/pcm", "rate": 24_000]]
                 ],
-                "instructions": "Tutor the learner in \(settings.targetLanguage) at level \(settings.proficiencyBand)."
+                "instructions": tutorInstructions(for: settings)
             ]
         ]
         let data = try JSONSerialization.data(withJSONObject: payload)
         try await socket.send(.string(String(decoding: data, as: UTF8.self)))
+    }
+
+    private func tutorInstructions(for settings: RealtimeCoachingSettings) -> String {
+        """
+        You are a friendly conversational language tutor helping the learner \
+        practise \(settings.targetLanguage) at level \(settings.proficiencyBand).
+
+        Turn-taking rules — follow them strictly:
+        - Say ONE or TWO short sentences, then STOP and wait for the learner to reply.
+        - Never monologue or string multiple ideas together in one turn.
+        - After you speak, do not start again until the learner has responded.
+        - If the learner is silent, ask a single short question and wait.
+        - Speak primarily in \(settings.targetLanguage), keeping vocabulary appropriate for their level.
+        - Correct mistakes gently and briefly.
+        """
     }
 
     private func waitForServerEvent(type expectedType: String, on socket: URLSessionWebSocketTask) async throws {
@@ -122,14 +162,28 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
                     guard case let .string(text) = message,
                           let data = text.data(using: .utf8),
                           let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let type = object["type"] as? String,
-                          (type == "response.output_audio.delta" || type == "response.audio.delta"),
-                          let encoded = object["delta"] as? String,
-                          let audio = Data(base64Encoded: encoded)
+                          let type = object["type"] as? String
                     else { continue }
-                    #if os(iOS)
-                    schedule(audio: PCM16AudioProcessor.amplified(audio, gain: playbackGain))
-                    #endif
+
+                    switch type {
+                    case "response.created":
+                        // Mark the assistant as speaking and purge any mic
+                        // audio the server has been accumulating. That audio
+                        // is almost certainly the tutor's own echo — letting
+                        // it commit would look to the server like a real
+                        // "user turn" and immediately trigger another reply.
+                        self.markAssistantSpeech()
+                        try? await self.sendJSON(["type": "input_audio_buffer.clear"], on: socket)
+                    case "response.output_audio.delta", "response.audio.delta":
+                        self.markAssistantSpeech()
+                        guard let encoded = object["delta"] as? String,
+                              let audio = Data(base64Encoded: encoded) else { continue }
+                        #if os(iOS)
+                        self.schedule(audio: PCM16AudioProcessor.amplified(audio, gain: self.playbackGain, limit: 32_000))
+                        #endif
+                    default:
+                        break
+                    }
                 }
             } catch {
                 return
@@ -137,18 +191,50 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         }
     }
 
+    private func sendJSON(_ payload: [String: Any], on socket: URLSessionWebSocketTask) async throws {
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        try await socket.send(.string(String(decoding: data, as: UTF8.self)))
+    }
+
+    /// Records the moment we last saw assistant audio (or the start of a new
+    /// response). Used by `shouldGateMic()` to keep the mic muted while the
+    /// tutor speaks, plus a short tail so the last buffered audio can drain
+    /// before we start streaming mic again.
+    private func markAssistantSpeech() {
+        assistantStateLock.lock()
+        lastAssistantSpeechTime = Date().timeIntervalSince1970
+        assistantStateLock.unlock()
+    }
+
+    private func shouldGateMic() -> Bool {
+        assistantStateLock.lock()
+        let last = lastAssistantSpeechTime
+        assistantStateLock.unlock()
+        guard last > 0 else { return false }
+        return Date().timeIntervalSince1970 - last < Self.micGateTailSeconds
+    }
+
     #if os(iOS)
     private func configureAudio() throws {
         let audio = AVAudioSession.sharedInstance()
-        try audio.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
+        // .measurement bypasses Voice-Processing I/O entirely — no output AGC,
+        // no echo cancellation — which gives the tutor its full loudness. We
+        // don't need iOS's echo cancellation because the mic is client-gated
+        // during assistant speech (see shouldGateMic), so the tutor can't
+        // hear itself no matter how loud the speaker is.
+        try audio.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP])
         try audio.setActive(true)
         try audio.overrideOutputAudioPort(.speaker)
         engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1))
+        engine.connect(player, to: engine.mainMixerNode, format: Self.playbackFormat)
     }
 
     private func startMicrophone(on input: AVAudioInputNode) throws {
         let format = input.outputFormat(forBus: 0)
+        inputConverter = AVAudioConverter(
+            from: format,
+            to: AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1)!
+        )
         input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
             self?.sendMicrophoneBuffer(buffer)
         }
@@ -156,9 +242,37 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     }
 
     private func sendMicrophoneBuffer(_ buffer: AVAudioPCMBuffer) {
-        guard let channel = buffer.floatChannelData?.pointee else { return }
-        var data = Data(capacity: Int(buffer.frameLength) * 2)
-        for index in 0..<Int(buffer.frameLength) {
+        // Drop mic frames while (and briefly after) the tutor is speaking.
+        // Otherwise the tutor's own audio leaks back through the mic and the
+        // server VAD treats it as a "user turn", cutting the tutor off and
+        // firing another reply — the exact pattern of choppy playback and
+        // reverting-to-monologue that first-turn works, subsequent ones don't.
+        guard !shouldGateMic() else { return }
+        let source: AVAudioPCMBuffer
+        if let inputConverter,
+           let converted = AVAudioPCMBuffer(
+               pcmFormat: AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1)!,
+               frameCapacity: AVAudioFrameCount(Double(buffer.frameLength) * 24_000 / buffer.format.sampleRate + 1)
+           ) {
+            var conversionError: NSError?
+            var supplied = false
+            inputConverter.convert(to: converted, error: &conversionError) { _, status in
+                if supplied {
+                    status.pointee = .noDataNow
+                    return nil
+                }
+                supplied = true
+                status.pointee = .haveData
+                return buffer
+            }
+            guard conversionError == nil else { return }
+            source = converted
+        } else {
+            source = buffer
+        }
+        guard let channel = source.floatChannelData?.pointee else { return }
+        var data = Data(capacity: Int(source.frameLength) * 2)
+        for index in 0..<Int(source.frameLength) {
             let sample = Int16(max(-1, min(1, channel[index])) * Float(Int16.max))
             data.append(UInt8(truncatingIfNeeded: sample))
             data.append(UInt8(truncatingIfNeeded: sample >> 8))
@@ -169,12 +283,23 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     }
 
     private func schedule(audio data: Data) {
-        guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 24_000, channels: 1, interleaved: false),
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(data.count / 2)) else { return }
-        buffer.frameLength = buffer.frameCapacity
+        // The player node was connected to the mixer with Float32; scheduled
+        // buffers must match that format or Core Audio silently drops them.
+        // Convert the amplified Int16 PCM to Float32 in-place while copying.
+        let frameCount = data.count / 2
+        guard frameCount > 0,
+              let buffer = AVAudioPCMBuffer(
+                pcmFormat: Self.playbackFormat,
+                frameCapacity: AVAudioFrameCount(frameCount)
+              ) else { return }
+        buffer.frameLength = AVAudioFrameCount(frameCount)
+        let scale = 1.0 / Float(Int16.max)
         data.withUnsafeBytes { bytes in
-            guard let source = bytes.baseAddress, let destination = buffer.int16ChannelData?.pointee else { return }
-            destination.assign(from: source.assumingMemoryBound(to: Int16.self), count: Int(buffer.frameLength))
+            guard let source = bytes.baseAddress?.assumingMemoryBound(to: Int16.self),
+                  let destination = buffer.floatChannelData?.pointee else { return }
+            for index in 0..<frameCount {
+                destination[index] = Float(source[index]) * scale
+            }
         }
         player.scheduleBuffer(buffer)
         if !player.isPlaying { player.play() }
