@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging;
 using Voxa.Application.Authentication;
+using Voxa.Application.Learners;
 using Voxa.Application.Realtime;
 using Voxa.Domain.Learners;
 
@@ -7,9 +9,15 @@ namespace Voxa.Api.Http;
 /// <summary>
 /// POST /api/realtime/debrief — generates a structured post-session debrief
 /// from the completed Talk session's transcript. Non-realtime; calls the
-/// AssessmentModel with the `realtime-tutor/debrief.v1` prompt.
+/// AssessmentModel with the `realtime-tutor/debrief.v1` prompt. Persists the
+/// debrief to durable learner state after generating it so Phase C2's
+/// curriculum planner has accumulated evidence to plan against; persistence
+/// failure is non-fatal — the client still gets the debrief.
 /// </summary>
-public sealed class RealtimeDebriefEndpoint(IDebriefService debriefService)
+public sealed class RealtimeDebriefEndpoint(
+    IDebriefService debriefService,
+    ILearnerEvidenceService learnerEvidence,
+    ILogger<RealtimeDebriefEndpoint> logger)
 {
     public async Task<ApiResponse<SessionDebriefHttpResponse>> PostAsync(
         AppSessionPrincipal? principal,
@@ -53,9 +61,10 @@ public sealed class RealtimeDebriefEndpoint(IDebriefService debriefService)
             return Failure("validation_error", exception.Message, requestCorrelationId, 400, retryable: false);
         }
 
+        SessionDebrief debrief;
         try
         {
-            var debrief = await debriefService.GenerateDebriefAsync(
+            debrief = await debriefService.GenerateDebriefAsync(
                 new SessionDebriefRequest(
                     principal.TenantId,
                     principal.UserId,
@@ -63,8 +72,6 @@ public sealed class RealtimeDebriefEndpoint(IDebriefService debriefService)
                     settings,
                     transcript),
                 cancellationToken);
-            return ApiResponse<SessionDebriefHttpResponse>.Ok(
-                SessionDebriefHttpResponse.FromDebrief(debrief));
         }
         catch (SessionDebriefException)
         {
@@ -75,6 +82,29 @@ public sealed class RealtimeDebriefEndpoint(IDebriefService debriefService)
                 503,
                 retryable: true);
         }
+
+        // Persist to learner state so C2's planner has accumulated evidence.
+        // Persistence failure is non-fatal — the client still gets the debrief.
+        try
+        {
+            await learnerEvidence.RecordDebriefAsync(
+                principal.TenantId,
+                principal.UserId,
+                debrief,
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Debrief persistence failed but debrief was returned. correlationId={CorrelationId} tenantId={TenantId} userId={UserId}",
+                requestCorrelationId.Value,
+                principal.TenantId.Value,
+                principal.UserId.Value);
+        }
+
+        return ApiResponse<SessionDebriefHttpResponse>.Ok(
+            SessionDebriefHttpResponse.FromDebrief(debrief));
     }
 
     private static string Required(string? value, string name)

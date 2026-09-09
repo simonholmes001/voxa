@@ -264,7 +264,8 @@ internal sealed record LearnerStateDocument(
     ActiveLearningPlanDocument ActivePlan,
     LessonCheckpointDocument CurrentLesson,
     IReadOnlyList<ReviewQueueItemDocument> ReviewQueue,
-    IReadOnlyList<SessionSummaryDocument> RecentSessions)
+    IReadOnlyList<SessionSummaryDocument> RecentSessions,
+    IReadOnlyList<RecordedDebriefDocument>? TutorEvidence = null)
 {
     public static LearnerStateDocument FromDomain(LearnerState state)
     {
@@ -292,6 +293,9 @@ internal sealed record LearnerStateDocument(
                 .ToArray(),
             state.RecentSessions.Items
                 .Select(item => new SessionSummaryDocument(item.SessionId, item.StartedAt, item.DurationSeconds, item.LessonId))
+                .ToArray(),
+            state.TutorEvidence.RecentDebriefs
+                .Select(RecordedDebriefDocument.FromDomain)
                 .ToArray());
     }
 
@@ -324,7 +328,10 @@ internal sealed record LearnerStateDocument(
                 .ToArray()),
             new RecentSessionSummaries(RecentSessions
                 .Select(item => new SessionSummary(item.SessionId, item.StartedAt, item.DurationSeconds, item.LessonId))
-                .ToArray()))
+                .ToArray()),
+            new TutorEvidence(TutorEvidence?
+                .Select(doc => doc.ToDomain())
+                .ToArray() ?? []))
             .WithVersion(LearnerStateVersion.Create(Version));
     }
 }
@@ -359,6 +366,54 @@ internal sealed record SessionSummaryDocument(
     DateTimeOffset StartedAt,
     int DurationSeconds,
     string? LessonId);
+
+internal sealed record RecordedDebriefDocument(
+    string CorrelationId,
+    DateTimeOffset RecordedAt,
+    string Summary,
+    IReadOnlyList<RecordedMistakeDocument>? RecurringMistakes,
+    IReadOnlyList<string>? UsefulPhrases,
+    IReadOnlyList<string>? PronunciationNotes,
+    RecommendedNextDrillDocument RecommendedNextDrill)
+{
+    public static RecordedDebriefDocument FromDomain(RecordedDebrief debrief)
+    {
+        return new RecordedDebriefDocument(
+            debrief.CorrelationId,
+            debrief.RecordedAt,
+            debrief.Summary,
+            debrief.RecurringMistakes
+                .Select(m => new RecordedMistakeDocument(m.Pattern, m.Example, m.Severity))
+                .ToArray(),
+            debrief.UsefulPhrases.ToArray(),
+            debrief.PronunciationNotes.ToArray(),
+            new RecommendedNextDrillDocument(
+                debrief.RecommendedNextDrill.ActivityIntent,
+                debrief.RecommendedNextDrill.FocusTitle,
+                debrief.RecommendedNextDrill.Reason));
+    }
+
+    public RecordedDebrief ToDomain()
+    {
+        return new RecordedDebrief(
+            CorrelationId,
+            RecordedAt,
+            Summary,
+            (RecurringMistakes ?? [])
+                .Select(m => new RecordedMistake(m.Pattern, m.Example, m.Severity))
+                .ToArray(),
+            UsefulPhrases ?? [],
+            PronunciationNotes ?? [],
+            new RecommendedNextDrill(
+                RecommendedNextDrill.ActivityIntent,
+                RecommendedNextDrill.FocusTitle,
+                RecommendedNextDrill.Reason));
+    }
+}
+
+internal sealed record RecordedMistakeDocument(string Pattern, string Example, string Severity);
+
+internal sealed record RecommendedNextDrillDocument(string ActivityIntent, string FocusTitle, string Reason);
 
 public sealed class InMemoryLearnerStateTable : ILearnerStateTable
 {

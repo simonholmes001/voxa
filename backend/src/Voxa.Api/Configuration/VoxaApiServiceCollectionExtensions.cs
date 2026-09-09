@@ -77,6 +77,7 @@ public static class VoxaApiServiceCollectionExtensions
         services.AddSingleton<IRealtimeSessionRateLimiter, TableRealtimeSessionRateLimiter>();
         services.AddSingleton<IRealtimeSessionAuditLog, TableRealtimeSessionAuditLog>();
         services.AddSingleton<IRealtimeSessionService, RealtimeSessionService>();
+        services.AddSingleton<ILearnerEvidenceService, LearnerEvidenceService>();
         services.AddSingleton<IModelRouter>(_ => OpenAiModelRouter.CreateDefault());
         services.AddSingleton<IPromptRegistry>(_ => EmbeddedPromptRegistry.CreateDefault());
         services.AddHttpClient<IRealtimeClientSecretIssuer, OpenAiRealtimeClientSecretIssuer>(client =>
