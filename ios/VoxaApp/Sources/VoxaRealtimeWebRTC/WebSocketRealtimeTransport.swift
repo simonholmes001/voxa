@@ -359,21 +359,20 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     private func schedule(audio data: Data) {
         // The player node was connected to the mixer with Float32; scheduled
         // buffers must match that format or Core Audio silently drops them.
-        // Convert the amplified Int16 PCM to Float32 in-place while copying.
-        let frameCount = data.count / 2
-        guard frameCount > 0,
+        // Use PCM16AudioProcessor.decodeToFloat32 rather than binding Data's
+        // raw storage to Int16.self — the storage is not guaranteed to be
+        // 2-byte aligned (base64-decoded WebSocket audio often isn't), and a
+        // typed load through an unaligned pointer is undefined behaviour.
+        let samples = PCM16AudioProcessor.decodeToFloat32(data)
+        guard !samples.isEmpty,
               let buffer = AVAudioPCMBuffer(
                 pcmFormat: Self.playbackFormat,
-                frameCapacity: AVAudioFrameCount(frameCount)
+                frameCapacity: AVAudioFrameCount(samples.count)
               ) else { return }
-        buffer.frameLength = AVAudioFrameCount(frameCount)
-        let scale = 1.0 / Float(Int16.max)
-        data.withUnsafeBytes { bytes in
-            guard let source = bytes.baseAddress?.assumingMemoryBound(to: Int16.self),
-                  let destination = buffer.floatChannelData?.pointee else { return }
-            for index in 0..<frameCount {
-                destination[index] = Float(source[index]) * scale
-            }
+        buffer.frameLength = AVAudioFrameCount(samples.count)
+        guard let destination = buffer.floatChannelData?.pointee else { return }
+        for index in 0..<samples.count {
+            destination[index] = samples[index]
         }
         player.scheduleBuffer(buffer)
         if !player.isPlaying { player.play() }
