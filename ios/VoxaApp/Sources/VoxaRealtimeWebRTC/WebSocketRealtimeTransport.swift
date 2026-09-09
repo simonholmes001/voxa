@@ -183,7 +183,15 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
             }
             group.addTask {
                 try? await Task.sleep(for: .seconds(timeoutSeconds))
-                waiter.fail(RealtimeTransportError.connectionFailed("Timed out waiting for OpenAI Realtime event \(eventType)."))
+                let error = RealtimeTransportError.connectionFailed(
+                    "Timed out waiting for OpenAI Realtime event \(eventType).")
+                // Resolve the waiter first (unblocks the sibling task) AND
+                // throw from this task — otherwise if group.next() returns
+                // this task's Void completion before the sibling propagates
+                // its throw, waitForHandshakeEvent would return successfully
+                // on a timeout.
+                waiter.fail(error)
+                throw error
             }
             try await group.next()
             group.cancelAll()
@@ -216,34 +224,82 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         for (_, waiter) in waiters { waiter.fail(error) }
     }
 
-    /// Single-shot continuation wrapper safe against double-resume: the
-    /// handshake waiter task and the timeout task race to resume this, and
-    /// whichever loses is a no-op. `internal` so @testable importers can
-    /// exercise the double-resume protection directly.
+    /// Single-shot continuation wrapper with a terminal-state memory so
+    /// `succeed()` / `fail()` are safe when called BEFORE `attach()`.
+    ///
+    /// The dispatcher publishes the waiter into `handshakeWaiters` before the
+    /// child task that owns the continuation gets a chance to run and attach
+    /// it. If the receive loop reads a matching event in that gap and calls
+    /// `succeed()`, the previous "just store the continuation" design would
+    /// no-op (continuation still nil) and later `attach()` would stash a
+    /// continuation nobody ever resumes — the caller would hang until the
+    /// 10 s timeout. This state machine records the terminal decision so
+    /// `attach()` can honour a resolution that already happened.
+    ///
+    /// `internal` so @testable importers can exercise both orderings directly.
     internal final class HandshakeContinuation: @unchecked Sendable {
         private let lock = NSLock()
-        private var continuation: CheckedContinuation<Void, Error>?
+        private enum State {
+            case pending
+            case waiting(CheckedContinuation<Void, Error>)
+            case earlySuccess
+            case earlyFailure(Error)
+            case done
+        }
+        private var state: State = .pending
 
         func attach(_ cont: CheckedContinuation<Void, Error>) {
             lock.lock()
-            continuation = cont
-            lock.unlock()
+            switch state {
+            case .pending:
+                state = .waiting(cont)
+                lock.unlock()
+            case .earlySuccess:
+                state = .done
+                lock.unlock()
+                cont.resume()
+            case .earlyFailure(let error):
+                state = .done
+                lock.unlock()
+                cont.resume(throwing: error)
+            case .waiting, .done:
+                // attach called twice, or after resolution. Resume the new
+                // continuation immediately so its owner doesn't hang. Should
+                // not happen in current code.
+                state = .done
+                lock.unlock()
+                cont.resume()
+            }
         }
 
         func succeed() {
             lock.lock()
-            let cont = continuation
-            continuation = nil
-            lock.unlock()
-            cont?.resume()
+            switch state {
+            case .pending:
+                state = .earlySuccess
+                lock.unlock()
+            case .waiting(let cont):
+                state = .done
+                lock.unlock()
+                cont.resume()
+            case .earlySuccess, .earlyFailure, .done:
+                lock.unlock()
+            }
         }
 
         func fail(_ error: Error) {
             lock.lock()
-            let cont = continuation
-            continuation = nil
-            lock.unlock()
-            cont?.resume(throwing: error)
+            switch state {
+            case .pending:
+                state = .earlyFailure(error)
+                lock.unlock()
+            case .waiting(let cont):
+                state = .done
+                lock.unlock()
+                cont.resume(throwing: error)
+            case .earlySuccess, .earlyFailure, .done:
+                lock.unlock()
+            }
         }
     }
 

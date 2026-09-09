@@ -64,6 +64,36 @@ final class WebSocketHandshakeContinuationTests: XCTestCase {
         waiter.fail(SentinelError())
     }
 
+    func testSucceedBeforeAttachResolvesImmediatelyOnAttach() async throws {
+        // Reviewer race: notifyHandshake can call succeed() between the
+        // waiter being inserted into handshakeWaiters and the child task's
+        // attach() running. attach() must honour that early resolution
+        // instead of storing a continuation nobody will resume.
+        let waiter = WebSocketRealtimeTransport.HandshakeContinuation()
+        waiter.succeed()
+
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            waiter.attach(cont)
+        }
+    }
+
+    func testFailBeforeAttachResolvesWithErrorImmediatelyOnAttach() async {
+        struct EarlyError: Error, Equatable {}
+        let waiter = WebSocketRealtimeTransport.HandshakeContinuation()
+        waiter.fail(EarlyError())
+
+        do {
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                waiter.attach(cont)
+            }
+            XCTFail("Expected attach() to rethrow the early failure.")
+        } catch is EarlyError {
+            // Expected.
+        } catch {
+            XCTFail("Expected EarlyError, got \(error)")
+        }
+    }
+
     func testSecondResumeIsANoOpAfterFail() async {
         struct FirstError: Error {}
         struct SecondError: Error {}
