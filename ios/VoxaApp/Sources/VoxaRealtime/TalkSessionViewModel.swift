@@ -126,6 +126,14 @@ public final class TalkSessionViewModel {
         connectedAt = nowProvider()
     }
 
+    /// Interrupts the tutor mid-sentence. Safe to call any time — a no-op
+    /// when the tutor isn't currently speaking. Used by the Talk UI to give
+    /// the learner a tap-to-interrupt affordance.
+    public func interrupt() async {
+        guard case .connected = state else { return }
+        await transport.interrupt()
+    }
+
     /// Ends the current session and tears down the transport.
     public func end() async {
         await transport.disconnect()

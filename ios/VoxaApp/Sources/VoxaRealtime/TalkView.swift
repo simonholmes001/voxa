@@ -13,14 +13,17 @@ public struct TalkView: View {
     public var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Image(systemName: statusSymbol)
-                .font(.system(size: 72))
-                .foregroundStyle(.tint)
-                .accessibilityHidden(true)
+            waveformIcon
             Text(statusTitle)
                 .font(.title2)
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.center)
+            if case .connected = model.state {
+                Text("Tap the wave to interrupt the tutor.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("talk-interrupt-hint")
+            }
             if !isSessionActive {
                 Text(model.pendingIntent.title)
                     .font(.headline)
@@ -41,6 +44,28 @@ public struct TalkView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("Talk")
+    }
+
+    @ViewBuilder
+    private var waveformIcon: some View {
+        if case .connected = model.state {
+            Button {
+                Task { await model.interrupt() }
+            } label: {
+                Image(systemName: statusSymbol)
+                    .font(.system(size: 72))
+                    .foregroundStyle(.tint)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("talk-interrupt")
+            .accessibilityLabel("Interrupt the tutor")
+            .accessibilityHint("Cancels the tutor's current response so you can speak.")
+        } else {
+            Image(systemName: statusSymbol)
+                .font(.system(size: 72))
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+        }
     }
 
     @ViewBuilder

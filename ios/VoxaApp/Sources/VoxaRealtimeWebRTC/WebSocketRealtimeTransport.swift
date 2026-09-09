@@ -10,8 +10,19 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     private let session: URLSession
     private var socket: URLSessionWebSocketTask?
     private let assistantStateLock = NSLock()
-    private var lastAssistantSpeechTime: TimeInterval = 0
-    private static let micGateTailSeconds: TimeInterval = 0.5
+    // Wall-clock time at which the currently-queued tutor audio is expected
+    // to finish PLAYING (not just arriving on the socket). Each audio delta
+    // advances this by its own PCM duration, so the gate is anchored to what
+    // the speaker is actually still emitting, not to a wall-clock timer.
+    private var pendingPlaybackEnd: TimeInterval = 0
+    // Number of response.create events we've sent but not yet seen echoed
+    // back as response.created. If a response.created arrives with this at 0,
+    // the SERVER generated a response we didn't ask for — likely because our
+    // `create_response: false` wasn't honoured. We cancel those defensively.
+    private var expectedResponses: Int = 0
+    // 700 ms tail past the estimated playback end — covers hardware audio
+    // buffer latency + slack for late deltas after we thought playback ended.
+    private static let micGateTailSeconds: TimeInterval = 0.7
     #if os(iOS)
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
@@ -55,19 +66,75 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         try configureAudio()
         #endif
         try await waitForServerEvent(type: "session.created", on: socket)
-        try await sendSessionUpdate(credential.settings, on: socket)
+        // Server sets these fields at client_secret mint time too, but observed
+        // behaviour is that OpenAI's /v1/realtime/client_secrets endpoint
+        // silently discards the audio.turn_detection block — the WebSocket
+        // then falls back to defaults (create_response: true) and the tutor
+        // auto-generates forever. session.update DOES land, so we re-send the
+        // authoritative config here. Tampering vector tracked in issue #100.
+        try await sendSessionUpdate(on: socket)
         try await waitForServerEvent(type: "session.updated", on: socket)
         #if os(iOS)
         try startMicrophone(on: engine.inputNode)
         #endif
         receiveLoop(socket)
+        // Turn boundaries: an initial response.create here kicks off the
+        // tutor's greeting; receiveLoop sends another response.create when
+        // server VAD tells us the learner finished a turn — and only if we
+        // aren't currently gating the mic (i.e., the speech_stopped isn't
+        // just tutor-echo bleeding into the input path).
+        registerRequestedResponse()
+        try await sendJSON(["type": "response.create"], on: socket)
+    }
+
+    private func sendSessionUpdate(on socket: URLSessionWebSocketTask) async throws {
+        // Instructions are intentionally NOT set here — they came from the
+        // backend at client_secret mint time and we don't overwrite them.
+        // Only the strict turn-taking config, which the mint endpoint drops.
+        //
+        // Built as a JSON literal because Foundation's JSONSerialization
+        // renders Doubles with 17+ decimal digits, which OpenAI rejects with
+        // "max decimal places exceeded". Writing the literal ourselves gives
+        // us exact control over the number formatting.
+        //
+        // threshold=0.85: aggressive enough to survive ambient noise picked
+        //   up by the .measurement-mode mic (no noise suppression).
+        // silence_duration_ms=1500: real thinking time; short mid-answer
+        //   hesitation doesn't end the learner's turn.
+        // create_response=false / interrupt_response=true: the fields that
+        //   make monologue architecturally impossible — the server never
+        //   auto-creates a response, and it does cancel the current one if
+        //   the learner starts speaking.
+        let payload = """
+        {"type":"session.update","session":{"type":"realtime","output_modalities":["audio"],"audio":{"input":{"format":{"type":"audio/pcm","rate":24000},"turn_detection":{"type":"server_vad","threshold":0.85,"prefix_padding_ms":300,"silence_duration_ms":1500,"create_response":false,"interrupt_response":true}},"output":{"format":{"type":"audio/pcm","rate":24000}}}}}
+        """
+        try await socket.send(.string(payload))
+    }
+
+    public func interrupt() async {
+        // 1. Stop the local player and flush any queued PCM. This is what the
+        //    learner physically experiences as "the tutor stopped mid-sentence".
+        #if os(iOS)
+        player.stop()
+        #endif
+        // 2. Release the mic gate so the learner's next words reach the server
+        //    immediately instead of being blocked by the tutor-audio tail.
+        assistantStateLock.lock()
+        pendingPlaybackEnd = 0
+        assistantStateLock.unlock()
+        // 3. Ask the server to stop generating this response. Without this the
+        //    server keeps producing tokens (which we bill) that we then drop.
+        if let socket {
+            try? await sendJSON(["type": "response.cancel"], on: socket)
+        }
     }
 
     public func disconnect() async {
         socket?.cancel(with: .normalClosure, reason: nil)
         socket = nil
         assistantStateLock.lock()
-        lastAssistantSpeechTime = 0
+        pendingPlaybackEnd = 0
+        expectedResponses = 0
         assistantStateLock.unlock()
         #if os(iOS)
         engine.stop()
@@ -75,52 +142,6 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         engine.inputNode.removeTap(onBus: 0)
         try? AVAudioSession.sharedInstance().setActive(false)
         #endif
-    }
-
-    private func sendSessionUpdate(_ settings: RealtimeCoachingSettings, on socket: URLSessionWebSocketTask) async throws {
-        let payload: [String: Any] = [
-            "type": "session.update",
-            "session": [
-                "type": "realtime",
-                "output_modalities": ["audio"],
-                "audio": [
-                    "input": [
-                        "format": ["type": "audio/pcm", "rate": 24_000],
-                        // Raise threshold and silence duration: the tutor's own
-                        // audio leaking through the speaker → mic path was
-                        // triggering false end-of-turn events, which both cut
-                        // the tutor mid-sentence and drove endless auto-replies.
-                        "turn_detection": [
-                            "type": "server_vad",
-                            "threshold": 0.75,
-                            "prefix_padding_ms": 300,
-                            "silence_duration_ms": 700,
-                            "create_response": true,
-                            "interrupt_response": true
-                        ]
-                    ],
-                    "output": ["format": ["type": "audio/pcm", "rate": 24_000]]
-                ],
-                "instructions": tutorInstructions(for: settings)
-            ]
-        ]
-        let data = try JSONSerialization.data(withJSONObject: payload)
-        try await socket.send(.string(String(decoding: data, as: UTF8.self)))
-    }
-
-    private func tutorInstructions(for settings: RealtimeCoachingSettings) -> String {
-        """
-        You are a friendly conversational language tutor helping the learner \
-        practise \(settings.targetLanguage) at level \(settings.proficiencyBand).
-
-        Turn-taking rules — follow them strictly:
-        - Say ONE or TWO short sentences, then STOP and wait for the learner to reply.
-        - Never monologue or string multiple ideas together in one turn.
-        - After you speak, do not start again until the learner has responded.
-        - If the learner is silent, ask a single short question and wait.
-        - Speak primarily in \(settings.targetLanguage), keeping vocabulary appropriate for their level.
-        - Correct mistakes gently and briefly.
-        """
     }
 
     private func waitForServerEvent(type expectedType: String, on socket: URLSessionWebSocketTask) async throws {
@@ -167,20 +188,41 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
 
                     switch type {
                     case "response.created":
-                        // Mark the assistant as speaking and purge any mic
-                        // audio the server has been accumulating. That audio
-                        // is almost certainly the tutor's own echo — letting
-                        // it commit would look to the server like a real
-                        // "user turn" and immediately trigger another reply.
-                        self.markAssistantSpeech()
-                        try? await self.sendJSON(["type": "input_audio_buffer.clear"], on: socket)
+                        // If we didn't ask for this response, the server
+                        // generated it on its own — meaning our
+                        // `create_response: false` wasn't honoured. Cancel
+                        // the spurious response so the tutor stops mid-flight
+                        // instead of monologuing.
+                        if self.consumeExpectedResponseIfAny() {
+                            self.markAssistantResponseStart()
+                        } else {
+                            let responseId = object["response"] as? [String: Any]
+                            var cancel: [String: Any] = ["type": "response.cancel"]
+                            if let id = responseId?["id"] as? String { cancel["response_id"] = id }
+                            try? await self.sendJSON(cancel, on: socket)
+                        }
                     case "response.output_audio.delta", "response.audio.delta":
-                        self.markAssistantSpeech()
                         guard let encoded = object["delta"] as? String,
                               let audio = Data(base64Encoded: encoded) else { continue }
+                        let amplified = PCM16AudioProcessor.amplified(audio, gain: self.playbackGain, limit: 32_000)
+                        // Anchor the mic gate to the summed PCM duration of
+                        // what's been queued for playback, not to wall-clock.
+                        let durationSeconds = Double(amplified.count / 2) / 24_000
+                        self.extendPendingPlayback(bySeconds: durationSeconds)
                         #if os(iOS)
-                        self.schedule(audio: PCM16AudioProcessor.amplified(audio, gain: self.playbackGain, limit: 32_000))
+                        self.schedule(audio: amplified)
                         #endif
+                    case "input_audio_buffer.speech_stopped":
+                        // Server VAD said "a user turn ended". If the mic
+                        // gate is currently ACTIVE, this was almost certainly
+                        // tutor audio bleeding through the speaker → mic path
+                        // (no headphones, no VP-IO echo cancellation) —
+                        // creating a response for it would start the tutor
+                        // talking to itself. Only create a response when we
+                        // know it was a real learner turn.
+                        guard !self.shouldGateMic() else { break }
+                        self.registerRequestedResponse()
+                        try? await self.sendJSON(["type": "response.create"], on: socket)
                     default:
                         break
                     }
@@ -196,22 +238,54 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         try await socket.send(.string(String(decoding: data, as: UTF8.self)))
     }
 
-    /// Records the moment we last saw assistant audio (or the start of a new
-    /// response). Used by `shouldGateMic()` to keep the mic muted while the
-    /// tutor speaks, plus a short tail so the last buffered audio can drain
-    /// before we start streaming mic again.
-    private func markAssistantSpeech() {
+    /// Advances the expected end-of-playback time by the duration of one
+    /// audio delta. Deltas arrive faster on the socket than they play through
+    /// the speaker, so a time-since-last-delta gate opens too early. Anchoring
+    /// to the summed PCM duration is what actually tracks the speaker.
+    private func extendPendingPlayback(bySeconds seconds: Double) {
         assistantStateLock.lock()
-        lastAssistantSpeechTime = Date().timeIntervalSince1970
+        let now = Date().timeIntervalSince1970
+        let playbackStart = max(pendingPlaybackEnd, now)
+        pendingPlaybackEnd = playbackStart + seconds
+        assistantStateLock.unlock()
+    }
+
+    /// Bumps the gate by a small floor when a response starts, in case
+    /// there is a brief delay before the first audio delta arrives.
+    private func markAssistantResponseStart() {
+        assistantStateLock.lock()
+        let now = Date().timeIntervalSince1970
+        pendingPlaybackEnd = max(pendingPlaybackEnd, now + 0.3)
         assistantStateLock.unlock()
     }
 
     private func shouldGateMic() -> Bool {
         assistantStateLock.lock()
-        let last = lastAssistantSpeechTime
+        let end = pendingPlaybackEnd
         assistantStateLock.unlock()
-        guard last > 0 else { return false }
-        return Date().timeIntervalSince1970 - last < Self.micGateTailSeconds
+        guard end > 0 else { return false }
+        return Date().timeIntervalSince1970 < end + Self.micGateTailSeconds
+    }
+
+    /// Registers our intent to create a response. `response.created` events
+    /// that don't consume one of these are treated as server-side spurious
+    /// generations and cancelled.
+    private func registerRequestedResponse() {
+        assistantStateLock.lock()
+        expectedResponses += 1
+        assistantStateLock.unlock()
+    }
+
+    /// Consumes one pending expected response if any. Returns true if the
+    /// arriving `response.created` matched one we requested.
+    private func consumeExpectedResponseIfAny() -> Bool {
+        assistantStateLock.lock()
+        defer { assistantStateLock.unlock() }
+        if expectedResponses > 0 {
+            expectedResponses -= 1
+            return true
+        }
+        return false
     }
 
     #if os(iOS)

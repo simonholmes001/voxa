@@ -10,6 +10,17 @@ public protocol RealtimeTransport: Sendable {
     func connect(using credential: RealtimeSessionCredential) async throws
     /// Tears down the media session.
     func disconnect() async
+    /// Cancels the tutor's current response mid-flight: stops local playback,
+    /// releases the mic gate, and asks the server to stop generating so the
+    /// learner can take the floor. No-op when no response is in progress.
+    func interrupt() async
+}
+
+public extension RealtimeTransport {
+    // Default no-op keeps existing transports (WebRTC, Unavailable, fakes)
+    // source-compatible. Only WebSocketRealtimeTransport actually implements
+    // barge-in today.
+    func interrupt() async {}
 }
 
 public enum RealtimeTransportError: Error, Equatable {
