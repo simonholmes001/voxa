@@ -28,6 +28,7 @@ enum AppComposition {
             onboardingModel: onboardingModel
         )
         let profileModel = makeProfileModel(authModel: authModel)
+        let learnerPlanModel = makeLearnerPlanModel(authModel: authModel)
         return RootView(
             authModel: authModel,
             onboardingModel: onboardingModel,
@@ -35,16 +36,36 @@ enum AppComposition {
             talkModel: makeTalkModel(
                 authModel: authModel,
                 onboardingModel: onboardingModel,
-                onSessionCompleted: {
+                onSessionCompleted: { [weak learnerPlanModel] in
                     await homeModel.resumeIfAvailable()
                     await profileModel.refresh()
+                    // The debrief we just wrote is fresh evidence; the next
+                    // plan fetch should reflect it. Reloading here means the
+                    // Today card refreshes without a manual pull.
+                    await learnerPlanModel?.load()
                 }
             ),
+            learnerPlanModel: learnerPlanModel,
             profileModel: profileModel,
             makeLanguageSettingsModel: { profile in
                 LanguageSettingsViewModel(profile: profile, service: languageSettingsService)
             }
         )
+    }
+
+    @MainActor
+    static func makeLearnerPlanModel(authModel: AuthViewModel) -> LearnerPlanViewModel {
+        LearnerPlanViewModel(
+            service: makeLearnerPlanService(),
+            accessTokenProvider: accessTokenProvider(for: authModel))
+    }
+
+    static func makeLearnerPlanService() -> any LearnerPlanService {
+        guard let baseURL = backendBaseURL() else {
+            return NotConfiguredLearnerPlanService(
+                reason: "Personalised learner plans aren't configured for this build yet.")
+        }
+        return VoxaBackendLearnerPlanService(baseURL: baseURL)
     }
 
     @MainActor

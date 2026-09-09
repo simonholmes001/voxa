@@ -8,10 +8,28 @@ public enum PracticeHub {
 
     // MARK: - Today card
 
-    /// One recommended session for the current moment. MVP logic is rule-based
-    /// (due reviews > continue lesson > free conversation); the learner-model
-    /// version lands in Phase C.
+    /// One recommended session for the current moment. Prefers the C2
+    /// backend planner's LearnerPlan when it's `.ready`; otherwise falls
+    /// back to the rule-based recommendation (due reviews > continue
+    /// lesson > free conversation) shipped in B3. The learner never sees
+    /// a blank card because of a network hiccup.
+    public static func todayCard(
+        planState: LearnerPlanState = .idle,
+        summary: LearnerProfileSummary?
+    ) -> PracticeHubTodayCard {
+        if case let .ready(plan) = planState {
+            return PracticeHubTodayCard(recommendation: .plan(plan))
+        }
+        return ruleBasedTodayCard(for: summary)
+    }
+
+    /// Back-compat overload for the pre-planner call sites — same shape as
+    /// C1 and earlier so tests and views not yet migrated keep compiling.
     public static func todayCard(for summary: LearnerProfileSummary?) -> PracticeHubTodayCard {
+        return ruleBasedTodayCard(for: summary)
+    }
+
+    private static func ruleBasedTodayCard(for summary: LearnerProfileSummary?) -> PracticeHubTodayCard {
         if let summary, summary.dueReviewCount > 0 {
             return PracticeHubTodayCard(recommendation: .review(dueCount: summary.dueReviewCount))
         }
@@ -31,6 +49,10 @@ public enum PracticeHub {
             return .lesson(title: title)
         case .freeConversation:
             return .openPractice
+        case let .plan(plan):
+            // Use the same snake_case → intent mapping the debrief
+            // recommendation does; unknown intents fall back safely.
+            return plan.recommendedSession.intent
         }
     }
 
@@ -107,6 +129,11 @@ public struct PracticeHubTodayCard: Sendable, Equatable {
         case review(dueCount: Int)
         case continueLesson(title: String)
         case freeConversation
+        /// C2 planner-driven recommendation. When present, its title and
+        /// subtitle come from the plan itself so the learner sees a
+        /// concrete pattern name and a per-session reason instead of the
+        /// generic rule-based labels.
+        case plan(LearnerPlan)
     }
 
     public let recommendation: Recommendation
@@ -123,6 +150,12 @@ public struct PracticeHubTodayCard: Sendable, Equatable {
             return "Continue: \(title)"
         case .freeConversation:
             return "Start speaking"
+        case let .plan(plan):
+            let focus = plan.recommendedSession.focusTitle
+            if !focus.isEmpty {
+                return "\(plan.recommendedSession.intent.title): \(focus)"
+            }
+            return plan.recommendedSession.intent.title
         }
     }
 
@@ -134,6 +167,11 @@ public struct PracticeHubTodayCard: Sendable, Equatable {
             return "Keep going with today's lesson while it's fresh."
         case .freeConversation:
             return "Open-ended practice with the tutor — you drive the topic."
+        case let .plan(plan):
+            let reason = plan.recommendedSession.reason
+            return reason.isEmpty
+                ? "Recommended based on your recent sessions."
+                : reason
         }
     }
 
@@ -142,7 +180,15 @@ public struct PracticeHubTodayCard: Sendable, Equatable {
         case .review: return "Start review"
         case .continueLesson: return "Continue lesson"
         case .freeConversation: return "Start talking"
+        case let .plan(plan): return plan.recommendedSession.intent.startButtonTitle
         }
+    }
+
+    /// Up to three concrete focus areas the C2 planner surfaced with the
+    /// recommendation. Rendered as chips on the Home Today card.
+    public var focusAreas: [String] {
+        if case let .plan(plan) = recommendation { return plan.focusAreas }
+        return []
     }
 }
 

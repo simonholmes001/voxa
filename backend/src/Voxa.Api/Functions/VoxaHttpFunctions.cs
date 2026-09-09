@@ -18,6 +18,7 @@ public sealed class VoxaHttpFunctions(
     LogoutAppSessionEndpoint logout,
     RealtimeSessionEndpoint realtimeSession,
     RealtimeDebriefEndpoint realtimeDebrief,
+    LearnerPlanEndpoint learnerPlan,
     LearningSessionCompletionEndpoint learningSessionCompletion,
     ResumeSessionEndpoint resumeSession,
     LanguageProfilesEndpoint languageProfiles,
@@ -170,6 +171,20 @@ public sealed class VoxaHttpFunctions(
             await realtimeDebrief.PostAsync(
                 Principal(request),
                 body.Value ?? new SessionDebriefHttpRequest(null, null, null),
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("learner-plan")]
+    public async Task<HttpResponseData> GetLearnerPlanAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "learner/plan")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        return await WriteAsync(
+            request,
+            await learnerPlan.GetAsync(
+                Principal(request),
                 CorrelationId(request),
                 cancellationToken),
             cancellationToken);

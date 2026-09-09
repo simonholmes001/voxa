@@ -19,6 +19,7 @@ public struct RootView: View {
     @State private var onboardingModel: OnboardingViewModel
     private let homeModel: HomeViewModel?
     private let talkModel: TalkSessionViewModel?
+    private let learnerPlanModel: LearnerPlanViewModel?
     private let profileModel: ProfileSelectionViewModel?
     private let makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)?
     @State private var isAddingLanguage = false
@@ -32,6 +33,7 @@ public struct RootView: View {
         onboardingModel: OnboardingViewModel? = nil,
         homeModel: HomeViewModel? = nil,
         talkModel: TalkSessionViewModel? = nil,
+        learnerPlanModel: LearnerPlanViewModel? = nil,
         profileModel: ProfileSelectionViewModel? = nil,
         makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)? = nil
     ) {
@@ -40,6 +42,7 @@ public struct RootView: View {
         _onboardingModel = State(initialValue: onboardingModel ?? OnboardingViewModel())
         self.homeModel = homeModel
         self.talkModel = talkModel
+        self.learnerPlanModel = learnerPlanModel
         self.profileModel = profileModel
         self.makeLanguageSettingsModel = makeLanguageSettingsModel
     }
@@ -205,6 +208,7 @@ public struct RootView: View {
             model: navigationModel,
             homeModel: homeModel,
             talkModel: talkModel,
+            learnerPlanModel: learnerPlanModel,
             languageManager: languageManagerContext
         )
     }
@@ -262,6 +266,7 @@ struct MainShellView: View {
     var model: AppNavigationModel
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
+    var learnerPlanModel: LearnerPlanViewModel?
     var languageManager: LanguageManagerContext?
 
     #if os(iOS)
@@ -271,9 +276,19 @@ struct MainShellView: View {
     var body: some View {
         switch AdaptiveLayoutResolver.layout(for: resolvedSizeClass) {
         case .tabBar:
-            TabLayout(model: model, homeModel: homeModel, talkModel: talkModel, languageManager: languageManager)
+            TabLayout(
+                model: model,
+                homeModel: homeModel,
+                talkModel: talkModel,
+                learnerPlanModel: learnerPlanModel,
+                languageManager: languageManager)
         case .splitView:
-            SplitLayout(model: model, homeModel: homeModel, talkModel: talkModel, languageManager: languageManager)
+            SplitLayout(
+                model: model,
+                homeModel: homeModel,
+                talkModel: talkModel,
+                learnerPlanModel: learnerPlanModel,
+                languageManager: languageManager)
         }
     }
 
@@ -295,6 +310,7 @@ private struct TabLayout: View {
     @Bindable var model: AppNavigationModel
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
+    var learnerPlanModel: LearnerPlanViewModel?
     var languageManager: LanguageManagerContext?
 
     var body: some View {
@@ -305,6 +321,7 @@ private struct TabLayout: View {
                         route: route,
                         homeModel: homeModel,
                         talkModel: talkModel,
+                        learnerPlanModel: learnerPlanModel,
                         languageManager: languageManager,
                         onContinueLearning: { model.selectedRoute = .practice },
                         onStartTalk: { intent in
@@ -347,6 +364,7 @@ private struct SplitLayout: View {
     @Bindable var model: AppNavigationModel
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
+    var learnerPlanModel: LearnerPlanViewModel?
     var languageManager: LanguageManagerContext?
 
     var body: some View {
@@ -362,6 +380,7 @@ private struct SplitLayout: View {
                     route: model.selectedRoute,
                     homeModel: homeModel,
                     talkModel: talkModel,
+                    learnerPlanModel: learnerPlanModel,
                     languageManager: languageManager,
                     onContinueLearning: { model.selectedRoute = .practice },
                     onStartTalk: { intent in
