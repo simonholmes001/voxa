@@ -11,12 +11,17 @@ public final class TalkSessionViewModel {
     public private(set) var state: RealtimeConnectionState = .idle
     public private(set) var micPermission: MicrophonePermissionStatus = .undetermined
     public private(set) var pendingIntent: RealtimeTutorIntent = .openPractice
+    /// Debrief lifecycle for the session that just ended (or is ending).
+    /// Independent of `state` so the view can show a summary card while the
+    /// connection is already torn down.
+    public private(set) var debriefState: DebriefState = .idle
 
     private let settingsProvider: @MainActor @Sendable () -> RealtimeCoachingSettings
     private let permission: any MicrophonePermission
     private let service: any RealtimeSessionService
     private let completionService: (any RealtimeSessionCompletionService)?
     private let transport: any RealtimeTransport
+    private let debriefService: any DebriefService
     private let accessTokenProvider: @MainActor @Sendable () -> String?
     private let onAuthenticationRequired: @MainActor @Sendable () async -> Void
     private let onSessionCompleted: @MainActor @Sendable () async -> Void
@@ -33,6 +38,7 @@ public final class TalkSessionViewModel {
         service: any RealtimeSessionService,
         completionService: (any RealtimeSessionCompletionService)? = nil,
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
+        debriefService: any DebriefService = NotConfiguredDebriefService(),
         accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil },
         onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {},
         onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {},
@@ -43,6 +49,7 @@ public final class TalkSessionViewModel {
         self.service = service
         self.completionService = completionService
         self.transport = transport
+        self.debriefService = debriefService
         self.accessTokenProvider = accessTokenProvider
         self.onAuthenticationRequired = onAuthenticationRequired
         self.onSessionCompleted = onSessionCompleted
@@ -56,6 +63,7 @@ public final class TalkSessionViewModel {
         service: any RealtimeSessionService,
         completionService: (any RealtimeSessionCompletionService)? = nil,
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
+        debriefService: any DebriefService = NotConfiguredDebriefService(),
         accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil },
         onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {},
         onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {},
@@ -67,6 +75,7 @@ public final class TalkSessionViewModel {
             service: service,
             completionService: completionService,
             transport: transport,
+            debriefService: debriefService,
             accessTokenProvider: accessTokenProvider,
             onAuthenticationRequired: onAuthenticationRequired,
             onSessionCompleted: onSessionCompleted,
@@ -79,6 +88,11 @@ public final class TalkSessionViewModel {
         if state == .ended {
             state = .idle
         }
+        // Preparing a new intent implicitly acknowledges any pending debrief
+        // from the previous session so the Talk screen doesn't reopen on the
+        // stale summary card.
+        if case .ready = debriefState { debriefState = .idle }
+        if case .failed = debriefState { debriefState = .idle }
     }
 
     /// Starts a session: ensures mic permission, requests a credential, and
@@ -135,12 +149,64 @@ public final class TalkSessionViewModel {
     }
 
     /// Ends the current session and tears down the transport.
+    /// After teardown, kicks off the post-session debrief in the background if
+    /// the transcript captured at least one turn. The view observes
+    /// `debriefState` to render the summary card / spinner / error.
     public func end() async {
+        let settings = activeCredential?.settings
         await transport.disconnect()
         await recordCompletionIfPossible()
+        let transcript = transport.capturedTranscript()
         activeCredential = nil
         connectedAt = nil
         state = .ended
+        if !transcript.isEmpty, let settings {
+            await runDebrief(settings: settings, transcript: transcript)
+        } else {
+            debriefState = .idle
+        }
+    }
+
+    /// Clears any stale debrief when the learner navigates back to Talk to
+    /// start a new session (called from the debrief view's "start next drill"
+    /// action, or from a plain dismissal).
+    public func acknowledgeDebrief() {
+        debriefState = .idle
+    }
+
+    private func runDebrief(
+        settings: RealtimeCoachingSettings,
+        transcript: [TranscriptTurn]
+    ) async {
+        guard let token = accessTokenProvider(), !token.isEmpty else {
+            debriefState = .failed("Please sign in again to see your session summary.")
+            return
+        }
+        debriefState = .loading
+        do {
+            let debrief = try await debriefService.generateDebrief(
+                settings: settings,
+                transcript: transcript,
+                accessToken: token)
+            debriefState = .ready(debrief)
+        } catch {
+            debriefState = .failed(Self.debriefMessage(for: error))
+        }
+    }
+
+    private static func debriefMessage(for error: Error) -> String {
+        switch error {
+        case DebriefServiceError.authenticationRequired:
+            return "Please sign in again to see your session summary."
+        case let DebriefServiceError.notConfigured(reason):
+            return reason
+        case DebriefServiceError.transport:
+            return "We couldn't reach Voxa to generate your session summary. Try again later."
+        case let DebriefServiceError.server(code, _):
+            return "Session summary service returned an error (\(code)). Try again later."
+        default:
+            return "We couldn't generate a session summary this time."
+        }
     }
 
     private func recordCompletionIfPossible() async {

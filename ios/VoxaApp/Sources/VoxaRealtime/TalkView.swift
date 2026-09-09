@@ -11,6 +11,24 @@ public struct TalkView: View {
     }
 
     public var body: some View {
+        // When a debrief is in flight or ready, it replaces the session-ended
+        // panel. Errors show inline instead of blocking future sessions.
+        switch model.debriefState {
+        case .loading, .ready:
+            SessionDebriefView(
+                debriefState: model.debriefState,
+                onStartNext: { intent in
+                    model.prepare(intent)
+                    Task { await model.start() }
+                },
+                onDismiss: { model.acknowledgeDebrief() },
+                onRetry: { model.acknowledgeDebrief() })
+        case .idle, .failed:
+            sessionBody
+        }
+    }
+
+    private var sessionBody: some View {
         VStack(spacing: 24) {
             Spacer()
             waveformIcon
@@ -36,6 +54,16 @@ public struct TalkView: View {
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
                     .accessibilityIdentifier("talk-error")
+            }
+            if case let .failed(message) = model.debriefState {
+                // Debrief specifically failed (session itself is fine).
+                // Inline the message under the status so the learner isn't
+                // blocked from starting the next session.
+                Text("Session summary: \(message)")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("talk-debrief-error")
             }
             Spacer()
             primaryButton

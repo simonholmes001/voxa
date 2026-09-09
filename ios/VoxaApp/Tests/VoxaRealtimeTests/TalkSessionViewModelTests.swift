@@ -82,11 +82,13 @@ private actor RecoveryRecorder {
 
 private final class FakeRealtimeTransport: RealtimeTransport, @unchecked Sendable {
     var connectResult: Result<Void, Error>
+    var transcript: [TranscriptTurn]
     private(set) var connectCount = 0
     private(set) var disconnectCount = 0
 
-    init(connectResult: Result<Void, Error> = .success(())) {
+    init(connectResult: Result<Void, Error> = .success(()), transcript: [TranscriptTurn] = []) {
         self.connectResult = connectResult
+        self.transcript = transcript
     }
 
     func connect(using credential: RealtimeSessionCredential) async throws {
@@ -95,6 +97,26 @@ private final class FakeRealtimeTransport: RealtimeTransport, @unchecked Sendabl
     }
 
     func disconnect() async { disconnectCount += 1 }
+
+    func capturedTranscript() -> [TranscriptTurn] { transcript }
+}
+
+private final class FakeDebriefService: DebriefService, @unchecked Sendable {
+    var result: Result<SessionDebrief, Error>
+    private(set) var calls: [(settings: RealtimeCoachingSettings, transcript: [TranscriptTurn], token: String)] = []
+
+    init(result: Result<SessionDebrief, Error>) {
+        self.result = result
+    }
+
+    func generateDebrief(
+        settings: RealtimeCoachingSettings,
+        transcript: [TranscriptTurn],
+        accessToken: String
+    ) async throws -> SessionDebrief {
+        calls.append((settings, transcript, accessToken))
+        return try result.get()
+    }
 }
 
 @MainActor
@@ -126,6 +148,7 @@ final class TalkSessionViewModelTests: XCTestCase {
         service: FakeRealtimeSessionService,
         completionService: FakeRealtimeSessionCompletionService? = nil,
         transport: FakeRealtimeTransport = FakeRealtimeTransport(),
+        debriefService: any DebriefService = NotConfiguredDebriefService(),
         token: String? = "access-token",
         onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {},
         nowProvider: @escaping @MainActor @Sendable () -> Date = { Date() }
@@ -136,10 +159,26 @@ final class TalkSessionViewModelTests: XCTestCase {
             service: service,
             completionService: completionService,
             transport: transport,
+            debriefService: debriefService,
             accessTokenProvider: { token },
             onSessionCompleted: onSessionCompleted,
             nowProvider: nowProvider
         )
+    }
+
+    private func sampleDebrief() -> SessionDebrief {
+        SessionDebrief(
+            correlationId: "corr-debrief",
+            summary: "You practised past tense.",
+            recurringMistakes: [
+                DebriefRecurringMistake(pattern: "past participle", example: "I have ate", severity: .medium),
+            ],
+            usefulPhrases: ["How's it going?"],
+            pronunciationNotes: [],
+            recommendedNextDrill: DebriefRecommendedDrill(
+                activityIntent: "pronunciation_drill",
+                focusTitle: "English th",
+                reason: "the 'th' tripped you up twice."))
     }
 
     func testStartsIdle() {
@@ -434,5 +473,129 @@ final class TalkSessionViewModelTests: XCTestCase {
         await model.start()
 
         XCTAssertEqual(service.createdWith.first?.1, "dynamic-token")
+    }
+
+    // MARK: - Debrief
+
+    func testEndTriggersDebriefWhenTranscriptCapturedAtLeastOneTurn() async {
+        let permission = FakeMicrophonePermission(current: .granted)
+        let service = FakeRealtimeSessionService(result: .success(credential()))
+        let transcript = [
+            TranscriptTurn(role: TranscriptTurn.tutorRole, text: "Bonjour."),
+            TranscriptTurn(role: TranscriptTurn.learnerRole, text: "Salut !"),
+        ]
+        let transport = FakeRealtimeTransport(transcript: transcript)
+        let expected = sampleDebrief()
+        let debriefService = FakeDebriefService(result: .success(expected))
+        let model = makeModel(
+            permission: permission,
+            service: service,
+            transport: transport,
+            debriefService: debriefService)
+
+        await model.start()
+        XCTAssertEqual(model.state, .connected)
+
+        await model.end()
+
+        XCTAssertEqual(model.state, .ended)
+        XCTAssertEqual(model.debriefState, .ready(expected))
+        XCTAssertEqual(debriefService.calls.count, 1)
+        XCTAssertEqual(debriefService.calls[0].transcript, transcript)
+        // The credential's settings (post-intent) are what get forwarded to
+        // the debrief service — the pendingIntent .openPractice was applied
+        // by start(), so the recorded sessionIntent is "open_practice".
+        XCTAssertEqual(debriefService.calls[0].settings, settings.applying(.openPractice))
+        XCTAssertEqual(debriefService.calls[0].token, "access-token")
+    }
+
+    func testEndSkipsDebriefWhenNoTranscriptWasCaptured() async {
+        let permission = FakeMicrophonePermission(current: .granted)
+        let service = FakeRealtimeSessionService(result: .success(credential()))
+        // Empty transcript — the fake defaults to []; nothing to debrief.
+        let transport = FakeRealtimeTransport(transcript: [])
+        let debriefService = FakeDebriefService(result: .success(sampleDebrief()))
+        let model = makeModel(
+            permission: permission,
+            service: service,
+            transport: transport,
+            debriefService: debriefService)
+
+        await model.start()
+        await model.end()
+
+        XCTAssertEqual(model.state, .ended)
+        XCTAssertEqual(model.debriefState, .idle)
+        XCTAssertTrue(debriefService.calls.isEmpty)
+    }
+
+    func testDebriefFailureSurfacesReadableMessageAndDoesNotBlockNextSession() async {
+        let permission = FakeMicrophonePermission(current: .granted)
+        let service = FakeRealtimeSessionService(result: .success(credential()))
+        let transport = FakeRealtimeTransport(transcript: [
+            TranscriptTurn(role: TranscriptTurn.tutorRole, text: "Hi."),
+        ])
+        let debriefService = FakeDebriefService(result: .failure(DebriefServiceError.transport))
+        let model = makeModel(
+            permission: permission,
+            service: service,
+            transport: transport,
+            debriefService: debriefService)
+
+        await model.start()
+        await model.end()
+
+        if case let .failed(message) = model.debriefState {
+            XCTAssertFalse(message.isEmpty)
+        } else {
+            XCTFail("Expected debriefState .failed, got \(model.debriefState)")
+        }
+        // Session teardown is not blocked by debrief failure.
+        XCTAssertEqual(model.state, .ended)
+    }
+
+    func testPrepareClearsStaleDebriefWhenLearnerStartsANewSession() async {
+        let permission = FakeMicrophonePermission(current: .granted)
+        let service = FakeRealtimeSessionService(result: .success(credential()))
+        let transport = FakeRealtimeTransport(transcript: [
+            TranscriptTurn(role: TranscriptTurn.tutorRole, text: "Hi."),
+        ])
+        let debriefService = FakeDebriefService(result: .success(sampleDebrief()))
+        let model = makeModel(
+            permission: permission,
+            service: service,
+            transport: transport,
+            debriefService: debriefService)
+
+        await model.start()
+        await model.end()
+        if case .ready = model.debriefState { /* good */ } else {
+            XCTFail("expected ready debrief before prepare")
+        }
+
+        model.prepare(.pronunciationDrill())
+
+        XCTAssertEqual(model.debriefState, .idle)
+        XCTAssertEqual(model.pendingIntent, .pronunciationDrill())
+    }
+
+    func testAcknowledgeDebriefResetsStateToIdle() async {
+        let permission = FakeMicrophonePermission(current: .granted)
+        let service = FakeRealtimeSessionService(result: .success(credential()))
+        let transport = FakeRealtimeTransport(transcript: [
+            TranscriptTurn(role: TranscriptTurn.tutorRole, text: "Hi."),
+        ])
+        let debriefService = FakeDebriefService(result: .success(sampleDebrief()))
+        let model = makeModel(
+            permission: permission,
+            service: service,
+            transport: transport,
+            debriefService: debriefService)
+
+        await model.start()
+        await model.end()
+        model.acknowledgeDebrief()
+
+        XCTAssertEqual(model.debriefState, .idle)
     }
 }

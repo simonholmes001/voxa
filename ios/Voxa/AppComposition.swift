@@ -276,12 +276,21 @@ enum AppComposition {
             service: makeRealtimeSessionService(),
             completionService: makeRealtimeSessionCompletionService(),
             transport: makeRealtimeTransport(),
+            debriefService: makeDebriefService(),
             accessTokenProvider: { [weak authModel] in authModel?.state.session?.accessToken },
             onAuthenticationRequired: { [weak authModel] in
                 await authModel?.signOut()
             },
             onSessionCompleted: onSessionCompleted
         )
+    }
+
+    static func makeDebriefService() -> any DebriefService {
+        guard let baseURL = backendBaseURL() else {
+            return NotConfiguredDebriefService(
+                reason: "Session summaries aren't configured for this build yet.")
+        }
+        return VoxaBackendDebriefService(baseURL: baseURL)
     }
 
     /// Creates the appropriate Realtime transport based on configuration.

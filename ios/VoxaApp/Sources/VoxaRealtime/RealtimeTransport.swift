@@ -14,13 +14,19 @@ public protocol RealtimeTransport: Sendable {
     /// releases the mic gate, and asks the server to stop generating so the
     /// learner can take the floor. No-op when no response is in progress.
     func interrupt() async
+    /// The transcript accumulated during the session, in turn order. Returned
+    /// after `disconnect()` so the post-session debrief can be generated from
+    /// what was actually said. Empty for transports that don't capture
+    /// transcripts (WebRTC today) or sessions that produced none.
+    func capturedTranscript() -> [TranscriptTurn]
 }
 
 public extension RealtimeTransport {
     // Default no-op keeps existing transports (WebRTC, Unavailable, fakes)
     // source-compatible. Only WebSocketRealtimeTransport actually implements
-    // barge-in today.
+    // barge-in and transcript capture today.
     func interrupt() async {}
+    func capturedTranscript() -> [TranscriptTurn] { [] }
 }
 
 public enum RealtimeTransportError: Error, Equatable {
