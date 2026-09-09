@@ -23,6 +23,12 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     // 700 ms tail past the estimated playback end — covers hardware audio
     // buffer latency + slack for late deltas after we thought playback ended.
     private static let micGateTailSeconds: TimeInterval = 0.7
+    // Single-loop handshake dispatch: the receive loop starts before we send
+    // any handshake message. Callers waiting for a specific setup event
+    // (session.created / session.updated) register here; the loop resumes
+    // them when their event arrives — and never discards unrelated events.
+    private let handshakeLock = NSLock()
+    private var handshakeWaiters: [String: HandshakeContinuation] = [:]
     #if os(iOS)
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
@@ -65,7 +71,14 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         #if os(iOS)
         try configureAudio()
         #endif
-        try await waitForServerEvent(type: "session.created", on: socket)
+        // Start the single receive loop BEFORE any handshake step. All events
+        // — including session.created / session.updated — flow through it;
+        // waiters register interest via handshakeWaiters. The previous
+        // per-step readUntilServerEvent silently dropped everything that
+        // wasn't the exact type it wanted, which risked losing rate-limit or
+        // early state events emitted around session setup.
+        receiveLoop(socket)
+        try await waitForHandshakeEvent("session.created")
         // Server sets these fields at client_secret mint time too, but observed
         // behaviour is that OpenAI's /v1/realtime/client_secrets endpoint
         // silently discards the audio.turn_detection block — the WebSocket
@@ -73,11 +86,10 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         // auto-generates forever. session.update DOES land, so we re-send the
         // authoritative config here. Tampering vector tracked in issue #100.
         try await sendSessionUpdate(on: socket)
-        try await waitForServerEvent(type: "session.updated", on: socket)
+        try await waitForHandshakeEvent("session.updated")
         #if os(iOS)
         try startMicrophone(on: engine.inputNode)
         #endif
-        receiveLoop(socket)
         // Turn boundaries: an initial response.create here kicks off the
         // tutor's greeting; receiveLoop sends another response.create when
         // server VAD tells us the learner finished a turn — and only if we
@@ -132,6 +144,8 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     public func disconnect() async {
         socket?.cancel(with: .normalClosure, reason: nil)
         socket = nil
+        failAllHandshakeWaiters(
+            RealtimeTransportError.connectionFailed("Session disconnected before handshake completed."))
         assistantStateLock.lock()
         pendingPlaybackEnd = 0
         expectedResponses = 0
@@ -144,33 +158,92 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         #endif
     }
 
-    private func waitForServerEvent(type expectedType: String, on socket: URLSessionWebSocketTask) async throws {
+    /// Suspends until the single receive loop sees an event of the given type,
+    /// or the timeout fires. Unlike the previous `readUntilServerEvent`, this
+    /// does NOT consume the socket directly, so events that arrive between
+    /// handshake steps are still delivered to the loop's normal handlers
+    /// instead of being silently dropped.
+    private func waitForHandshakeEvent(_ eventType: String, timeoutSeconds: TimeInterval = 10) async throws {
+        let waiter = HandshakeContinuation()
+        handshakeLock.lock()
+        handshakeWaiters[eventType] = waiter
+        handshakeLock.unlock()
+
+        defer {
+            handshakeLock.lock()
+            _ = handshakeWaiters.removeValue(forKey: eventType)
+            handshakeLock.unlock()
+        }
+
         try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { try await self.readUntilServerEvent(type: expectedType, on: socket) }
             group.addTask {
-                try await Task.sleep(for: .seconds(10))
-                throw RealtimeTransportError.connectionFailed("Timed out waiting for OpenAI Realtime session.")
+                try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                    waiter.attach(cont)
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(timeoutSeconds))
+                waiter.fail(RealtimeTransportError.connectionFailed("Timed out waiting for OpenAI Realtime event \(eventType)."))
             }
             try await group.next()
             group.cancelAll()
         }
     }
 
-    private func readUntilServerEvent(type expectedType: String, on socket: URLSessionWebSocketTask) async throws {
-        while true {
-            let message = try await socket.receive()
-            guard case let .string(text) = message,
-                  let data = text.data(using: .utf8),
-                  let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let type = object["type"] as? String else {
-                continue
-            }
-            if type == "error" {
-                let error = object["error"] as? [String: Any]
-                let message = error?["message"] as? String ?? "OpenAI rejected the Realtime session."
-                throw RealtimeTransportError.connectionFailed(message)
-            }
-            if type == expectedType { return }
+    /// Called by the receive loop for every parsed event. Wakes any handshake
+    /// waiter interested in this event type, and short-circuits every waiter
+    /// on a fatal server error.
+    private func notifyHandshake(event type: String, object: [String: Any]) {
+        if type == "error" {
+            let error = object["error"] as? [String: Any]
+            let message = error?["message"] as? String ?? "OpenAI rejected the Realtime session."
+            failAllHandshakeWaiters(RealtimeTransportError.connectionFailed(message))
+            return
+        }
+        handshakeLock.lock()
+        let waiter = handshakeWaiters.removeValue(forKey: type)
+        handshakeLock.unlock()
+        waiter?.succeed()
+    }
+
+    /// Fails every pending handshake waiter — used when the socket closes or
+    /// the receive loop errors out before the handshake completes.
+    private func failAllHandshakeWaiters(_ error: Error) {
+        handshakeLock.lock()
+        let waiters = handshakeWaiters
+        handshakeWaiters.removeAll()
+        handshakeLock.unlock()
+        for (_, waiter) in waiters { waiter.fail(error) }
+    }
+
+    /// Single-shot continuation wrapper safe against double-resume: the
+    /// handshake waiter task and the timeout task race to resume this, and
+    /// whichever loses is a no-op. `internal` so @testable importers can
+    /// exercise the double-resume protection directly.
+    internal final class HandshakeContinuation: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<Void, Error>?
+
+        func attach(_ cont: CheckedContinuation<Void, Error>) {
+            lock.lock()
+            continuation = cont
+            lock.unlock()
+        }
+
+        func succeed() {
+            lock.lock()
+            let cont = continuation
+            continuation = nil
+            lock.unlock()
+            cont?.resume()
+        }
+
+        func fail(_ error: Error) {
+            lock.lock()
+            let cont = continuation
+            continuation = nil
+            lock.unlock()
+            cont?.resume(throwing: error)
         }
     }
 
@@ -185,6 +258,12 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
                           let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                           let type = object["type"] as? String
                     else { continue }
+
+                    // Route every event to any handshake waiters BEFORE the
+                    // normal handler. session.created/session.updated wake
+                    // their waiters here; unrelated events don't match any
+                    // waiter and simply fall through — no events are lost.
+                    self.notifyHandshake(event: type, object: object)
 
                     switch type {
                     case "response.created":
@@ -228,6 +307,10 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
                     }
                 }
             } catch {
+                // Socket closed or read failed. Any handshake step still
+                // waiting on us would otherwise hang until its 10 s timeout;
+                // fail them now with the underlying error instead.
+                self.failAllHandshakeWaiters(error)
                 return
             }
         }
