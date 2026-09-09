@@ -166,6 +166,57 @@ final class VoxaBackendLanguageProfilesServiceTests: XCTestCase {
         XCTAssertEqual(active, "es-ES")
     }
 
+    func testDeleteSendsDeleteToLanguageKeyPath() async throws {
+        StubURLProtocol.handler = { request, _ in
+            let json = #"{"correlationId":"c","deletedLanguageKey":"any"}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+
+        try await service.delete(languageKey: "es-ES")
+
+        let request = try XCTUnwrap(StubURLProtocol.lastRequest)
+        XCTAssertEqual(request.url?.path, "/api/language-profiles/es-ES")
+        XCTAssertEqual(request.httpMethod, "DELETE")
+    }
+
+    func testDeletePercentEncodesSlashInLanguageKeyToKeepSingleRouteSegment() async throws {
+        // Regression: `.urlPathAllowed` treats `/` as safe. A language key
+        // like `zh/Hant` was flowing through as two path segments and missing
+        // the `{languageKey}` route parameter. Encoding must produce
+        // `.../language-profiles/zh%2FHant`, a single segment.
+        StubURLProtocol.handler = { request, _ in
+            let json = #"{"correlationId":"c","deletedLanguageKey":"any"}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+
+        try await service.delete(languageKey: "zh/Hant")
+
+        let request = try XCTUnwrap(StubURLProtocol.lastRequest)
+        let absolute = try XCTUnwrap(request.url?.absoluteString)
+        XCTAssertTrue(
+            absolute.hasSuffix("/api/language-profiles/zh%2FHant"),
+            "expected zh%2FHant single-segment encoding, got \(absolute)")
+    }
+
+    func testSelectActivePercentEncodesSlashInLanguageKeyToKeepSingleRouteSegment() async throws {
+        // Same path-segment bug applies to POST /language-profiles/{key}/select.
+        StubURLProtocol.handler = { request, _ in
+            let json = #"{"correlationId":"c","activeLanguageKey":"zh/Hant"}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+
+        _ = try await service.selectActive(languageKey: "zh/Hant")
+
+        let request = try XCTUnwrap(StubURLProtocol.lastRequest)
+        let absolute = try XCTUnwrap(request.url?.absoluteString)
+        XCTAssertTrue(
+            absolute.hasSuffix("/api/language-profiles/zh%2FHant/select"),
+            "expected zh%2FHant single-segment encoding, got \(absolute)")
+    }
+
     func testUnauthorizedMapsToAuthenticationRequired() async {
         StubURLProtocol.handler = { request, _ in
             let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
