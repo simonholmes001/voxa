@@ -15,6 +15,11 @@ public struct LearnerProfileSummary: Sendable, Equatable {
     public var dueReviewCount: Int
     public var recentSessionCount: Int
     public var minutesPracticedToday: Int
+    /// Full second count for today's practice. Kept alongside
+    /// `minutesPracticedToday` (which truncates to an integer minute) so the
+    /// Home progress line can surface sub-minute sessions as "30 sec today"
+    /// or "< 1 min today" instead of misleadingly rounding to 0.
+    public var secondsPracticedToday: Int
 
     public init(
         languageName: String,
@@ -27,7 +32,8 @@ public struct LearnerProfileSummary: Sendable, Equatable {
         currentLessonStepIndex: Int? = nil,
         dueReviewCount: Int = 0,
         recentSessionCount: Int = 0,
-        minutesPracticedToday: Int = 0
+        minutesPracticedToday: Int = 0,
+        secondsPracticedToday: Int = 0
     ) {
         self.languageName = languageName
         self.levelName = levelName
@@ -40,11 +46,26 @@ public struct LearnerProfileSummary: Sendable, Equatable {
         self.dueReviewCount = dueReviewCount
         self.recentSessionCount = recentSessionCount
         self.minutesPracticedToday = minutesPracticedToday
+        self.secondsPracticedToday = secondsPracticedToday
     }
 
     public var dailyProgressFraction: Double {
         guard dailyMinutes > 0 else { return 0 }
-        return min(1, Double(minutesPracticedToday) / Double(dailyMinutes))
+        // Uses seconds so a 30-second session still moves the bar, even
+        // though the label rounds to whole minutes.
+        let secondsGoal = Double(dailyMinutes) * 60
+        return min(1, Double(secondsPracticedToday) / secondsGoal)
+    }
+
+    /// Presentation-ready string for the Home progress line. Below one
+    /// minute we surface seconds so the label matches reality; from one
+    /// minute onward we round to whole minutes.
+    public var practicedTodayLabel: String {
+        if secondsPracticedToday <= 0 { return "0 of \(dailyMinutes) minutes today" }
+        if secondsPracticedToday < 60 {
+            return "\(secondsPracticedToday) sec today (< 1 min)"
+        }
+        return "\(minutesPracticedToday) of \(dailyMinutes) minutes today"
     }
 }
 

@@ -13,6 +13,14 @@ public struct OnboardingView: View {
     private static let languages = OnboardingLanguages.sorted
     private static let customLanguageKey = "__custom__"
 
+    /// Uppercases the first character of a free-text language name while
+    /// leaving the rest of the string alone (so "old norse" becomes
+    /// "Old norse" without clobbering an intentional interior capital).
+    static func capitalizingFirstLetter(_ value: String) -> String {
+        guard let first = value.first else { return value }
+        return first.uppercased() + value.dropFirst()
+    }
+
     public init(model: OnboardingViewModel) {
         self.model = model
     }
@@ -50,7 +58,14 @@ public struct OnboardingView: View {
                     .textFieldStyle(.roundedBorder)
                     .onAppear { customTargetLanguageText = model.draft.targetLanguage ?? "" }
                     .onChange(of: customTargetLanguageText) { _, value in
-                        model.setTargetLanguage(value.trimmingCharacters(in: .whitespacesAndNewlines))
+                        // Ensure the first letter is always capitalised. iOS
+                        // soft keyboards default-capitalise sentences, but
+                        // paste, hardware keyboards, and some custom
+                        // keyboards bypass that. Trim + capitalise here so
+                        // the stored value is consistent regardless of the
+                        // input path.
+                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                        model.setTargetLanguage(Self.capitalizingFirstLetter(trimmed))
                     }
                     .accessibilityIdentifier("onboarding-custom-language-field")
             }

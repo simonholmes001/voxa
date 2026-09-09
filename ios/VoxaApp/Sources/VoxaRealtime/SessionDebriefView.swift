@@ -60,8 +60,14 @@ public struct SessionDebriefView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 summaryCard(debrief.summary)
-                if !debrief.recurringMistakes.isEmpty {
-                    section(title: "Recurring mistakes", identifier: "debrief-mistakes") {
+                // Every section always renders — an empty list becomes a
+                // "nothing to flag" placeholder rather than being hidden.
+                // Hiding empty sections made short first sessions look like
+                // the feature was broken.
+                section(title: "Recurring mistakes", identifier: "debrief-mistakes") {
+                    if debrief.recurringMistakes.isEmpty {
+                        emptyPlaceholder("Nothing recurring flagged this session. Try a longer conversation for more feedback.")
+                    } else {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(Array(debrief.recurringMistakes.enumerated()), id: \.offset) { _, mistake in
                                 mistakeRow(mistake)
@@ -69,8 +75,10 @@ public struct SessionDebriefView: View {
                         }
                     }
                 }
-                if !debrief.usefulPhrases.isEmpty {
-                    section(title: "Useful phrases", identifier: "debrief-phrases") {
+                section(title: "Useful phrases", identifier: "debrief-phrases") {
+                    if debrief.usefulPhrases.isEmpty {
+                        emptyPlaceholder("No standout phrases yet — a longer session gives us more to work with.")
+                    } else {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(Array(debrief.usefulPhrases.enumerated()), id: \.offset) { _, phrase in
                                 Label(phrase, systemImage: "quote.bubble")
@@ -79,8 +87,10 @@ public struct SessionDebriefView: View {
                         }
                     }
                 }
-                if !debrief.pronunciationNotes.isEmpty {
-                    section(title: "Pronunciation notes", identifier: "debrief-pronunciation") {
+                section(title: "Pronunciation notes", identifier: "debrief-pronunciation") {
+                    if debrief.pronunciationNotes.isEmpty {
+                        emptyPlaceholder("Nothing to note yet. Pronunciation drills give the tutor more to hear.")
+                    } else {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(Array(debrief.pronunciationNotes.enumerated()), id: \.offset) { _, note in
                                 Label(note, systemImage: "waveform")
@@ -114,6 +124,16 @@ public struct SessionDebriefView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
         .accessibilityIdentifier("debrief-summary")
+    }
+
+    private func emptyPlaceholder(_ message: String) -> some View {
+        Text(message)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .italic()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func mistakeRow(_ mistake: DebriefRecurringMistake) -> some View {

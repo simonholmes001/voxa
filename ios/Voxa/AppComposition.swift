@@ -140,7 +140,8 @@ enum AppComposition {
         currentLessonStepIndex: Int? = nil,
         dueReviewCount: Int = 0,
         recentSessionCount: Int = 0,
-        minutesPracticedToday: Int = 0
+        minutesPracticedToday: Int = 0,
+        secondsPracticedToday: Int = 0
     ) -> LearnerProfileSummary? {
         guard let profile else { return nil }
         return LearnerProfileSummary(
@@ -154,7 +155,8 @@ enum AppComposition {
             currentLessonStepIndex: currentLessonStepIndex,
             dueReviewCount: dueReviewCount,
             recentSessionCount: recentSessionCount,
-            minutesPracticedToday: minutesPracticedToday
+            minutesPracticedToday: minutesPracticedToday,
+            secondsPracticedToday: secondsPracticedToday
         )
     }
 
@@ -192,6 +194,11 @@ enum AppComposition {
                 from: checkpoint.recentSessions,
                 now: now,
                 calendar: calendar
+            ),
+            secondsPracticedToday: secondsPracticedToday(
+                from: checkpoint.recentSessions,
+                now: now,
+                calendar: calendar
             )
         )
     }
@@ -201,10 +208,17 @@ enum AppComposition {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Int {
-        let seconds = sessions
+        return secondsPracticedToday(from: sessions, now: now, calendar: calendar) / 60
+    }
+
+    static func secondsPracticedToday(
+        from sessions: [SessionSummary],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        return sessions
             .filter { calendar.isDate($0.startedAt, inSameDayAs: now) }
             .reduce(0) { total, session in total + max(0, session.durationSeconds) }
-        return seconds / 60
     }
 
     static func displayTitle(forKnowledgeUnitId knowledgeUnitId: String?) -> String? {

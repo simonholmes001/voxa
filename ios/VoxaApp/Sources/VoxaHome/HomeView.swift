@@ -148,7 +148,7 @@ public struct HomeView: View {
             VStack(alignment: .leading, spacing: 6) {
                 ProgressView(value: summary.dailyProgressFraction)
                     .accessibilityIdentifier("home-daily-progress")
-                Text("\(summary.minutesPracticedToday) of \(summary.dailyMinutes) minutes today")
+                Text(summary.practicedTodayLabel)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
