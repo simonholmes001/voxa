@@ -29,16 +29,28 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     // them when their event arrives — and never discards unrelated events.
     private let handshakeLock = NSLock()
     private var handshakeWaiters: [String: HandshakeContinuation] = [:]
-    #if os(iOS)
+    // The engine + player pair is a long-lived AVAudioEngine graph — attaching
+    // an already-attached node raises an ObjC NSInternalInconsistencyException
+    // that Swift can't catch and crashes the app. Every connect() flows through
+    // configureAudio(), so we track "have we attached yet" and only wire the
+    // graph on the FIRST connect. Reconnects (start → end → start on the same
+    // TalkSessionViewModel-owned transport instance) reuse the same graph.
+    //
+    // These live outside the #if os(iOS) block so a macOS test host can
+    // exercise the idempotency guard directly — the AVFoundation APIs used
+    // here are available on both platforms; only the AVAudioSession path
+    // stays iOS-only.
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
-    private var inputConverter: AVAudioConverter?
+    internal private(set) var audioPipelineConfigured = false
     private static let playbackFormat: AVAudioFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
         sampleRate: 24_000,
         channels: 1,
         interleaved: false
     )!
+    #if os(iOS)
+    private var inputConverter: AVAudioConverter?
     #endif
 
     public init(playbackGain: Float = 3.0, session: URLSession = .shared) {
@@ -154,7 +166,11 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         engine.stop()
         player.stop()
         engine.inputNode.removeTap(onBus: 0)
+        inputConverter = nil
         try? AVAudioSession.sharedInstance().setActive(false)
+        // Deliberately DO NOT detach player or clear audioPipelineConfigured —
+        // the engine graph survives the session boundary so the next connect()
+        // can restart the same nodes safely.
         #endif
     }
 
@@ -427,6 +443,20 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         return false
     }
 
+    /// Attach the player node to the engine and wire it into the main mixer.
+    /// Idempotent: safe to call on every `connect()`; if the graph is already
+    /// wired, this is a no-op. Without the guard, the second call would raise
+    /// an ObjC `NSInternalInconsistencyException` (`required condition is
+    /// false: !nodeimpl->HasEngineImpl()`) that Swift can't catch. `internal`
+    /// so @testable importers can verify the idempotency directly.
+    internal func configureAudioPipelineIfNeeded() {
+        if !audioPipelineConfigured {
+            engine.attach(player)
+            engine.connect(player, to: engine.mainMixerNode, format: Self.playbackFormat)
+            audioPipelineConfigured = true
+        }
+    }
+
     #if os(iOS)
     private func configureAudio() throws {
         let audio = AVAudioSession.sharedInstance()
@@ -438,8 +468,7 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         try audio.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP])
         try audio.setActive(true)
         try audio.overrideOutputAudioPort(.speaker)
-        engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: Self.playbackFormat)
+        configureAudioPipelineIfNeeded()
     }
 
     private func startMicrophone(on input: AVAudioInputNode) throws {
