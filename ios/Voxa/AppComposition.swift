@@ -285,13 +285,14 @@ enum AppComposition {
     }
 
     /// Creates the appropriate Realtime transport based on configuration.
-    /// When VOXA_API_BASE_URL is configured, use real WebRTC transport.
+    /// The WebSocket path owns native audio playback so received tutor audio
+    /// can be amplified and limited deterministically.
     /// Otherwise, use placeholder that fails with clear message.
     static func makeRealtimeTransport() -> any RealtimeTransport {
         if backendBaseURL() == nil {
             return UnavailableRealtimeTransport(reason: "Voice sessions aren't configured for this build yet.")
         } else {
-            return WebRTCRealtimeTransport()
+            return WebSocketRealtimeTransport()
         }
     }
 

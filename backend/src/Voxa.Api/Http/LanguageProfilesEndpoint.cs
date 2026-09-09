@@ -50,6 +50,35 @@ public sealed class LanguageProfilesEndpoint(LanguageProfileService profiles)
         }
     }
 
+    public async Task<ApiResponse<DeleteLanguageProfileResponse>> DeleteAsync(
+        string? targetLanguage,
+        TenantId tenantId,
+        UserId userId,
+        string? correlationId,
+        CancellationToken cancellationToken)
+    {
+        var requestCorrelationId = CorrelationId.Create(correlationId);
+        if (string.IsNullOrWhiteSpace(targetLanguage))
+        {
+            return Failure<DeleteLanguageProfileResponse>(
+                "validation_error", "languageKey is required.", requestCorrelationId, 400);
+        }
+
+        try
+        {
+            return ApiResponse<DeleteLanguageProfileResponse>.Ok(await profiles.DeleteAsync(
+                tenantId, userId, targetLanguage, requestCorrelationId, cancellationToken));
+        }
+        catch (LearnerStateNotFoundException)
+        {
+            return Failure<DeleteLanguageProfileResponse>(
+                "language_profile_not_found",
+                "The requested language profile does not exist.",
+                requestCorrelationId,
+                404);
+        }
+    }
+
     private async Task<ApiResponse<LanguageProfilesResponse>> GetCoreAsync(
         TenantId tenantId,
         UserId userId,

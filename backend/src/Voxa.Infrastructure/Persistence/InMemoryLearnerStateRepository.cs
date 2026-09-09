@@ -138,6 +138,27 @@ public sealed class InMemoryLearnerStateRepository : ILearnerStateRepository
         }
     }
 
+    public Task DeleteLanguageAsync(TenantId tenantId, UserId userId, string targetLanguage, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (gate)
+        {
+            states.Remove(Key(tenantId, userId, targetLanguage));
+            var scope = ScopeKey(tenantId, userId);
+            if (activeLanguages.TryGetValue(scope, out var active)
+                && string.Equals(active, targetLanguage, StringComparison.OrdinalIgnoreCase))
+            {
+                var replacement = states.Values
+                    .Where(state => state.TenantId == tenantId && state.UserId == userId)
+                    .OrderBy(state => state.Profile.TargetLanguage, StringComparer.OrdinalIgnoreCase)
+                    .FirstOrDefault();
+                if (replacement is null) activeLanguages.Remove(scope);
+                else activeLanguages[scope] = replacement.Profile.TargetLanguage;
+            }
+            return Task.CompletedTask;
+        }
+    }
+
     private static string ScopeKey(TenantId tenantId, UserId userId) => $"{tenantId.Value}:{userId.Value}";
 
     private static string Key(TenantId tenantId, UserId userId, string? targetLanguage) =>

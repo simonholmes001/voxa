@@ -189,6 +189,49 @@ public sealed class TableLearnerStateRepository(ILearnerStateTable table) : ILea
         }
     }
 
+    public async Task DeleteLanguageAsync(TenantId tenantId, UserId userId, string targetLanguage, CancellationToken cancellationToken)
+    {
+        var partitionKey = PartitionKey(tenantId);
+        var profile = await table.GetAsync(partitionKey, ProfileRowKey(userId, targetLanguage), cancellationToken);
+        if (profile is not null)
+        {
+            await table.DeleteAsync(partitionKey, profile.RowKey, cancellationToken);
+        }
+
+        var legacy = await table.GetAsync(partitionKey, LegacyRowKey(userId), cancellationToken);
+        if (legacy is not null && string.Equals(
+                Deserialize(legacy.PayloadJson).Profile.TargetLanguage,
+                targetLanguage,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            await table.DeleteAsync(partitionKey, legacy.RowKey, cancellationToken);
+        }
+
+        var active = await GetActiveLanguageAsync(tenantId, userId, cancellationToken);
+        if (!string.Equals(active, targetLanguage, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var marker = await table.GetAsync(partitionKey, ActiveRowKey(userId), cancellationToken);
+        var replacement = (await ListAsync(tenantId, userId, cancellationToken)).FirstOrDefault();
+        if (replacement is null)
+        {
+            if (marker is not null) await table.DeleteAsync(partitionKey, marker.RowKey, cancellationToken);
+            return;
+        }
+
+        await table.UpsertAsync(
+            new LearnerStateTableEntity(
+                partitionKey,
+                ActiveRowKey(userId),
+                Guid.NewGuid().ToString("n"),
+                marker?.Version ?? 0,
+                JsonSerializer.Serialize(new ActiveLanguageDocument(replacement.Profile.TargetLanguage), JsonOptions)),
+            marker?.ETag,
+            cancellationToken);
+    }
+
     private static LearnerState Deserialize(string payloadJson)
     {
         var document = JsonSerializer.Deserialize<LearnerStateDocument>(payloadJson, JsonOptions)

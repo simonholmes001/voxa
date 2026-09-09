@@ -45,11 +45,35 @@ public struct VoxaBackendLanguageProfilesService: LanguageProfilesService {
 
     public func selectActive(languageKey: String) async throws -> String {
         let token = try await requireToken()
-        let encoded = languageKey.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? languageKey
+        let encoded = Self.encodePathSegment(languageKey)
         let dto: SelectLanguageResponseDTO = try await send(
             path: "api/language-profiles/\(encoded)/select", method: "POST", body: Data("{}".utf8), accessToken: token
         )
         return dto.activeLanguageKey
+    }
+
+    public func delete(languageKey: String) async throws {
+        let token = try await requireToken()
+        let encoded = Self.encodePathSegment(languageKey)
+        let _: DeleteLanguageResponseDTO = try await send(
+            path: "api/language-profiles/\(encoded)", method: "DELETE", body: nil, accessToken: token
+        )
+    }
+
+    /// Character set for a SINGLE URL path segment: `.urlPathAllowed` with
+    /// `/` removed. `.urlPathAllowed` treats `/` as safe (it's meant for
+    /// whole paths, not segments), so a language key that happens to
+    /// contain `/` — e.g. `zh/Hant` — would flow through as multiple path
+    /// segments and miss the `{languageKey}` route parameter. Excluding
+    /// `/` percent-encodes it to `%2F` so the segment stays whole.
+    private static let pathSegmentAllowed: CharacterSet = {
+        var set = CharacterSet.urlPathAllowed
+        set.remove(charactersIn: "/")
+        return set
+    }()
+
+    private static func encodePathSegment(_ segment: String) -> String {
+        segment.addingPercentEncoding(withAllowedCharacters: pathSegmentAllowed) ?? segment
     }
 
     private func requireToken() async throws -> String {
@@ -66,7 +90,15 @@ public struct VoxaBackendLanguageProfilesService: LanguageProfilesService {
         body: Data?,
         accessToken: String
     ) async throws -> Response {
-        var request = URLRequest(url: baseURL.appendingPathComponent(path))
+        // `URL.appendingPathComponent` treats its input as raw text and
+        // re-encodes `%` to `%25`, which double-encodes any percent-encoded
+        // segment we pass (`zh%2FHant` → `zh%252FHant`). Building the URL
+        // with `URL(string:relativeTo:)` preserves the caller's pre-encoding.
+        guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
+            Self.logger.error("Profile request URL construction failed endpoint=\(path, privacy: .public)")
+            throw LanguageProfilesError.transport
+        }
+        var request = URLRequest(url: url)
         request.timeoutInterval = requestTimeout
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")

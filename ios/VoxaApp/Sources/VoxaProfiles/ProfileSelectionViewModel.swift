@@ -157,6 +157,18 @@ public final class ProfileSelectionViewModel {
         }
     }
 
+    @discardableResult
+    public func deleteLanguage(_ languageKey: String) async -> Bool {
+        do {
+            try await service.delete(languageKey: languageKey)
+            await load()
+            return true
+        } catch {
+            state = .failed(Self.message(for: error))
+            return false
+        }
+    }
+
     public func retry() async {
         await load()
     }

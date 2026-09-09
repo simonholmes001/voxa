@@ -43,6 +43,25 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
                     "realtime",
                     route.Model,
                     new OpenAiRealtimeReasoning(route.ReasoningEffort),
+                    new[] { "audio" },
+                    // create_response: false + interrupt_response: true is the
+                    // architectural turn-taking guarantee. Server VAD still
+                    // commits the user's audio buffer on end-of-turn, but the
+                    // server does not auto-create a response — the client must
+                    // explicitly send response.create. Result: the tutor
+                    // cannot monologue no matter what the instructions drift to.
+                    new OpenAiRealtimeAudio(
+                        new OpenAiRealtimeAudioInput(
+                            new OpenAiRealtimeAudioFormat("audio/pcm", 24_000),
+                            new OpenAiRealtimeTurnDetection(
+                                "server_vad",
+                                0.85,
+                                300,
+                                1500,
+                                CreateResponse: false,
+                                InterruptResponse: true)),
+                        new OpenAiRealtimeAudioOutput(
+                            new OpenAiRealtimeAudioFormat("audio/pcm", 24_000))),
                     BuildInstructions(request.Settings))))
         };
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
@@ -94,7 +113,10 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
             $"Target language: {settings.TargetLanguage}.",
             $"Learner level: {settings.ProficiencyBand}.",
             "Keep replies short enough for a voice conversation.",
-            "Coach through natural conversation, ask one question at a time, and correct gently after the learner answers.");
+            "Coach through natural conversation, ask one question at a time, and correct gently after the learner answers.",
+            // Pedagogical handoff protocol. Also doubles as a natural,
+            // teachable phrase — polite yielding is real target-language skill.
+            $"End every substantive turn with a short, natural handoff phrase in {settings.TargetLanguage} (for example \"À toi\" in French, \"Tu turno\" in Spanish, \"Du bist dran\" in German, or the equivalent in your target language). After the handoff, stop and wait for the learner to reply.");
 
         return settings.SessionIntent?.ToLowerInvariant() switch
         {
@@ -133,10 +155,35 @@ internal sealed record OpenAiRealtimeSessionRequest(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("model")] string Model,
     [property: JsonPropertyName("reasoning")] OpenAiRealtimeReasoning Reasoning,
+    [property: JsonPropertyName("output_modalities")] IReadOnlyList<string> OutputModalities,
+    [property: JsonPropertyName("audio")] OpenAiRealtimeAudio Audio,
     [property: JsonPropertyName("instructions")] string Instructions);
 
 internal sealed record OpenAiRealtimeReasoning(
     [property: JsonPropertyName("effort")] string Effort);
+
+internal sealed record OpenAiRealtimeAudio(
+    [property: JsonPropertyName("input")] OpenAiRealtimeAudioInput Input,
+    [property: JsonPropertyName("output")] OpenAiRealtimeAudioOutput Output);
+
+internal sealed record OpenAiRealtimeAudioInput(
+    [property: JsonPropertyName("format")] OpenAiRealtimeAudioFormat Format,
+    [property: JsonPropertyName("turn_detection")] OpenAiRealtimeTurnDetection TurnDetection);
+
+internal sealed record OpenAiRealtimeAudioOutput(
+    [property: JsonPropertyName("format")] OpenAiRealtimeAudioFormat Format);
+
+internal sealed record OpenAiRealtimeAudioFormat(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("rate")] int Rate);
+
+internal sealed record OpenAiRealtimeTurnDetection(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("threshold")] double Threshold,
+    [property: JsonPropertyName("prefix_padding_ms")] int PrefixPaddingMs,
+    [property: JsonPropertyName("silence_duration_ms")] int SilenceDurationMs,
+    [property: JsonPropertyName("create_response")] bool CreateResponse,
+    [property: JsonPropertyName("interrupt_response")] bool InterruptResponse);
 
 internal sealed record OpenAiRealtimeClientSecretResponse(
     [property: JsonPropertyName("value")] string? Value,

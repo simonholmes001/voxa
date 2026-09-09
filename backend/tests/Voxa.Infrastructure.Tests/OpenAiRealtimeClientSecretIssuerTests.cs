@@ -259,6 +259,76 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
     }
 
     [Fact]
+    public async Task IssueAsyncSendsServerAuthoritativeTurnDetectionInClientSecretPayload()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": { "type": "realtime", "model": "gpt-realtime-2.1" }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
+
+        // Server-authoritative session config — the device must not be the
+        // one setting these, otherwise a tampered client could re-enable
+        // auto-response and defeat the "no monologue" guarantee.
+        Assert.Contains("\"output_modalities\":[\"audio\"]", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"turn_detection\"", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"type\":\"server_vad\"", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"create_response\":false", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"interrupt_response\":true", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"audio/pcm\"", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"rate\":24000", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task IssueAsyncIncludesTargetLanguageHandoffCueInInstructions()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": { "type": "realtime", "model": "gpt-realtime-2.1" }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(CreateRequest(), CancellationToken.None);
+
+        Assert.Contains("handoff phrase in fr-FR", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("stop and wait for the learner", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task IssueAsyncRejectsRealtimeRouteWithoutReasoningEffort()
     {
         var client = new HttpClient(new RecordingHttpMessageHandler("{}"))
