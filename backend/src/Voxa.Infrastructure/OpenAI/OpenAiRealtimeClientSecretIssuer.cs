@@ -124,6 +124,14 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
         {
             ["targetLanguage"] = settings.TargetLanguage,
             ["proficiencyBand"] = settings.ProficiencyBand,
+            // Falls back to English so a legacy client that does not yet
+            // send nativeLanguage still gets a valid render — the L1
+            // scaffolding is degraded (English framing) but the session
+            // does not fail. iOS should send nativeLanguage from the
+            // learner's onboarding profile.
+            ["nativeLanguage"] = string.IsNullOrWhiteSpace(settings.NativeLanguage)
+                ? "English"
+                : settings.NativeLanguage,
             ["focusTitle"] = ResolveFocusTitle(settings, promptRef.Id),
             ["dueReviewCount"] = settings.DueReviewCount is > 0
                 ? settings.DueReviewCount.Value.ToString(CultureInfo.InvariantCulture)
@@ -160,7 +168,7 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
         return intent switch
         {
             "open_practice" or "practice" or "" => new PromptRef("realtime-tutor/open-practice", 1),
-            "guided_lesson" or "lesson" => new PromptRef("realtime-tutor/guided-lesson", 1),
+            "guided_lesson" or "lesson" => new PromptRef("realtime-tutor/guided-lesson", 2),
             "review" => new PromptRef("realtime-tutor/review", 1),
             "pronunciation_drill" => new PromptRef("realtime-tutor/pronunciation-drill", 1),
             "roleplay" => new PromptRef("realtime-tutor/roleplay", 1),

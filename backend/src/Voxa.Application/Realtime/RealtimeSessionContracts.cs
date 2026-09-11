@@ -37,6 +37,7 @@ public sealed record RealtimeSessionCommand(
     string CoachingMode,
     string ProficiencyBand,
     string TargetLanguage,
+    string? NativeLanguage,
     string? SessionIntent,
     string? FocusTitle,
     int? DueReviewCount,
@@ -56,6 +57,7 @@ public sealed record RealtimeSessionCommand(
             coachingMode,
             proficiencyBand,
             targetLanguage,
+            nativeLanguage: null,
             sessionIntent: null,
             focusTitle: null,
             dueReviewCount: null,
@@ -68,6 +70,7 @@ public sealed record RealtimeSessionCommand(
         string? coachingMode,
         string? proficiencyBand,
         string? targetLanguage,
+        string? nativeLanguage,
         string? sessionIntent,
         string? focusTitle,
         int? dueReviewCount,
@@ -79,6 +82,7 @@ public sealed record RealtimeSessionCommand(
             Required(coachingMode, nameof(coachingMode)),
             Required(proficiencyBand, nameof(proficiencyBand)),
             Required(targetLanguage, nameof(targetLanguage)),
+            Optional(nativeLanguage),
             Optional(sessionIntent),
             Optional(focusTitle),
             dueReviewCount,
@@ -126,7 +130,8 @@ public sealed record RealtimeSessionSettingsContract(
     string TargetLanguage,
     string? SessionIntent = null,
     string? FocusTitle = null,
-    int? DueReviewCount = null);
+    int? DueReviewCount = null,
+    string? NativeLanguage = null);
 
 public sealed class RealtimeSessionIssueException(string message) : Exception(message);
 

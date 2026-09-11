@@ -92,6 +92,10 @@ public struct RealtimeCoachingSettings: Sendable, Equatable {
     public var sessionIntent: String?
     public var focusTitle: String?
     public var dueReviewCount: Int?
+    /// The learner's native language, sent to the backend so the tutor
+    /// prompt can scaffold beginner lessons in L1. Optional for backward
+    /// compatibility with older clients (server falls back to "English").
+    public var nativeLanguage: String?
 
     public init(
         coachingMode: String = "tutor",
@@ -99,7 +103,8 @@ public struct RealtimeCoachingSettings: Sendable, Equatable {
         targetLanguage: String,
         sessionIntent: String? = nil,
         focusTitle: String? = nil,
-        dueReviewCount: Int? = nil
+        dueReviewCount: Int? = nil,
+        nativeLanguage: String? = nil
     ) {
         self.coachingMode = coachingMode
         self.proficiencyBand = proficiencyBand
@@ -107,6 +112,7 @@ public struct RealtimeCoachingSettings: Sendable, Equatable {
         self.sessionIntent = sessionIntent
         self.focusTitle = focusTitle
         self.dueReviewCount = dueReviewCount
+        self.nativeLanguage = nativeLanguage
     }
 
     /// Emits the backend-facing `SessionIntent` string for the activity. The

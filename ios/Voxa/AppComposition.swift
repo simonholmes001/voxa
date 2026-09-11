@@ -365,11 +365,17 @@ enum AppComposition {
     }
 
     /// Derives Realtime coaching settings from the learner's onboarding state.
+    /// nativeLanguage is threaded through so the guided-lesson prompt can
+    /// scaffold beginner lessons in L1 (see prompts/realtime-tutor/
+    /// guided-lesson.v2.yaml).
     @MainActor
     static func realtimeSettings(from onboardingModel: OnboardingViewModel?) -> RealtimeCoachingSettings {
-        RealtimeCoachingSettings(
+        let nativeLanguageKey = onboardingModel?.draft.nativeLanguage
+        let nativeDisplayName = nativeLanguageKey.map(OnboardingLanguages.displayName(forKey:))
+        return RealtimeCoachingSettings(
             proficiencyBand: proficiencyBand(for: onboardingModel?.placementEstimate),
-            targetLanguage: canonicalLanguageKey(for: onboardingModel?.draft.targetLanguage)
+            targetLanguage: canonicalLanguageKey(for: onboardingModel?.draft.targetLanguage),
+            nativeLanguage: nativeDisplayName?.asLanguageDisplayName
         )
     }
 

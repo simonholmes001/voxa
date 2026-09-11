@@ -85,6 +85,7 @@ public sealed class RealtimeSessionServiceTests
             coachingMode,
             "B1-B2",
             "fr-FR",
+            nativeLanguage: "English",
             sessionIntent,
             focusTitle,
             dueReviewCount,

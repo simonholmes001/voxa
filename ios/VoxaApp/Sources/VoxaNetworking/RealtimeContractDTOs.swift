@@ -11,6 +11,7 @@ struct RealtimeSessionRequestDTO: Encodable {
     let sessionIntent: String?
     let focusTitle: String?
     let dueReviewCount: Int?
+    let nativeLanguage: String?
 }
 
 struct RealtimeSessionCompletionRequestDTO: Encodable {
@@ -28,6 +29,7 @@ struct RealtimeSessionSettingsDTO: Codable {
     let sessionIntent: String?
     let focusTitle: String?
     let dueReviewCount: Int?
+    let nativeLanguage: String?
 }
 
 struct RealtimeSessionResponseDTO: Decodable {
@@ -51,7 +53,8 @@ struct RealtimeSessionResponseDTO: Decodable {
                 targetLanguage: settings.targetLanguage,
                 sessionIntent: settings.sessionIntent,
                 focusTitle: settings.focusTitle,
-                dueReviewCount: settings.dueReviewCount
+                dueReviewCount: settings.dueReviewCount,
+                nativeLanguage: settings.nativeLanguage
             )
         )
     }
