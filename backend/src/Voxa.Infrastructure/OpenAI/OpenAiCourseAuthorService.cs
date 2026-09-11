@@ -135,7 +135,130 @@ public sealed class OpenAiCourseAuthorService(
             throw new CourseAuthorException("Course author output had no lessons.");
         }
 
-        return payload.ToActivePlan(request.ExistingCourse, request.CompletedLessonIds);
+        ValidatePayloadOrThrow(payload, route.Model);
+
+        var plan = payload.ToActivePlan(request.ExistingCourse, request.CompletedLessonIds);
+
+        // Deterministic progress preservation. The prompt asks the model
+        // to keep completed lesson titles across a re-mint (matching the
+        // old title, possibly slightly refined). Title-match is best-effort
+        // — a punctuation change would lose the id. Aggressive
+        // normalisation is done inside ToActivePlan; here we verify the
+        // resulting plan carries every completed id through as Completed,
+        // and refuse the re-mint if any drop. Otherwise a refined title
+        // would silently regress the learner's progress.
+        EnsureCompletedLessonsPreservedOrThrow(plan, request.CompletedLessonIds, route.Model);
+
+        return plan;
+    }
+
+    /// <summary>
+    /// Rejects course payloads that don't meet the contract declared in
+    /// author-course.v1.yaml (20–30 lessons, each with a non-empty title
+    /// and learningObjective, distinct positive order values, and
+    /// estimatedMinutes in [5, 60]). Since `response_format` on the OpenAI
+    /// call is `json_object` — not `json_schema` — the schema in the yaml
+    /// is documentation for the model, not an enforced envelope. Without
+    /// this server-side gate a partial or oversized response persists as
+    /// the learner's real course.
+    /// </summary>
+    private void ValidatePayloadOrThrow(CourseAuthorPayload payload, string model)
+    {
+        const int minLessons = 20;
+        const int maxLessons = 30;
+        const int minMinutes = 5;
+        const int maxMinutes = 60;
+
+        var kept = new List<CourseAuthorLessonPayload>((payload.Lessons ?? []).Count);
+        var seenOrders = new HashSet<int>();
+        foreach (var lesson in payload.Lessons ?? [])
+        {
+            if (lesson is null)
+            {
+                continue;
+            }
+            if (string.IsNullOrWhiteSpace(lesson.Title) || string.IsNullOrWhiteSpace(lesson.LearningObjective))
+            {
+                logger.LogWarning(
+                    "course.author.validation blank title or objective. model={Model}",
+                    model);
+                throw new CourseAuthorException("Course author output had a lesson with a blank title or objective.");
+            }
+            if (lesson.Order is null || lesson.Order <= 0)
+            {
+                logger.LogWarning(
+                    "course.author.validation missing/non-positive order. model={Model}",
+                    model);
+                throw new CourseAuthorException("Course author output had a lesson with missing or non-positive order.");
+            }
+            if (!seenOrders.Add(lesson.Order.Value))
+            {
+                logger.LogWarning(
+                    "course.author.validation duplicate order={Order}. model={Model}",
+                    lesson.Order,
+                    model);
+                throw new CourseAuthorException($"Course author output had a duplicate order value ({lesson.Order}).");
+            }
+            if (lesson.EstimatedMinutes is null
+                || lesson.EstimatedMinutes < minMinutes
+                || lesson.EstimatedMinutes > maxMinutes)
+            {
+                logger.LogWarning(
+                    "course.author.validation estimatedMinutes={EstimatedMinutes} out of range. model={Model}",
+                    lesson.EstimatedMinutes,
+                    model);
+                throw new CourseAuthorException(
+                    $"Course author output had estimatedMinutes ({lesson.EstimatedMinutes}) outside {minMinutes}..{maxMinutes}.");
+            }
+            kept.Add(lesson);
+        }
+
+        if (kept.Count < minLessons || kept.Count > maxLessons)
+        {
+            logger.LogWarning(
+                "course.author.validation count={Count} outside {Min}..{Max}. model={Model}",
+                kept.Count,
+                minLessons,
+                maxLessons,
+                model);
+            throw new CourseAuthorException(
+                $"Course author output had {kept.Count} lessons, outside the required {minLessons}..{maxLessons}.");
+        }
+    }
+
+    /// <summary>
+    /// Guarantees the caller's completed-lesson ids each surface as
+    /// Completed in the returned plan. When they don't, the model has
+    /// dropped or renamed a completed lesson in a way that ToActivePlan's
+    /// title-match couldn't recover — reassessment would silently regress
+    /// the learner's progress. Throwing here lets the caller retry or
+    /// surface the failure rather than persist a plan with holes.
+    /// </summary>
+    private void EnsureCompletedLessonsPreservedOrThrow(
+        ActiveLearningPlan plan,
+        IReadOnlyList<string> completedLessonIds,
+        string model)
+    {
+        if (completedLessonIds.Count == 0)
+        {
+            return;
+        }
+        var completedInPlan = plan.Lessons
+            .Where(lesson => lesson.Status == PlannedLessonStatus.Completed)
+            .Select(lesson => lesson.LessonId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var missing = completedLessonIds
+            .Where(id => !completedInPlan.Contains(id))
+            .ToArray();
+        if (missing.Length > 0)
+        {
+            logger.LogWarning(
+                "course.author.validation completed ids dropped after re-mint. missingCount={Count} model={Model}",
+                missing.Length,
+                model);
+            throw new CourseAuthorException(
+                $"Course author output did not preserve {missing.Length} completed lesson(s) after re-mint.");
+        }
     }
 
     private static string FormatGoals(IReadOnlyList<string> goals)
@@ -240,9 +363,17 @@ internal sealed record CourseAuthorPayload(
         IReadOnlyList<string> completedLessonIds)
     {
         var completed = new HashSet<string>(completedLessonIds, StringComparer.OrdinalIgnoreCase);
-        var existingByTitle = existingCourse?.Lessons
-            .GroupBy(lesson => lesson.Title, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        // Build the reuse dictionary keyed by an aggressively-normalised
+        // title (case-folded, punctuation-stripped, whitespace-collapsed).
+        // The prompt says the model may "slightly refine" completed
+        // lesson titles across a re-mint; the raw ordinal-case dictionary
+        // used before would drop the id on any punctuation or spacing
+        // change and silently regress the learner's progress.
+        var existingByNormalisedTitle = existingCourse?.Lessons
+            .GroupBy(lesson => NormaliseTitleForMatch(lesson.Title), StringComparer.Ordinal)
+            .Where(group => !string.IsNullOrEmpty(group.Key))
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
         var ordered = (Lessons ?? [])
             .Where(lesson => !string.IsNullOrWhiteSpace(lesson.Title))
@@ -259,10 +390,14 @@ internal sealed record CourseAuthorPayload(
             var title = payload.Title!.Trim();
             var objective = (payload.LearningObjective ?? string.Empty).Trim();
 
-            // Re-use the existing lesson's ID when the title matches, so
-            // CompletedLessonIds from the old course still resolve.
+            // Re-use the existing lesson's ID when the normalised title
+            // matches, so CompletedLessonIds from the old course still
+            // resolve even if the model refined punctuation or spacing.
             string lessonId;
-            if (existingByTitle is not null && existingByTitle.TryGetValue(title, out var existing))
+            var normalisedTitle = NormaliseTitleForMatch(title);
+            if (existingByNormalisedTitle is not null
+                && !string.IsNullOrEmpty(normalisedTitle)
+                && existingByNormalisedTitle.TryGetValue(normalisedTitle, out var existing))
             {
                 lessonId = existing.LessonId;
             }
@@ -297,6 +432,47 @@ internal sealed record CourseAuthorPayload(
             : CourseTitle!.Trim();
 
         return new ActiveLearningPlan(planId, title2, existingCourse?.KnowledgeUnitIds ?? [], lessons);
+    }
+
+    /// <summary>
+    /// Aggressive normalisation used to match a lesson's title back to its
+    /// counterpart in a previous course version. Case-folds, strips
+    /// non-alphanumeric characters, and collapses whitespace. So
+    /// "Ordering food at a restaurant" and "Ordering food, at a
+    /// restaurant." both collapse to "ordering food at a restaurant" —
+    /// the model's minor punctuation refinements no longer drop the id.
+    /// </summary>
+    private static string NormaliseTitleForMatch(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return string.Empty;
+        }
+        var builder = new StringBuilder(raw.Length);
+        var previousWasSpace = false;
+        foreach (var ch in raw)
+        {
+            if (char.IsLetterOrDigit(ch))
+            {
+                builder.Append(char.ToLowerInvariant(ch));
+                previousWasSpace = false;
+            }
+            else if (char.IsWhiteSpace(ch) || ch == '-' || ch == '_')
+            {
+                if (!previousWasSpace && builder.Length > 0)
+                {
+                    builder.Append(' ');
+                    previousWasSpace = true;
+                }
+            }
+            // Otherwise (punctuation, symbols): drop.
+        }
+        // Trim a possible trailing space introduced by the collapsing rule.
+        if (builder.Length > 0 && builder[^1] == ' ')
+        {
+            builder.Length -= 1;
+        }
+        return builder.ToString();
     }
 }
 
