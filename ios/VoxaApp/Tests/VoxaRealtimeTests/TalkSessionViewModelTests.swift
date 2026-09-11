@@ -665,20 +665,57 @@ final class TalkSessionViewModelTests: XCTestCase {
         XCTAssertEqual(idle.events, [])
     }
 
-    func testEndCalledFromIdleStateStillCallsAllowSleepSafely() async {
-        // Guard: if the view is torn down or `end()` is invoked without a
-        // matching `.start()`, the release path shouldn't crash and
-        // shouldn't leave a phantom claim on the screen. allowScreenSleep
-        // is documented as idempotent.
+    func testEndCalledFromIdleStateIsANoOpAgainstTheIdleTimerControl() {
+        // Guard against the reviewer's specific worry: if `end()` fires
+        // without a matching `.connected` claim (view torn down, or a
+        // stranger tearing down while another live session holds the
+        // process-shared coordinator), it must not force the flag off.
+        // The RecordingIdleTimerControl now enforces the per-instance
+        // refcount contract, so an unmatched release records NO event.
         let idle = RecordingIdleTimerControl()
         let model = makeModel(
             permission: FakeMicrophonePermission(current: .granted),
             service: FakeRealtimeSessionService(result: .success(credential())),
             idleTimerControl: idle)
 
-        await model.end()
+        // Even calling end() many times from idle leaves no claim on
+        // the screen and adds no events.
+        Task { await model.end() }
+        Task { await model.end() }
 
-        XCTAssertEqual(idle.events, [.allowSleep])
+        XCTAssertEqual(idle.events, [])
         XCTAssertFalse(idle.isCurrentlyKeepingAwake)
+    }
+
+    func testTwoOverlappingViewModelsDoNotStarveEachOthersScreenAwakeClaim() async {
+        // Reviewer's headline scenario. If a user starts session A,
+        // starts session B while A is still live, then ends A, the
+        // shared process-global idle-timer flag must stay disabled
+        // because B still needs the screen awake.
+        //
+        // Both view models get their own SystemIdleTimerControl (the
+        // production impl) so they route through the same shared
+        // IdleTimerCoordinator — the same code path production uses.
+        IdleTimerCoordinator.shared.resetForTesting()
+
+        let modelA = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: SystemIdleTimerControl())
+        let modelB = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: SystemIdleTimerControl())
+
+        await modelA.start()
+        await modelB.start()
+        XCTAssertEqual(IdleTimerCoordinator.shared.currentClaimCount, 2)
+
+        await modelA.end()
+        // A's teardown must NOT starve B: the flag stays disabled.
+        XCTAssertEqual(IdleTimerCoordinator.shared.currentClaimCount, 1)
+
+        await modelB.end()
+        XCTAssertEqual(IdleTimerCoordinator.shared.currentClaimCount, 0)
     }
 }
