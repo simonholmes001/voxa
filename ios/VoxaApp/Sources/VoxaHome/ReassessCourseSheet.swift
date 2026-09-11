@@ -10,12 +10,18 @@ import VoxaRealtime
 /// responsive because reassessment runs in a background task.
 struct ReassessCourseSheet: View {
     @Bindable private var model: LearnerCourseViewModel
+    private let initialText: String
     private let onDismiss: () -> Void
     @State private var text: String = ""
     @State private var isSubmitting: Bool = false
 
-    init(model: LearnerCourseViewModel, onDismiss: @escaping () -> Void) {
+    init(
+        model: LearnerCourseViewModel,
+        initialText: String = "",
+        onDismiss: @escaping () -> Void
+    ) {
         self.model = model
+        self.initialText = initialText
         self.onDismiss = onDismiss
     }
 
@@ -30,6 +36,12 @@ struct ReassessCourseSheet: View {
                         .lineLimit(4, reservesSpace: true)
                         .disabled(isSubmitting)
                         .accessibilityIdentifier("reassess-input")
+                        .onAppear {
+                            // Populate ONCE from the banner hint. If the
+                            // learner has already typed something, don't
+                            // clobber it.
+                            if text.isEmpty { text = initialText }
+                        }
                 } header: {
                     Text("Your feedback")
                 } footer: {

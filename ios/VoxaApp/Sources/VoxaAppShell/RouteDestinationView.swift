@@ -26,6 +26,7 @@ struct RouteDestinationView: View {
             HomeView(
                 model: homeModel!,
                 courseModel: learnerCourseModel,
+                planModel: learnerPlanModel,
                 talkModel: talkModel,
                 languages: homeLanguages,
                 onContinueLearning: onContinueLearning,
@@ -36,15 +37,21 @@ struct RouteDestinationView: View {
                 onSelectLanguage: selectLanguage,
                 onStartTalk: onStartTalk
             )
+            // Home renders both the plan-driven reassessment banner and
+            // the course arc, so ensure both are loaded when the tab
+            // appears. Each view model is single-flight, safe to call.
+            .task { await learnerPlanModel?.load() }
         case .talk where talkModel != nil:
             TalkView(model: talkModel!)
         case .practice:
             PracticeHubView(
                 summary: practiceSummary,
                 planState: learnerPlanModel?.state ?? .idle,
+                courseState: learnerCourseModel?.state ?? .idle,
                 onStartTalk: onStartTalk
             )
             .task { await learnerPlanModel?.load() }
+            .task { await learnerCourseModel?.load() }
         case .review:
             LearningRouteView(
                 content: learningPlan.review,

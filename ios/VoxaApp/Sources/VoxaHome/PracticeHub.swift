@@ -8,19 +8,37 @@ public enum PracticeHub {
 
     // MARK: - Today card
 
-    /// One recommended session for the current moment. Prefers the C2
-    /// backend planner's LearnerPlan when it's `.ready`; otherwise falls
-    /// back to the rule-based recommendation (due reviews > continue
-    /// lesson > free conversation) shipped in B3. The learner never sees
-    /// a blank card because of a network hiccup.
+    /// One recommended session for the current moment. Priority order:
+    ///
+    /// 1. C2 planner's LearnerPlan when it's `.ready` — the planner
+    ///    considers debrief evidence and can override the course arc
+    ///    for one session (e.g. "do a mistakes_replay next").
+    /// 2. C3 course current lesson when the planner is idle/failed —
+    ///    the arc is a strong signal on its own.
+    /// 3. Rule-based recommendation shipped in B3 (due reviews >
+    ///    continue lesson > free conversation).
+    ///
+    /// The learner never sees a blank card because of a network hiccup.
     public static func todayCard(
         planState: LearnerPlanState = .idle,
+        courseState: LearnerCourseState = .idle,
         summary: LearnerProfileSummary?
     ) -> PracticeHubTodayCard {
         if case let .ready(plan) = planState {
             return PracticeHubTodayCard(recommendation: .plan(plan))
         }
+        if case let .ready(course) = courseState, let lesson = course.currentLesson {
+            return PracticeHubTodayCard(recommendation: .courseLesson(lesson))
+        }
         return ruleBasedTodayCard(for: summary)
+    }
+
+    /// Back-compat overload for the pre-course call sites (C2 shape).
+    public static func todayCard(
+        planState: LearnerPlanState,
+        summary: LearnerProfileSummary?
+    ) -> PracticeHubTodayCard {
+        return todayCard(planState: planState, courseState: .idle, summary: summary)
     }
 
     /// Back-compat overload for the pre-planner call sites — same shape as
@@ -47,6 +65,8 @@ public enum PracticeHub {
             return .review(dueCount: dueCount)
         case let .continueLesson(title):
             return .lesson(title: title)
+        case let .courseLesson(lesson):
+            return lesson.intent
         case .freeConversation:
             return .openPractice
         case let .plan(plan):
@@ -134,6 +154,12 @@ public struct PracticeHubTodayCard: Sendable, Equatable {
         /// concrete pattern name and a per-session reason instead of the
         /// generic rule-based labels.
         case plan(LearnerPlan)
+        /// C3 course-driven recommendation surfaced when the planner is
+        /// idle/failed but the course still has a current lesson. Home
+        /// already renders the full course arc; this Today card variant
+        /// gives Practice a coherent starting point instead of falling
+        /// through to the pre-C3 title-only fallback.
+        case courseLesson(PlannedLesson)
     }
 
     public let recommendation: Recommendation
@@ -156,6 +182,8 @@ public struct PracticeHubTodayCard: Sendable, Equatable {
                 return "\(plan.recommendedSession.intent.title): \(focus)"
             }
             return plan.recommendedSession.intent.title
+        case let .courseLesson(lesson):
+            return "Today's lesson: \(lesson.title)"
         }
     }
 
@@ -172,6 +200,10 @@ public struct PracticeHubTodayCard: Sendable, Equatable {
             return reason.isEmpty
                 ? "Recommended based on your recent sessions."
                 : reason
+        case let .courseLesson(lesson):
+            return lesson.learningObjective.isEmpty
+                ? "The next step in your personalised course."
+                : lesson.learningObjective
         }
     }
 
@@ -181,6 +213,7 @@ public struct PracticeHubTodayCard: Sendable, Equatable {
         case .continueLesson: return "Continue lesson"
         case .freeConversation: return "Start talking"
         case let .plan(plan): return plan.recommendedSession.intent.startButtonTitle
+        case .courseLesson: return "Start lesson"
         }
     }
 

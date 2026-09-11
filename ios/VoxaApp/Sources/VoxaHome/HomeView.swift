@@ -7,6 +7,7 @@ import VoxaRealtime
 public struct HomeView: View {
     @Bindable private var model: HomeViewModel
     private let courseModel: LearnerCourseViewModel?
+    private let planModel: LearnerPlanViewModel?
     private let talkModel: TalkSessionViewModel?
     private let languages: [LearnerLanguageSummary]
     private let onContinueLearning: () -> Void
@@ -15,10 +16,14 @@ public struct HomeView: View {
     private let onSelectLanguage: (String) -> Void
     private let onStartTalk: (RealtimeTutorIntent) -> Void
     @State private var isPresentingReassessSheet = false
+    /// Pre-fills the Reassess sheet when the learner accepts the
+    /// evidence-based banner. Cleared after the sheet closes.
+    @State private var reassessHint: String = ""
 
     public init(
         model: HomeViewModel,
         courseModel: LearnerCourseViewModel? = nil,
+        planModel: LearnerPlanViewModel? = nil,
         talkModel: TalkSessionViewModel? = nil,
         languages: [LearnerLanguageSummary] = [],
         onContinueLearning: @escaping () -> Void,
@@ -29,6 +34,7 @@ public struct HomeView: View {
     ) {
         self.model = model
         self.courseModel = courseModel
+        self.planModel = planModel
         self.talkModel = talkModel
         self.languages = languages
         self.onContinueLearning = onContinueLearning
@@ -46,8 +52,11 @@ public struct HomeView: View {
             .task { await courseModel?.load() }
             .sheet(isPresented: $isPresentingReassessSheet) {
                 if let courseModel {
-                    ReassessCourseSheet(model: courseModel) {
+                    ReassessCourseSheet(
+                        model: courseModel,
+                        initialText: reassessHint) {
                         isPresentingReassessSheet = false
+                        reassessHint = ""
                     }
                 }
             }
@@ -84,6 +93,7 @@ public struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 languagesCard(summary)
+                reassessmentBanner
                 if let courseModel {
                     courseArcSection(courseModel: courseModel)
                 }
@@ -93,6 +103,48 @@ public struct HomeView: View {
             .padding()
             .frame(maxWidth: 640, alignment: .leading)
             .frame(maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private var reassessmentBanner: some View {
+        let suggestion = ReassessmentSuggestion.evaluate(
+            course: courseModel?.state ?? .idle,
+            plan: planModel?.state ?? .idle)
+        if case let .suggested(title, rationale, hint) = suggestion {
+            Button {
+                reassessHint = hint
+                isPresentingReassessSheet = true
+            } label: {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "sparkles")
+                        .font(.title2)
+                        .foregroundStyle(.tint)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        Text(rationale)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(.tint.opacity(0.3)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("home-reassessment-banner")
+            .accessibilityLabel(title)
+            .accessibilityHint(rationale)
         }
     }
 
