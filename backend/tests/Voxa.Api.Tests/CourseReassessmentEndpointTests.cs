@@ -57,6 +57,33 @@ public sealed class CourseReassessmentEndpointTests
     }
 
     [Fact]
+    public async Task PostAsyncReturnsRetryable503WhenConcurrencyRetriesAreExhausted()
+    {
+        // Regression: CourseReassessmentService retries under optimistic
+        // concurrency but eventually rethrows on the final attempt. The
+        // endpoint used to let that escape as an unhandled 500 — clients
+        // couldn't tell it was a transient conflict worth retrying. Now
+        // maps to a retryable 503 with a stable error code.
+        var endpoint = new CourseReassessmentEndpoint(new FakeReassessmentService(
+            (_, _) => throw new StaleLearnerStateVersionException(
+                TenantId.Create("t"),
+                UserId.Create("u"),
+                expectedVersion: LearnerStateVersion.Create(2),
+                actualVersion: LearnerStateVersion.Create(3))));
+
+        var response = await endpoint.PostAsync(
+            principal: SamplePrincipal(),
+            request: new CourseReassessmentHttpRequest("more speaking"),
+            correlationId: "corr-conflict",
+            cancellationToken: CancellationToken.None);
+
+        Assert.Equal(503, response.StatusCode);
+        Assert.Equal("course_reassessment_conflict", response.Error?.Code);
+        Assert.True(response.Error?.Retryable);
+        Assert.Equal("corr-conflict", response.Error?.CorrelationId);
+    }
+
+    [Fact]
     public async Task PostAsyncMapsResultingPlanIntoLearnerCourseHttpResponse()
     {
         CourseReassessmentCommand? captured = null;

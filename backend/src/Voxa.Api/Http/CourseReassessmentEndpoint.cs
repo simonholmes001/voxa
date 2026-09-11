@@ -64,6 +64,24 @@ public sealed class CourseReassessmentEndpoint(ICourseReassessmentService reasse
                     requestCorrelationId.Value,
                     Retryable: true));
         }
+        catch (StaleLearnerStateVersionException)
+        {
+            // CourseReassessmentService retries under optimistic
+            // concurrency but eventually gives up (currently after
+            // MaxConcurrencyAttempts). Without an explicit mapping the
+            // exhausted-conflict path escaped as an unhandled 500 —
+            // clients couldn't tell it was a transient conflict worth
+            // retrying. Surface it as a retryable 503 so client-side
+            // recovery is deterministic and telemetry can distinguish
+            // "temporary conflict" from a real server bug.
+            return ApiResponse<LearnerCourseHttpResponse>.Failure(
+                503,
+                new ApiErrorResponse(
+                    "course_reassessment_conflict",
+                    "Your course was being updated at the same time. Please try again.",
+                    requestCorrelationId.Value,
+                    Retryable: true));
+        }
     }
 }
 
