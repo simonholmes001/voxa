@@ -19,6 +19,9 @@ public struct HomeView: View {
     /// Pre-fills the Reassess sheet when the learner accepts the
     /// evidence-based banner. Cleared after the sheet closes.
     @State private var reassessHint: String = ""
+    /// Drives the CourseDetailView sheet — opened when the learner taps
+    /// the course card body to see every lesson in the arc.
+    @State private var isPresentingCourseDetail = false
 
     public init(
         model: HomeViewModel,
@@ -60,6 +63,33 @@ public struct HomeView: View {
                     }
                 }
             }
+            .sheet(isPresented: $isPresentingCourseDetail) {
+                if let courseModel, let course = readyCourse(courseModel) {
+                    CourseDetailView(
+                        course: course,
+                        onStartLesson: { lesson in
+                            isPresentingCourseDetail = false
+                            onStartTalk(lesson.intent)
+                        },
+                        onReassess: {
+                            isPresentingCourseDetail = false
+                            isPresentingReassessSheet = true
+                        },
+                        onDismiss: { isPresentingCourseDetail = false }
+                    )
+                }
+            }
+    }
+
+    /// Extracts the current LearnerCourse from the view model when it is in
+    /// a state that has content to render — `.ready` or the transient
+    /// `.reassessing` state (which carries the previous course).
+    private func readyCourse(_ courseModel: LearnerCourseViewModel) -> LearnerCourse? {
+        switch courseModel.state {
+        case let .ready(course): return course
+        case let .reassessing(previous): return previous
+        default: return nil
+        }
     }
 
     @ViewBuilder
@@ -241,7 +271,17 @@ public struct HomeView: View {
                 .accessibilityIdentifier("home-course-current-lesson")
                 .disabled(isReassessing)
             }
-            HStack {
+            HStack(spacing: 8) {
+                Button {
+                    isPresentingCourseDetail = true
+                } label: {
+                    Label("See all \(course.totalLessons) lessons", systemImage: "list.bullet")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isReassessing || course.totalLessons == 0)
+                .accessibilityIdentifier("home-course-see-all")
                 Button {
                     isPresentingReassessSheet = true
                 } label: {
@@ -279,15 +319,7 @@ public struct HomeView: View {
     }
 
     private func progressCaption(for course: LearnerCourse) -> String {
-        let completed = course.lessons.filter { $0.status == .completed }.count
-        let total = course.totalLessons
-        if completed == 0 {
-            return "Lesson \(course.currentLessonIndex) of \(total)"
-        }
-        if completed == total {
-            return "\(total) of \(total) — course complete"
-        }
-        return "Lesson \(course.currentLessonIndex) of \(total) · \(completed) done"
+        course.progressCaption
     }
 
     private func languagesCard(_ summary: LearnerProfileSummary) -> some View {
@@ -309,32 +341,85 @@ public struct HomeView: View {
             }
 
             let rows = resolvedLanguages(for: summary)
-            ForEach(rows) { language in
-                Button {
-                    onSelectLanguage(language.id)
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: language.isActive ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(language.isActive ? .green : .secondary)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(language.name)
-                                .font(.body)
-                                .fontWeight(.semibold)
-                            Text("\(language.levelName) • \(language.dailyMinutes) min/day")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .contentShape(Rectangle())
+            if rows.count > 2 {
+                // Compact chips: with 3+ languages the vertical list
+                // pushes the course card off-screen. Horizontal chips
+                // keep the switcher on one line no matter how many
+                // languages the learner has added.
+                languageChipRow(rows)
+            } else {
+                ForEach(rows) { language in
+                    languageRow(language)
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func languageRow(_ language: LearnerLanguageSummary) -> some View {
+        Button {
+            onSelectLanguage(language.id)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: language.isActive ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(language.isActive ? .green : .secondary)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(language.name)
+                        .font(.body)
+                        .fontWeight(.semibold)
+                    Text("\(language.levelName) • \(language.dailyMinutes) min/day")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func languageChipRow(_ languages: [LearnerLanguageSummary]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(languages) { language in
+                    languageChip(language)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .accessibilityIdentifier("home-language-chips")
+    }
+
+    private func languageChip(_ language: LearnerLanguageSummary) -> some View {
+        Button {
+            onSelectLanguage(language.id)
+        } label: {
+            HStack(spacing: 6) {
+                if language.isActive {
+                    Image(systemName: "checkmark")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .accessibilityHidden(true)
+                }
+                Text(language.name)
+                    .font(.callout)
+                    .fontWeight(.semibold)
+                Text(language.levelName)
+                    .font(.caption)
+                    .foregroundStyle(language.isActive ? .primary : .secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .foregroundColor(language.isActive ? .white : .primary)
+            .background(language.isActive ? Color.accentColor : Color.secondary.opacity(0.12),
+                        in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("home-language-chip-\(language.id)")
+        .accessibilityLabel("\(language.name), \(language.levelName)\(language.isActive ? ", active" : "")")
     }
 
     /// Today card — the daily-practice quota surface. Deliberately narrow

@@ -61,11 +61,13 @@ struct RouteDestinationView: View {
                 }
             )
         case .progress:
-            LearningRouteView(
-                content: learningPlan.progress,
-                primaryAction: onContinueLearning,
-                rowAction: { _ in onContinueLearning() }
+            ProgressRoute(
+                summary: practiceSummary,
+                courseState: learnerCourseModel?.state ?? .idle,
+                onContinueLearning: onContinueLearning,
+                onStartTalk: onStartTalk
             )
+            .task { await learnerCourseModel?.load() }
         case .settings where languageManager != nil:
             LanguageManagementView(
                 profiles: languageManager!.profileModel.allProfiles,
@@ -175,6 +177,56 @@ struct RouteDestinationView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle(route.title)
+    }
+}
+
+/// Progress tab wrapper that owns the CourseDetailView sheet state
+/// locally, so the Progress → "See lesson plan" button opens the arc
+/// without requiring the Progress tab to bounce back to Home. Keeps the
+/// full-arc surface reusable across Home and Progress with a single
+/// implementation.
+private struct ProgressRoute: View {
+    let summary: LearnerProfileSummary?
+    let courseState: LearnerCourseState
+    let onContinueLearning: () -> Void
+    let onStartTalk: (RealtimeTutorIntent) -> Void
+    @State private var isPresentingCourseDetail = false
+
+    var body: some View {
+        ProgressDashboardView(
+            summary: summary,
+            courseState: courseState,
+            onContinueLearning: onContinueLearning,
+            onStartTalk: onStartTalk,
+            onOpenCourse: { isPresentingCourseDetail = true }
+        )
+        .sheet(isPresented: $isPresentingCourseDetail) {
+            if let course = readyCourse {
+                CourseDetailView(
+                    course: course,
+                    onStartLesson: { lesson in
+                        isPresentingCourseDetail = false
+                        onStartTalk(lesson.intent)
+                    },
+                    onReassess: {
+                        // Reassess is Home's affordance — closing the sheet
+                        // here keeps intent explicit; the Progress tab
+                        // doesn't own the reassess sheet state and Home
+                        // does. Learner returns to Home to trigger it.
+                        isPresentingCourseDetail = false
+                    },
+                    onDismiss: { isPresentingCourseDetail = false }
+                )
+            }
+        }
+    }
+
+    private var readyCourse: LearnerCourse? {
+        switch courseState {
+        case let .ready(course): return course
+        case let .reassessing(previous): return previous
+        default: return nil
+        }
     }
 }
 

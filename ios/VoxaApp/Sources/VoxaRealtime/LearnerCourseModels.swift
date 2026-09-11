@@ -46,6 +46,30 @@ public struct LearnerCourse: Sendable, Equatable {
         let completed = lessons.filter { $0.status == .completed }.count
         return Double(completed) / Double(lessons.count)
     }
+
+    /// Number of lessons in the arc the learner has completed.
+    public var completedLessonCount: Int {
+        lessons.filter { $0.status == .completed }.count
+    }
+
+    /// One-line caption for the Home/Progress/CourseDetail cards. Adjusts
+    /// so an unstarted, mid-course, and fully-completed arc each read
+    /// naturally:
+    ///  - unstarted (0 done): "Lesson 1 of 28"
+    ///  - mid-course:         "Lesson 4 of 28 · 3 done"
+    ///  - complete (N of N):  "28 of 28 — course complete"
+    public var progressCaption: String {
+        let completed = completedLessonCount
+        let total = totalLessons
+        if total == 0 { return "" }
+        if completed == 0 {
+            return "Lesson \(currentLessonIndex) of \(total)"
+        }
+        if completed == total {
+            return "\(total) of \(total) — course complete"
+        }
+        return "Lesson \(currentLessonIndex) of \(total) · \(completed) done"
+    }
 }
 
 public struct PlannedLesson: Sendable, Equatable, Identifiable {

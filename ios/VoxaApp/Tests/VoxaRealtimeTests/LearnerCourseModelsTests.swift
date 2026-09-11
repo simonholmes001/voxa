@@ -135,6 +135,73 @@ final class LearnerCourseModelsTests: XCTestCase {
         XCTAssertEqual(l.intent, .lesson(title: l.title))
     }
 
+    // MARK: - completedLessonCount
+
+    func testCompletedLessonCountIsZeroForFreshCourse() {
+        let course = LearnerCourse(
+            correlationId: "c", planId: "p", title: "…",
+            lessons: [
+                lesson(id: "l1", order: 1, status: .current),
+                lesson(id: "l2", order: 2, status: .pending),
+            ])
+        XCTAssertEqual(course.completedLessonCount, 0)
+    }
+
+    func testCompletedLessonCountReflectsCompletedLessons() {
+        let course = LearnerCourse(
+            correlationId: "c", planId: "p", title: "…",
+            lessons: [
+                lesson(id: "l1", order: 1, status: .completed),
+                lesson(id: "l2", order: 2, status: .completed),
+                lesson(id: "l3", order: 3, status: .current),
+                lesson(id: "l4", order: 4, status: .pending),
+            ])
+        XCTAssertEqual(course.completedLessonCount, 2)
+    }
+
+    // MARK: - progressCaption
+
+    func testProgressCaptionForUnstartedCourseShowsLessonOneOfTotal() {
+        let course = LearnerCourse(
+            correlationId: "c", planId: "p", title: "…",
+            lessons: [
+                lesson(id: "l1", order: 1, status: .current),
+                lesson(id: "l2", order: 2, status: .pending),
+                lesson(id: "l3", order: 3, status: .pending),
+            ])
+        XCTAssertEqual(course.progressCaption, "Lesson 1 of 3")
+    }
+
+    func testProgressCaptionForMidCourseIncludesDoneCount() {
+        // The user's core complaint: "no progress update indicated even
+        // though I had completed a lesson". After E-bucket the caption
+        // shows completed count explicitly.
+        let course = LearnerCourse(
+            correlationId: "c", planId: "p", title: "…",
+            lessons: [
+                lesson(id: "l1", order: 1, status: .completed),
+                lesson(id: "l2", order: 2, status: .current),
+                lesson(id: "l3", order: 3, status: .pending),
+                lesson(id: "l4", order: 4, status: .pending),
+            ])
+        XCTAssertEqual(course.progressCaption, "Lesson 2 of 4 · 1 done")
+    }
+
+    func testProgressCaptionForCompletedCourseReadsAsComplete() {
+        let course = LearnerCourse(
+            correlationId: "c", planId: "p", title: "…",
+            lessons: [
+                lesson(id: "l1", order: 1, status: .completed),
+                lesson(id: "l2", order: 2, status: .completed),
+            ])
+        XCTAssertEqual(course.progressCaption, "2 of 2 — course complete")
+    }
+
+    func testProgressCaptionForEmptyCourseIsEmpty() {
+        let course = LearnerCourse(correlationId: "c", planId: "p", title: "…", lessons: [])
+        XCTAssertEqual(course.progressCaption, "")
+    }
+
     // MARK: - Helper
 
     private func lesson(id: String, order: Int, status: PlannedLessonStatus) -> PlannedLesson {
