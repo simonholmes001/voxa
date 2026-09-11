@@ -188,4 +188,68 @@ final class PracticeHubTests: XCTestCase {
             minutesPracticedToday: 0
         )
     }
+
+    // MARK: - C2 planner-driven Today card
+
+    func testPlanStateReadyPromotesRecommendationOverRuleBasedFallback() {
+        // Even when the rule-based fallback would say "review 5 due items",
+        // a ready plan wins. This is what turns the Today card from generic
+        // rotation into a real per-learner recommendation.
+        let plan = LearnerPlan(
+            correlationId: "corr",
+            recommendedSession: RecommendedSession(
+                activityIntent: "pronunciation_drill",
+                focusTitle: "French u vowel",
+                reason: "you missed the u in *tu* twice last session."),
+            focusAreas: ["front rounded vowels", "past-tense forms"])
+        let card = PracticeHub.todayCard(
+            planState: .ready(plan),
+            summary: summary(dueReviewCount: 5))
+
+        // Card title, subtitle, and action all come from the plan.
+        XCTAssertEqual(card.title, "Pronunciation drill: French u vowel")
+        XCTAssertEqual(card.subtitle, "you missed the u in *tu* twice last session.")
+        XCTAssertEqual(card.focusAreas.count, 2)
+        XCTAssertEqual(PracticeHub.todayIntent(for: card.recommendation),
+                       .pronunciationDrill(focusTitle: "French u vowel"))
+    }
+
+    func testPlanStateLoadingFallsBackToRuleBasedRecommendation() {
+        // While the plan is loading, don't leave the card blank — the
+        // learner sees the rule-based recommendation from B3.
+        let card = PracticeHub.todayCard(planState: .loading, summary: summary(dueReviewCount: 3))
+        XCTAssertEqual(card.recommendation, .review(dueCount: 3))
+    }
+
+    func testPlanStateFailedFallsBackToRuleBasedRecommendation() {
+        let card = PracticeHub.todayCard(planState: .failed("boom"), summary: summary(dueReviewCount: 0))
+        XCTAssertEqual(card.recommendation, .freeConversation)
+    }
+
+    func testPlanRecommendationWithEmptyFocusTitleShowsActivityTitleOnly() {
+        // open_practice usually recommends no focus title; the card should
+        // display "Speaking practice" rather than "Speaking practice: ".
+        let plan = LearnerPlan(
+            correlationId: "c",
+            recommendedSession: RecommendedSession(
+                activityIntent: "open_practice",
+                focusTitle: "",
+                reason: "let's start with a chat so I can hear you."),
+            focusAreas: [])
+        let card = PracticeHub.todayCard(planState: .ready(plan), summary: nil)
+        XCTAssertEqual(card.title, "Speaking practice")
+        XCTAssertEqual(card.focusAreas, [])
+    }
+
+    func testPlanRecommendationWithUnknownIntentFallsBackToOpenPracticeIntent() {
+        let plan = LearnerPlan(
+            correlationId: "c",
+            recommendedSession: RecommendedSession(
+                activityIntent: "not_a_known_intent",
+                focusTitle: "",
+                reason: ""),
+            focusAreas: [])
+        let card = PracticeHub.todayCard(planState: .ready(plan), summary: nil)
+        XCTAssertEqual(PracticeHub.todayIntent(for: card.recommendation), .openPractice)
+    }
 }

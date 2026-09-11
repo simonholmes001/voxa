@@ -8,13 +8,16 @@ import VoxaRealtime
 /// per-activity Realtime prompts B1 shipped.
 public struct PracticeHubView: View {
     private let summary: LearnerProfileSummary?
+    private let planState: LearnerPlanState
     private let onStartTalk: (RealtimeTutorIntent) -> Void
 
     public init(
         summary: LearnerProfileSummary?,
+        planState: LearnerPlanState = .idle,
         onStartTalk: @escaping (RealtimeTutorIntent) -> Void
     ) {
         self.summary = summary
+        self.planState = planState
         self.onStartTalk = onStartTalk
     }
 
@@ -32,20 +35,30 @@ public struct PracticeHubView: View {
     }
 
     private var todayCard: some View {
-        let card = PracticeHub.todayCard(for: summary)
+        let card = PracticeHub.todayCard(planState: planState, summary: summary)
         return VStack(alignment: .leading, spacing: 10) {
-            Text("Today")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(.tint)
-                .textCase(.uppercase)
-                .accessibilityAddTraits(.isHeader)
+            HStack(spacing: 8) {
+                Text("Today")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.tint)
+                    .textCase(.uppercase)
+                    .accessibilityAddTraits(.isHeader)
+                if case .loading = planState {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .accessibilityLabel("Loading your plan")
+                }
+            }
             Text(card.title)
                 .font(.title2)
                 .fontWeight(.semibold)
             Text(card.subtitle)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            if !card.focusAreas.isEmpty {
+                focusChips(card.focusAreas)
+            }
             Button {
                 onStartTalk(PracticeHub.todayIntent(for: card.recommendation))
             } label: {
@@ -60,6 +73,20 @@ public struct PracticeHubView: View {
         .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("practice-today-card")
+    }
+
+    private func focusChips(_ areas: [String]) -> some View {
+        HStack(spacing: 6) {
+            ForEach(Array(areas.enumerated()), id: \.offset) { _, area in
+                Text(area)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.tint.opacity(0.2), in: Capsule())
+            }
+        }
+        .accessibilityIdentifier("practice-today-focus-areas")
     }
 
     private var tileGridSection: some View {

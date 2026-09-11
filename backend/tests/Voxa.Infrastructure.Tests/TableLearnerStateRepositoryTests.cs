@@ -141,6 +141,91 @@ public sealed class TableLearnerStateRepositoryTests
         Assert.Equal("fr", profiles[0].Profile.TargetLanguage);
     }
 
+    [Fact]
+    public async Task SaveAsyncRoundTripsTutorEvidenceIncludingRecurringMistakesAndRecommendation()
+    {
+        // C1 durability: a debrief written to learner state must survive the
+        // JSON round trip through Table Storage without losing any field the
+        // C2 planner will read.
+        var table = new InMemoryLearnerStateTable();
+        var repository = new TableLearnerStateRepository(table);
+        var recorded = new RecordedDebrief(
+            "corr-1",
+            DateTimeOffset.Parse("2026-09-09T14:00:00Z"),
+            "You practised past tense.",
+            [new RecordedMistake("past participle", "I have ate", "medium")],
+            ["How's it going?"],
+            ["the 'th' needs more tongue-tip contact"],
+            new RecommendedNextDrill("pronunciation_drill", "English th", "you tripped on 'th' twice."));
+        var state = LearnerState.Create(
+            TenantId.Create("tenant-a"),
+            UserId.Create("user-a"),
+            new LearnerProfile(TenantId.Create("tenant-a"), UserId.Create("user-a"), "fr", "en", "A1", ["travel"], 15),
+            ActiveLearningPlan.Empty,
+            LessonCheckpoint.None,
+            ReviewQueue.Empty,
+            RecentSessionSummaries.Empty,
+            new TutorEvidence([recorded]));
+
+        await repository.SaveAsync(state, null, CancellationToken.None);
+        var loaded = await repository.GetAsync(state.TenantId, state.UserId, CancellationToken.None);
+
+        Assert.NotNull(loaded);
+        var loadedRecorded = Assert.Single(loaded.TutorEvidence.RecentDebriefs);
+        Assert.Equal("corr-1", loadedRecorded.CorrelationId);
+        Assert.Equal("You practised past tense.", loadedRecorded.Summary);
+        var mistake = Assert.Single(loadedRecorded.RecurringMistakes);
+        Assert.Equal("past participle", mistake.Pattern);
+        Assert.Equal("I have ate", mistake.Example);
+        Assert.Equal("medium", mistake.Severity);
+        Assert.Equal(["How's it going?"], loadedRecorded.UsefulPhrases);
+        Assert.Equal(["the 'th' needs more tongue-tip contact"], loadedRecorded.PronunciationNotes);
+        Assert.Equal("pronunciation_drill", loadedRecorded.RecommendedNextDrill.ActivityIntent);
+        Assert.Equal("English th", loadedRecorded.RecommendedNextDrill.FocusTitle);
+        Assert.Equal("you tripped on 'th' twice.", loadedRecorded.RecommendedNextDrill.Reason);
+    }
+
+    [Fact]
+    public async Task GetAsyncTreatsLegacyDocumentsWithoutTutorEvidenceAsEmpty()
+    {
+        // Backwards compatibility: rows written before the C1 schema change
+        // don't have the tutorEvidence field. They must load as an empty
+        // TutorEvidence rather than crashing on missing JSON.
+        var table = new InMemoryLearnerStateTable();
+        var repository = new TableLearnerStateRepository(table);
+        await table.UpsertAsync(
+            new LearnerStateTableEntity(
+                "tenant-a",
+                "user-a",
+                "etag-1",
+                2,
+                """
+                {
+                  "tenantId": "tenant-a",
+                  "userId": "user-a",
+                  "version": 2,
+                  "profile": {
+                    "targetLanguage": "fr",
+                    "nativeLanguage": "en",
+                    "proficiencyLevel": "A1",
+                    "goals": ["travel"],
+                    "dailyMinutes": 15
+                  },
+                  "activePlan": { "planId": "", "title": "", "knowledgeUnitIds": [] },
+                  "currentLesson": { "lessonId": "", "knowledgeUnitId": "", "stepIndex": 0, "updatedAt": "1970-01-01T00:00:00Z" },
+                  "reviewQueue": [],
+                  "recentSessions": []
+                }
+                """),
+            null,
+            CancellationToken.None);
+
+        var loaded = await repository.GetAsync(TenantId.Create("tenant-a"), UserId.Create("user-a"), CancellationToken.None);
+
+        Assert.NotNull(loaded);
+        Assert.Empty(loaded.TutorEvidence.RecentDebriefs);
+    }
+
     private static LearnerState CreateState(TenantId tenantId, UserId userId)
     {
         return LearnerState.Create(

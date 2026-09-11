@@ -77,6 +77,7 @@ public static class VoxaApiServiceCollectionExtensions
         services.AddSingleton<IRealtimeSessionRateLimiter, TableRealtimeSessionRateLimiter>();
         services.AddSingleton<IRealtimeSessionAuditLog, TableRealtimeSessionAuditLog>();
         services.AddSingleton<IRealtimeSessionService, RealtimeSessionService>();
+        services.AddSingleton<ILearnerEvidenceService, LearnerEvidenceService>();
         services.AddSingleton<IModelRouter>(_ => OpenAiModelRouter.CreateDefault());
         services.AddSingleton<IPromptRegistry>(_ => EmbeddedPromptRegistry.CreateDefault());
         services.AddHttpClient<IRealtimeClientSecretIssuer, OpenAiRealtimeClientSecretIssuer>(client =>
@@ -87,12 +88,17 @@ public static class VoxaApiServiceCollectionExtensions
         {
             client.BaseAddress = new Uri("https://api.openai.com/");
         });
+        services.AddHttpClient<ILearnerPlanService, OpenAiLearnerPlanService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.openai.com/");
+        });
         services.AddSingleton(new OpenAiRealtimeOptions(openAiApiKey));
         services.AddSingleton<SignInWithAppleEndpoint>();
         services.AddSingleton<RefreshAppSessionEndpoint>();
         services.AddSingleton<LogoutAppSessionEndpoint>();
         services.AddSingleton<RealtimeSessionEndpoint>();
         services.AddSingleton<RealtimeDebriefEndpoint>();
+        services.AddSingleton<LearnerPlanEndpoint>();
         services.AddSingleton<LearningSessionCompletionEndpoint>();
         services.AddSingleton<ResumeSessionEndpoint>();
         services.AddSingleton<LanguageProfilesEndpoint>();

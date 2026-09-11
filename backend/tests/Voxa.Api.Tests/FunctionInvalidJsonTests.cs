@@ -248,7 +248,8 @@ public sealed class FunctionInvalidJsonTests
             new RefreshAppSessionEndpoint(new StubAppSessionService()),
             new LogoutAppSessionEndpoint(new StubAppSessionService()),
             new RealtimeSessionEndpoint(new StubRealtimeSessionService()),
-            new RealtimeDebriefEndpoint(new StubDebriefService()),
+            new RealtimeDebriefEndpoint(new StubDebriefService(), new StubLearnerEvidenceService(), NullLogger<RealtimeDebriefEndpoint>.Instance),
+            new LearnerPlanEndpoint(new StubLearnerPlanService()),
             new LearningSessionCompletionEndpoint(new StubLearningSessionCompletionService()),
             new ResumeSessionEndpoint(new StubLearnerSessionQueries()),
             new LanguageProfilesEndpoint(new LanguageProfileService(learnerStateRepository)),
@@ -398,6 +399,30 @@ public sealed class FunctionInvalidJsonTests
             CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class StubLearnerPlanService : ILearnerPlanService
+    {
+        public Task<LearnerPlan> GetTodayPlanAsync(
+            TenantId tenantId,
+            UserId userId,
+            CorrelationId correlationId,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class StubLearnerEvidenceService : ILearnerEvidenceService
+    {
+        public Task RecordDebriefAsync(
+            TenantId tenantId,
+            UserId userId,
+            SessionDebrief debrief,
+            CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
         }
     }
 

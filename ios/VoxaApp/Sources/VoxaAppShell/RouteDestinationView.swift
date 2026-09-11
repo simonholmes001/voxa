@@ -14,6 +14,7 @@ struct RouteDestinationView: View {
     let route: AppRoute
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
+    var learnerPlanModel: LearnerPlanViewModel?
     var languageManager: LanguageManagerContext?
     var onContinueLearning: () -> Void = {}
     var onStartTalk: (RealtimeTutorIntent) -> Void = { _ in }
@@ -37,8 +38,10 @@ struct RouteDestinationView: View {
         case .practice:
             PracticeHubView(
                 summary: practiceSummary,
+                planState: learnerPlanModel?.state ?? .idle,
                 onStartTalk: onStartTalk
             )
+            .task { await learnerPlanModel?.load() }
         case .review:
             LearningRouteView(
                 content: learningPlan.review,
