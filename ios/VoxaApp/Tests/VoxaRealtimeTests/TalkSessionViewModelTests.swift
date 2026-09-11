@@ -149,6 +149,7 @@ final class TalkSessionViewModelTests: XCTestCase {
         completionService: FakeRealtimeSessionCompletionService? = nil,
         transport: FakeRealtimeTransport = FakeRealtimeTransport(),
         debriefService: any DebriefService = NotConfiguredDebriefService(),
+        idleTimerControl: any IdleTimerControl = RecordingIdleTimerControl(),
         token: String? = "access-token",
         onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {},
         nowProvider: @escaping @MainActor @Sendable () -> Date = { Date() }
@@ -160,6 +161,7 @@ final class TalkSessionViewModelTests: XCTestCase {
             completionService: completionService,
             transport: transport,
             debriefService: debriefService,
+            idleTimerControl: idleTimerControl,
             accessTokenProvider: { token },
             onSessionCompleted: onSessionCompleted,
             nowProvider: nowProvider
@@ -597,5 +599,86 @@ final class TalkSessionViewModelTests: XCTestCase {
         model.acknowledgeDebrief()
 
         XCTAssertEqual(model.debriefState, .idle)
+    }
+
+    // MARK: - Idle-timer
+
+    func testStartKeepsScreenAwakeOnceOnConnectedTransition() async {
+        // Regression: mid-session the iPhone was auto-locking after ~30 s
+        // of no touches, which killed the WebSocket and ended the tutor
+        // session unexpectedly. The view model now claims the awake lock
+        // once when the session reaches .connected.
+        let idle = RecordingIdleTimerControl()
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: idle)
+
+        await model.start()
+
+        XCTAssertEqual(model.state, .connected)
+        XCTAssertEqual(idle.events, [.keepAwake])
+        XCTAssertTrue(idle.isCurrentlyKeepingAwake)
+    }
+
+    func testEndReleasesTheAwakeClaimSoTheScreenCanAutoLockAgain() async {
+        let idle = RecordingIdleTimerControl()
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: idle)
+
+        await model.start()
+        await model.end()
+
+        XCTAssertEqual(idle.events, [.keepAwake, .allowSleep])
+        XCTAssertFalse(idle.isCurrentlyKeepingAwake)
+    }
+
+    func testFailedConnectDoesNotKeepScreenAwake() async {
+        // If the transport connect fails before we ever reach .connected,
+        // we never claimed the lock — so we don't need to release either.
+        let idle = RecordingIdleTimerControl()
+        let transport = FakeRealtimeTransport(
+            connectResult: .failure(RealtimeTransportError.connectionFailed("nope")))
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            transport: transport,
+            idleTimerControl: idle)
+
+        await model.start()
+
+        if case .failed = model.state {} else { XCTFail("expected .failed, got \(model.state)") }
+        XCTAssertEqual(idle.events, [])
+    }
+
+    func testMissingMicPermissionDoesNotKeepScreenAwake() async {
+        let idle = RecordingIdleTimerControl()
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .denied),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: idle)
+
+        await model.start()
+
+        XCTAssertEqual(idle.events, [])
+    }
+
+    func testEndCalledFromIdleStateStillCallsAllowSleepSafely() async {
+        // Guard: if the view is torn down or `end()` is invoked without a
+        // matching `.start()`, the release path shouldn't crash and
+        // shouldn't leave a phantom claim on the screen. allowScreenSleep
+        // is documented as idempotent.
+        let idle = RecordingIdleTimerControl()
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: idle)
+
+        await model.end()
+
+        XCTAssertEqual(idle.events, [.allowSleep])
+        XCTAssertFalse(idle.isCurrentlyKeepingAwake)
     }
 }
