@@ -1,24 +1,17 @@
 kind: completion
 id: realtime-tutor/debrief
-version: 1
+version: 2
 capability: AssessmentModel
-deprecated: true
-supersededBy: 2
 description: >
-  Non-realtime debrief pass over a completed Talk session. Given the
-  turn-by-turn transcript, produces a structured summary the learner
-  can act on: one-sentence overview, up to three recurring mistakes
-  with examples, up to five useful phrases the learner picked up, up
-  to three pronunciation notes, and one recommended next drill. Runs
-  after each session ends; the app renders the result as a set of
-  cards on the debrief screen and (later, in Phase D) writes the
-  evidence back to the learner model.
-
-  DEPRECATED — use v2 for new calls. v1 required a recurring mistake
-  to appear more than once across the transcript, which left short
-  first sessions showing empty placeholders. v2 accepts a single
-  medium-plus mistake with a clear example. Kept in-tree until no
-  PromptTrace has referenced it for 90 days (§6.3).
+  v2 of the post-session debrief. Same schema as v1 but with looser
+  rules for surfacing single-session signal: a single medium-plus
+  mistake with a concrete example counts as a "recurring" item worth
+  flagging (v1 required more than one occurrence, which left short
+  first sessions showing three empty placeholder cards). Also asks the
+  assessor to surface at least one "quick win" phrase or one
+  pronunciation observation when the transcript supports it, so the
+  four card sections aren't uniformly empty for a short first session.
+  v1 stays in the registry, deprecated but not deleted (Section 6.3).
 variables:
   - name: targetLanguage
     required: true
@@ -108,16 +101,31 @@ system: |
      quote a real learner utterance from the transcript in the "example"
      field. Every useful phrase MUST be a phrase the learner or tutor
      actually said in the session. No fabricated content.
-  2. If the transcript is very short (fewer than two full learner turns),
-     say so honestly in "summary" and produce empty lists for the
-     evidence fields — do NOT invent errors or phrases to fill quotas.
-  3. Recurring mistakes: only surface an error class if it appears MORE
-     THAN ONCE across the transcript, or if it is a single-occurrence
-     blocker for comprehension. One-off, low-severity slips do not count.
+  2. If the transcript is truly minimal (fewer than one full learner
+     turn OR no learner utterances at all), say so in "summary" and
+     produce empty lists. Otherwise, prefer to surface at least SOME
+     concrete signal from the evidence — v1 was too conservative and
+     left short first sessions looking like the feature was broken.
+  3. Recurring mistakes: surface an error class when any ONE of these
+     holds:
+       - it appears more than once across the transcript;
+       - it is a single-occurrence blocker for comprehension;
+       - it is a single medium-plus mistake with a clear example
+         (learner used the wrong verb, wrong tense, wrong article, or
+         a wrong preposition, and the tutor's response confirms the
+         miss). Prefer at least ONE such item when the transcript
+         supports it.
+     One-off low-severity slips (word-final swallowed sound, a slight
+     hesitation) still do not count.
   4. Useful phrases: prefer phrases the learner PRODUCED successfully
      over phrases the tutor introduced. Learner wins are what stick.
-  5. Pronunciation notes: only include notes the transcript would let a
-     human judge (repeated mishearings by the tutor, explicit
+     If the learner produced NO complete phrase, surface AT MOST one
+     tutor-introduced phrase that the learner would benefit from
+     internalising — clearly marked as such in the phrase text (prefix
+     with "From tutor:" ONLY when the phrase came from the tutor and
+     the learner did not echo it).
+  5. Pronunciation notes: only include notes the transcript would let
+     a human judge (repeated mishearings by the tutor, explicit
      pronunciation feedback given by the tutor). If nothing in the
      transcript supports a pronunciation observation, return an empty
      list. Do not guess.
@@ -126,9 +134,11 @@ system: |
      session was pronunciation and there was residual difficulty, next
      is `pronunciation_drill`; if two grammar patterns recurred, next
      is `mistakes_replay`; if the learner is on a lesson plan and this
-     session went well, next is `guided_lesson` on the next unit.
+     session went well, next is `guided_lesson` on the next unit; if
+     the learner produced very little, next is `open_practice`.
   7. Reason for the recommendation: one sentence, addressed to the
-     learner in second person ("you tripped on…"), not to a third party.
+     learner in second person ("you tripped on…"), not to a third
+     party.
   8. Write summary, reason, pattern, example, notes, and phrases in
      English (the learner's UI language). Quoted transcript excerpts
      stay in {{targetLanguage}}.
@@ -142,3 +152,5 @@ user: |
 notes: >
   See docs/specs/model-router-and-prompt-registry.md §6.2 for the completion
   schema. Consuming service is Voxa.Application.Realtime.IDebriefService.
+  v1 remains in the registry as deprecated until no PromptTrace has
+  referenced it for 90 days (per §6.3).

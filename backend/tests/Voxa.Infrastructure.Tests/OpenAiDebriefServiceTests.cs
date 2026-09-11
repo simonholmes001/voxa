@@ -110,6 +110,28 @@ public sealed class OpenAiDebriefServiceTests
         Assert.DoesNotContain("server-api-key", handler.Body, StringComparison.Ordinal);
         Assert.Contains("\"response_format\":{\"type\":\"json_object\"}", handler.Body, StringComparison.Ordinal);
         Assert.Contains("gpt-5.6-sol", handler.Body, StringComparison.Ordinal);
+        // v2-specific system text: the loosened recurring-mistake rule
+        // must actually reach the model. If someone accidentally reverts
+        // the service pin back to v1 this catches it.
+        Assert.Contains("single medium-plus mistake with a clear example", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DebriefPromptRegistryStillResolvesV1AsDeprecatedForBackwardsTrace()
+    {
+        // §6.3: v1 stays in-tree until no PromptTrace has referenced it
+        // for 90 days. Registry must still resolve the ref, so a trace
+        // written under v1 remains readable even after the service pin
+        // moves to v2.
+        var registry = EmbeddedPromptRegistry.CreateDefault();
+        var v1 = registry.Get(new PromptRef("realtime-tutor/debrief", 1));
+        Assert.NotNull(v1);
+        Assert.Equal(AiCapability.AssessmentModel, v1.Capability);
+
+        var v2 = registry.Get(new PromptRef("realtime-tutor/debrief", 2));
+        Assert.NotNull(v2);
+        Assert.Equal(AiCapability.AssessmentModel, v2.Capability);
+        Assert.NotEqual(v1.Hash, v2.Hash);
     }
 
     [Fact]
