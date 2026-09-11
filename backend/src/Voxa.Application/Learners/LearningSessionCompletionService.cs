@@ -82,9 +82,13 @@ public sealed class LearningSessionCompletionService(ILearnerStateRepository rep
             var lessonId = command.LessonId ?? state.CurrentLesson.LessonId;
             var knowledgeUnitId = command.KnowledgeUnitId ?? state.CurrentLesson.KnowledgeUnitId;
             var isLessonSession = string.Equals(command.SessionIntent, "lesson", StringComparison.OrdinalIgnoreCase);
+            var isGuidedLessonSession = string.Equals(command.SessionIntent, "guided_lesson", StringComparison.OrdinalIgnoreCase);
 
             var updated = state with
             {
+                ActivePlan = isGuidedLessonSession
+                    ? AdvanceActivePlan(state.ActivePlan, command.LessonId)
+                    : state.ActivePlan,
                 CurrentLesson = isLessonSession
                     ? NextLessonCheckpoint(state.CurrentLesson, lessonId, knowledgeUnitId, command.SessionIntent, now)
                     : state.CurrentLesson,
@@ -109,6 +113,101 @@ public sealed class LearningSessionCompletionService(ILearnerStateRepository rep
         }
 
         throw new InvalidOperationException("Session completion did not produce a result.");
+    }
+
+    /// <summary>
+    /// Advances the learner's course arc when a guided-lesson session
+    /// completes. The lesson that gets marked <see cref="PlannedLessonStatus.Completed"/>
+    /// is whichever the client sent as <paramref name="clientLessonId"/> (if
+    /// it matches a Pending/Current entry), otherwise the current lesson —
+    /// derived server-side from <see cref="ActiveLearningPlan.CurrentLesson"/>.
+    /// Sessions with no matching lesson leave the plan unchanged (defensive:
+    /// the client could send a stale id after a reassessment).
+    /// The next Pending lesson (by <see cref="PlannedLesson.Order"/>) becomes
+    /// <see cref="PlannedLessonStatus.Current"/>. If the last lesson is
+    /// completed the plan simply has no more Current — the Home course card
+    /// then reads "27 of 27" and the Practice Today card falls through to
+    /// the rule-based recommendation.
+    /// </summary>
+    private static ActiveLearningPlan AdvanceActivePlan(ActiveLearningPlan plan, string? clientLessonId)
+    {
+        if (plan.Lessons.Count == 0)
+        {
+            return plan;
+        }
+
+        var target = ResolveLessonToComplete(plan, clientLessonId);
+        if (target is null)
+        {
+            return plan;
+        }
+
+        var lessons = plan.Lessons.ToArray();
+        var completedTarget = false;
+        for (var i = 0; i < lessons.Length; i++)
+        {
+            if (string.Equals(lessons[i].LessonId, target.LessonId, StringComparison.OrdinalIgnoreCase))
+            {
+                lessons[i] = lessons[i] with { Status = PlannedLessonStatus.Completed };
+                completedTarget = true;
+                break;
+            }
+        }
+
+        if (!completedTarget)
+        {
+            return plan;
+        }
+
+        // Normalise: exactly one Current at a time, and it's the earliest
+        // non-Completed lesson by Order. If the learner completed an out-of-
+        // order lesson (e.g. lesson-2 while lesson-1 is still Current), the
+        // arc's Current pointer stays on lesson-1 — completion doesn't
+        // leapfrog. If every lesson is now Completed, the plan has no
+        // Current at all and Home reads "N of N".
+        var earliestPendingIndex = -1;
+        var earliestOrder = int.MaxValue;
+        for (var i = 0; i < lessons.Length; i++)
+        {
+            if (lessons[i].Status != PlannedLessonStatus.Completed && lessons[i].Order < earliestOrder)
+            {
+                earliestOrder = lessons[i].Order;
+                earliestPendingIndex = i;
+            }
+        }
+
+        for (var i = 0; i < lessons.Length; i++)
+        {
+            if (lessons[i].Status == PlannedLessonStatus.Completed)
+            {
+                continue;
+            }
+            var desired = i == earliestPendingIndex
+                ? PlannedLessonStatus.Current
+                : PlannedLessonStatus.Pending;
+            if (lessons[i].Status != desired)
+            {
+                lessons[i] = lessons[i] with { Status = desired };
+            }
+        }
+
+        return plan with { Lessons = lessons };
+    }
+
+    private static PlannedLesson? ResolveLessonToComplete(ActiveLearningPlan plan, string? clientLessonId)
+    {
+        if (!string.IsNullOrWhiteSpace(clientLessonId))
+        {
+            var match = plan.Lessons.FirstOrDefault(lesson =>
+                string.Equals(lesson.LessonId, clientLessonId, StringComparison.OrdinalIgnoreCase)
+                && lesson.Status != PlannedLessonStatus.Completed);
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return plan.CurrentLesson;
     }
 
     private static LessonCheckpoint NextLessonCheckpoint(

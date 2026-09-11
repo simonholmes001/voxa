@@ -2,6 +2,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Voxa.Domain\Voxa.Domain.csproj" />
+    <!--
+      Abstractions-only. Adding the interfaces (ILogger<T>) so services can
+      emit diagnostic events; the concrete logger is supplied by DI at
+      runtime, so this package pulls in no implementation code.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
   </ItemGroup>
 
   <PropertyGroup>

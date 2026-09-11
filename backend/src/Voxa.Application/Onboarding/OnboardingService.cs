@@ -1,10 +1,17 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Voxa.Application.Learners;
 using Voxa.Domain.Learners;
 
 namespace Voxa.Application.Onboarding;
 
-public sealed class OnboardingService(ILearnerStateRepository repository)
+public sealed class OnboardingService(
+    ILearnerStateRepository repository,
+    ICourseAuthorService? courseAuthor = null,
+    ILogger<OnboardingService>? logger = null)
 {
+    private readonly ILogger<OnboardingService> logger = logger ?? NullLogger<OnboardingService>.Instance;
+
     public async Task<OnboardingSubmitResponse> SubmitAsync(
         OnboardingSubmitCommand command,
         CancellationToken cancellationToken)
@@ -64,12 +71,20 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
         // Generate initial learning plan based on proficiency and goals
         var activePlan = GenerateInitialPlan(command.ProficiencyLevel, command.Goals);
 
+        // Attempt to mint a personalised course from the learner's profile
+        // synchronously so onboarding completes with a real course visible
+        // on Home. The learner has been kept on a "Building your course…"
+        // progress screen through the call. Failure is non-fatal: we fall
+        // back to the placeholder plan below so onboarding always succeeds.
+        var mintedPlan = await TryMintInitialCourseAsync(command, profile, activePlan, cancellationToken);
+        var planForState = mintedPlan ?? activePlan;
+
         var state = LearnerState.Create(
             command.TenantId,
             command.UserId,
             profile,
-            activePlan,
-            CreateInitialLessonCheckpoint(activePlan),
+            planForState,
+            CreateInitialLessonCheckpoint(planForState),
             ReviewQueue.Empty,
             RecentSessionSummaries.Empty);
 
@@ -96,6 +111,62 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
                 saved.ActivePlan.Title,
                 saved.ActivePlan.KnowledgeUnitIds),
             saved.Version.Value);
+    }
+
+    private async Task<ActiveLearningPlan?> TryMintInitialCourseAsync(
+        OnboardingSubmitCommand command,
+        LearnerProfile profile,
+        ActiveLearningPlan fallbackPlan,
+        CancellationToken cancellationToken)
+    {
+        if (courseAuthor is null)
+        {
+            return null;
+        }
+        try
+        {
+            return await courseAuthor.AuthorCourseAsync(
+                new CourseAuthorRequest(
+                    command.TenantId,
+                    command.UserId,
+                    command.CorrelationId,
+                    profile,
+                    ExistingCourse: null,
+                    CompletedLessonIds: [],
+                    RecentDebriefs: [],
+                    ReassessmentRequest: null),
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The Voxa.Api caller cancelled — bubble so cooperative
+            // cancellation semantics reach the HTTP layer.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Non-fatal: onboarding succeeds with the placeholder plan
+            // and Home shows the "Generate my course" recovery card. We
+            // catch anything the author boundary didn't wrap
+            // (CourseAuthorException is the intended type, but the
+            // synchronous first-run path is critical enough to defend
+            // against surprises — a rogue HttpRequestException,
+            // TaskCanceledException from a client timeout, JsonException,
+            // configuration InvalidOperationException, etc. must not
+            // strand a brand-new learner). Log with correlation id +
+            // language so operators can diagnose which mints are failing
+            // and why.
+            logger.LogWarning(
+                ex,
+                "course.mint.failed correlationId={CorrelationId} targetLanguage={TargetLanguage} nativeLanguage={NativeLanguage} proficiency={Proficiency} exceptionType={ExceptionType}",
+                command.CorrelationId.Value,
+                profile.TargetLanguage,
+                profile.NativeLanguage,
+                profile.ProficiencyLevel,
+                ex.GetType().Name);
+            _ = fallbackPlan;
+            return null;
+        }
     }
 
     private static ActiveLearningPlan GenerateInitialPlan(string proficiencyLevel, IReadOnlyList<string> goals)

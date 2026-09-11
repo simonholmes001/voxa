@@ -1,0 +1,166 @@
+kind: completion
+id: curriculum-planner/author-course
+version: 1
+capability: CurriculumModel
+description: >
+  Mints or re-mints a learner's personalised course from their
+  onboarding profile plus (on a reassessment) their existing course +
+  completed-lesson list + accumulated debrief evidence + a free-text
+  reassessment request. Returns a coherent, ordered list of 20–30
+  lessons with concrete titles and learning objectives — the arc the
+  Home page renders as "You're on lesson 4 of 27".
+variables:
+  - name: targetLanguage
+    required: true
+  - name: nativeLanguage
+    required: true
+  - name: proficiencyBand
+    required: true
+  - name: dailyMinutes
+    required: true
+  - name: goals
+    required: true
+  - name: existingCourse
+    required: false
+  - name: completedLessons
+    required: false
+  - name: recentDebriefs
+    required: false
+  - name: reassessmentRequest
+    required: false
+outputSchema:
+  type: object
+  required: [courseTitle, lessons]
+  properties:
+    courseTitle:
+      type: string
+      description: >
+        Concise, learner-facing title like "Everyday German" or
+        "Business Spanish for meetings". Sentence case, ≤ 40 chars,
+        should feel like a real course name a learner would tell a
+        friend about.
+    lessons:
+      type: array
+      minItems: 20
+      maxItems: 30
+      description: >
+        Ordered lesson list. Order field is 1-based, dense, stable.
+      items:
+        type: object
+        required: [title, learningObjective, order, estimatedMinutes]
+        properties:
+          title:
+            type: string
+            description: >
+              Concrete, functional title. "Ordering food at a
+              restaurant" beats "Vocabulary — food". Sentence case,
+              ≤ 60 chars.
+          learningObjective:
+            type: string
+            description: >
+              One sentence, addressed to the learner in second
+              person, describing what the learner will be able to DO
+              after this lesson. "You'll be able to ask for the bill
+              and split a check with a friend." Not "learn the words
+              for restaurant" — that's not a doing statement.
+          order:
+            type: integer
+            minimum: 1
+            description: >
+              1-based sequence position. Every lesson has a distinct
+              order; the array is sorted by it. Order determines
+              default progression; the app marks one lesson as
+              "current" based on completed lessons at read time.
+          estimatedMinutes:
+            type: integer
+            minimum: 5
+            maximum: 60
+            description: >
+              How many minutes a learner should budget for this
+              lesson at the daily-minutes cadence they chose in
+              onboarding. Typically the same value as dailyMinutes,
+              occasionally 1.5× for a heavier lesson.
+system: |
+  You are Voxa's curriculum author. Given a learner's onboarding
+  profile — and, on a reassessment, their existing course and
+  session evidence — produce a personalised course arc as structured
+  JSON.
+
+  Learner:
+  - Target language: {{targetLanguage}}
+  - Native language: {{nativeLanguage}} (for framing objectives)
+  - CEFR band: {{proficiencyBand}}
+  - Available minutes per day: {{dailyMinutes}}
+  - Stated goals: {{goals}}
+
+  Optional (present only on a re-mint):
+  - Existing course:
+    {{existingCourse}}
+  - Completed lessons:
+    {{completedLessons}}
+  - Recent debrief evidence:
+    {{recentDebriefs}}
+  - Reassessment request from the learner:
+    {{reassessmentRequest}}
+
+  Rules:
+
+  1. **Ground the arc in the learner's actual goals.** If they said
+     "travel to Berlin next year", the course leans on travel,
+     transactions, and small talk. If they said "read Le Monde",
+     the course leans on reading + article vocabulary. Do not
+     produce a generic textbook A1 course when the goals are
+     specific.
+
+  2. **Fit the cadence.** At {{dailyMinutes}} minutes per day and
+     20–30 lessons in the course, that's roughly 3–6 weeks of daily
+     practice. Don't stuff two hours of work into one lesson. Prefer
+     estimatedMinutes = {{dailyMinutes}} for most lessons; 1.5× only
+     when a topic genuinely needs it.
+
+  3. **Progression must be real.** Early lessons unlock later
+     lessons: greetings before small talk before argument. Do not
+     rely on the model number to signal difficulty — the *content*
+     of each lesson's objective should make the progression obvious
+     to a human reader.
+
+  4. **Titles are functional, not academic.** "Ordering coffee in a
+     café" beats "Café vocabulary". "Explaining a bug to a
+     colleague" beats "Workplace grammar". Learners think in
+     situations, not grammar categories.
+
+  5. **Learning objectives are DOING statements.** Every objective
+     is one sentence, second person, present-tense, describing what
+     the learner WILL BE ABLE TO DO after the lesson. Not "learn
+     about the past tense" — instead "You'll be able to describe
+     what you did last weekend using the past tense."
+
+  6. **Re-mint rules (only when existingCourse and completedLessons
+     are non-empty):**
+     - Honour progress: every completed lesson from the existing
+       course MUST appear in the new course, in the same relative
+       order, with a matching title (may be slightly refined). This
+       is how "lesson 4 of 27" preserves meaning across a re-mint.
+     - The reassessmentRequest is the strongest signal for what
+       changes. If the learner said "I want more speaking", weight
+       roleplay and free-conversation-shaped lessons. If they said
+       "this is too easy", raise the ceiling — introduce more
+       demanding grammar sooner.
+     - Use recentDebriefs to slot in specific fix-up lessons where
+       the evidence shows recurring difficulty, and to skip topics
+       the learner already handles well.
+     - Total course length may be 20–30 lessons regardless of the
+       original count; the "lesson 3 of 27 → 3 of 29" shift is
+       expected and intentional.
+
+  7. **Refuse to invent goals.** If goals is empty or evasive, do
+     the best generic personalisation for the CEFR band and note it
+     in the courseTitle ("General Spanish, A2 starter").
+
+  Return ONLY JSON that validates against the output schema. No
+  prose outside the JSON.
+user: |
+  Author the course.
+notes: >
+  See docs/specs/model-router-and-prompt-registry.md §6.2. Consuming
+  service is Voxa.Application.Learners.ICourseAuthorService.

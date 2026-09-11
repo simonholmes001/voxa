@@ -15,6 +15,7 @@ struct RouteDestinationView: View {
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
+    var learnerCourseModel: LearnerCourseViewModel?
     var languageManager: LanguageManagerContext?
     var onContinueLearning: () -> Void = {}
     var onStartTalk: (RealtimeTutorIntent) -> Void = { _ in }
@@ -24,6 +25,8 @@ struct RouteDestinationView: View {
         case .home where homeModel != nil:
             HomeView(
                 model: homeModel!,
+                courseModel: learnerCourseModel,
+                planModel: learnerPlanModel,
                 talkModel: talkModel,
                 languages: homeLanguages,
                 onContinueLearning: onContinueLearning,
@@ -31,17 +34,24 @@ struct RouteDestinationView: View {
                 onReviewPractice: { topic in
                     onStartTalk(.review(dueCount: learningContext.dueReviewCount, focusTitle: topic))
                 },
-                onSelectLanguage: selectLanguage
+                onSelectLanguage: selectLanguage,
+                onStartTalk: onStartTalk
             )
+            // Home renders both the plan-driven reassessment banner and
+            // the course arc, so ensure both are loaded when the tab
+            // appears. Each view model is single-flight, safe to call.
+            .task { await learnerPlanModel?.load() }
         case .talk where talkModel != nil:
             TalkView(model: talkModel!)
         case .practice:
             PracticeHubView(
                 summary: practiceSummary,
                 planState: learnerPlanModel?.state ?? .idle,
+                courseState: learnerCourseModel?.state ?? .idle,
                 onStartTalk: onStartTalk
             )
             .task { await learnerPlanModel?.load() }
+            .task { await learnerCourseModel?.load() }
         case .review:
             LearningRouteView(
                 content: learningPlan.review,
@@ -51,11 +61,13 @@ struct RouteDestinationView: View {
                 }
             )
         case .progress:
-            LearningRouteView(
-                content: learningPlan.progress,
-                primaryAction: onContinueLearning,
-                rowAction: { _ in onContinueLearning() }
+            ProgressRoute(
+                summary: practiceSummary,
+                courseState: learnerCourseModel?.state ?? .idle,
+                onContinueLearning: onContinueLearning,
+                onStartTalk: onStartTalk
             )
+            .task { await learnerCourseModel?.load() }
         case .settings where languageManager != nil:
             LanguageManagementView(
                 profiles: languageManager!.profileModel.allProfiles,
@@ -83,7 +95,10 @@ struct RouteDestinationView: View {
         return languageManager.profileModel.allProfiles.map { profile in
             LearnerLanguageSummary(
                 id: profile.languageKey,
-                name: shortLanguageName(profile.displayName),
+                // Custom language names come in as free-text (e.g. "greek");
+                // title-case for display so the Home languages card never
+                // shows lowercase names.
+                name: shortLanguageName(profile.displayName).asLanguageDisplayName,
                 levelName: profile.profile.placementLevel.displayName,
                 dailyMinutes: profile.profile.minutesPerDay,
                 isActive: profile.languageKey == languageManager.profileModel.activeLanguageKey
@@ -165,6 +180,56 @@ struct RouteDestinationView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle(route.title)
+    }
+}
+
+/// Progress tab wrapper that owns the CourseDetailView sheet state
+/// locally, so the Progress → "See lesson plan" button opens the arc
+/// without requiring the Progress tab to bounce back to Home. Keeps the
+/// full-arc surface reusable across Home and Progress with a single
+/// implementation.
+private struct ProgressRoute: View {
+    let summary: LearnerProfileSummary?
+    let courseState: LearnerCourseState
+    let onContinueLearning: () -> Void
+    let onStartTalk: (RealtimeTutorIntent) -> Void
+    @State private var isPresentingCourseDetail = false
+
+    var body: some View {
+        ProgressDashboardView(
+            summary: summary,
+            courseState: courseState,
+            onContinueLearning: onContinueLearning,
+            onStartTalk: onStartTalk,
+            onOpenCourse: { isPresentingCourseDetail = true }
+        )
+        .sheet(isPresented: $isPresentingCourseDetail) {
+            if let course = readyCourse {
+                CourseDetailView(
+                    course: course,
+                    onStartLesson: { lesson in
+                        isPresentingCourseDetail = false
+                        onStartTalk(lesson.intent)
+                    },
+                    onReassess: {
+                        // Reassess is Home's affordance — closing the sheet
+                        // here keeps intent explicit; the Progress tab
+                        // doesn't own the reassess sheet state and Home
+                        // does. Learner returns to Home to trigger it.
+                        isPresentingCourseDetail = false
+                    },
+                    onDismiss: { isPresentingCourseDetail = false }
+                )
+            }
+        }
+    }
+
+    private var readyCourse: LearnerCourse? {
+        switch courseState {
+        case let .ready(course): return course
+        case let .reassessing(previous): return previous
+        default: return nil
+        }
     }
 }
 

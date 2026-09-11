@@ -9,15 +9,18 @@ import VoxaRealtime
 public struct PracticeHubView: View {
     private let summary: LearnerProfileSummary?
     private let planState: LearnerPlanState
+    private let courseState: LearnerCourseState
     private let onStartTalk: (RealtimeTutorIntent) -> Void
 
     public init(
         summary: LearnerProfileSummary?,
         planState: LearnerPlanState = .idle,
+        courseState: LearnerCourseState = .idle,
         onStartTalk: @escaping (RealtimeTutorIntent) -> Void
     ) {
         self.summary = summary
         self.planState = planState
+        self.courseState = courseState
         self.onStartTalk = onStartTalk
     }
 
@@ -35,7 +38,10 @@ public struct PracticeHubView: View {
     }
 
     private var todayCard: some View {
-        let card = PracticeHub.todayCard(planState: planState, summary: summary)
+        let card = PracticeHub.todayCard(
+            planState: planState,
+            courseState: courseState,
+            summary: summary)
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Text("Today")

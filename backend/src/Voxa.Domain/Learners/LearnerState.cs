@@ -53,9 +53,49 @@ public sealed record LearnerProfile(
 public sealed record ActiveLearningPlan(
     string PlanId,
     string Title,
-    IReadOnlyList<string> KnowledgeUnitIds)
+    IReadOnlyList<string> KnowledgeUnitIds,
+    IReadOnlyList<PlannedLesson> Lessons)
 {
-    public static ActiveLearningPlan Empty { get; } = new("", "", []);
+    /// <summary>
+    /// Convenience constructor for legacy callsites that only know a plan
+    /// id + title + knowledge-unit ids. The C3 lessons list defaults to
+    /// empty; the Home course arc treats an empty list as "no course yet"
+    /// and falls back to the pre-C3 title-only rendering.
+    /// </summary>
+    public ActiveLearningPlan(string PlanId, string Title, IReadOnlyList<string> KnowledgeUnitIds)
+        : this(PlanId, Title, KnowledgeUnitIds, Array.Empty<PlannedLesson>()) { }
+
+    public static ActiveLearningPlan Empty { get; } = new("", "", [], []);
+
+    /// <summary>
+    /// The single lesson the learner should see as "current" in the Home
+    /// course arc. First lesson whose status is <see cref="PlannedLessonStatus.Current"/>;
+    /// falls back to the first pending lesson, or null when the course is
+    /// empty / fully completed.
+    /// </summary>
+    public PlannedLesson? CurrentLesson =>
+        Lessons.FirstOrDefault(lesson => lesson.Status == PlannedLessonStatus.Current)
+            ?? Lessons.FirstOrDefault(lesson => lesson.Status == PlannedLessonStatus.Pending);
+}
+
+/// <summary>
+/// One lesson in the learner's course arc. Ordered by <see cref="Order"/>,
+/// which is dense and stable — a reassessment produces a new list with
+/// new ordering; individual lessons don't renumber.
+/// </summary>
+public sealed record PlannedLesson(
+    string LessonId,
+    string Title,
+    string LearningObjective,
+    int Order,
+    int EstimatedMinutes,
+    PlannedLessonStatus Status);
+
+public enum PlannedLessonStatus
+{
+    Pending,
+    Current,
+    Completed,
 }
 
 public sealed record LessonCheckpoint(

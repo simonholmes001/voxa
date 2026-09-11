@@ -252,4 +252,112 @@ final class PracticeHubTests: XCTestCase {
         let card = PracticeHub.todayCard(planState: .ready(plan), summary: nil)
         XCTAssertEqual(PracticeHub.todayIntent(for: card.recommendation), .openPractice)
     }
+
+    // MARK: - C3 course-driven Today card
+
+    func testCourseCurrentLessonWinsWhenPlanIsIdle() {
+        // The plan is the primary driver (C2). But when it's idle
+        // (Practice tab opened before /api/learner/plan resolves), the
+        // course arc's current lesson should take over rather than
+        // dropping to the pre-C3 title fallback.
+        let course = courseWithLessons([
+            .completed(title: "Greetings"),
+            .current(title: "Cooking verbs", objective: "You'll talk about preparing food."),
+        ])
+        let card = PracticeHub.todayCard(
+            planState: .idle,
+            courseState: .ready(course),
+            summary: summary(dueReviewCount: 0))
+        XCTAssertEqual(card.title, "Today's lesson: Cooking verbs")
+        XCTAssertEqual(card.subtitle, "You'll talk about preparing food.")
+        XCTAssertEqual(card.actionTitle, "Start lesson")
+        XCTAssertEqual(
+            PracticeHub.todayIntent(for: card.recommendation),
+            .lesson(title: "Cooking verbs"))
+    }
+
+    func testPlanStateReadyStillWinsOverCourseCurrentLesson() {
+        // Priority order: plan > course > rule-based. The planner sees
+        // debrief evidence and may override the arc; that override
+        // shouldn't be swallowed by the course lesson.
+        let course = courseWithLessons([
+            .current(title: "Cooking verbs", objective: "…"),
+        ])
+        let plan = LearnerPlan(
+            correlationId: "p",
+            recommendedSession: RecommendedSession(
+                activityIntent: "mistakes_replay",
+                focusTitle: "past participles",
+                reason: "…"),
+            focusAreas: [])
+        let card = PracticeHub.todayCard(
+            planState: .ready(plan),
+            courseState: .ready(course),
+            summary: nil)
+        if case .plan = card.recommendation {
+            // OK
+        } else {
+            XCTFail("expected .plan to win, got \(card.recommendation)")
+        }
+    }
+
+    func testCourseStateIdleFallsThroughToRuleBasedRecommendation() {
+        // Course is loading — the C3 layer shouldn't wedge; the pre-C3
+        // rule-based fallback still fires.
+        let card = PracticeHub.todayCard(
+            planState: .idle,
+            courseState: .idle,
+            summary: summary(dueReviewCount: 3))
+        XCTAssertEqual(card.recommendation, .review(dueCount: 3))
+    }
+
+    func testCourseWithNoCurrentLessonFallsThroughToRuleBasedRecommendation() {
+        // Fully-completed course + idle plan should NOT surface a
+        // ghost lesson tile. Falls back cleanly.
+        let course = courseWithLessons([
+            .completed(title: "Greetings"),
+            .completed(title: "Cooking verbs"),
+        ])
+        let card = PracticeHub.todayCard(
+            planState: .idle,
+            courseState: .ready(course),
+            summary: summary(dueReviewCount: 0))
+        XCTAssertEqual(card.recommendation, .freeConversation)
+    }
+
+    // MARK: - Helpers for course-lesson tests
+
+    private enum FakeLessonSpec {
+        case completed(title: String)
+        case current(title: String, objective: String)
+    }
+
+    private func courseWithLessons(_ specs: [FakeLessonSpec]) -> LearnerCourse {
+        let lessons: [PlannedLesson] = specs.enumerated().map { pair in
+            let (index, spec) = pair
+            switch spec {
+            case let .completed(title):
+                return PlannedLesson(
+                    lessonId: "l\(index)",
+                    title: title,
+                    learningObjective: "",
+                    order: index,
+                    estimatedMinutes: 15,
+                    status: .completed)
+            case let .current(title, objective):
+                return PlannedLesson(
+                    lessonId: "l\(index)",
+                    title: title,
+                    learningObjective: objective,
+                    order: index,
+                    estimatedMinutes: 15,
+                    status: .current)
+            }
+        }
+        return LearnerCourse(
+            correlationId: "c",
+            planId: "p",
+            title: "Everyday German",
+            lessons: lessons)
+    }
 }

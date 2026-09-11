@@ -20,6 +20,7 @@ public struct RootView: View {
     private let homeModel: HomeViewModel?
     private let talkModel: TalkSessionViewModel?
     private let learnerPlanModel: LearnerPlanViewModel?
+    private let learnerCourseModel: LearnerCourseViewModel?
     private let profileModel: ProfileSelectionViewModel?
     private let makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)?
     @State private var isAddingLanguage = false
@@ -34,6 +35,7 @@ public struct RootView: View {
         homeModel: HomeViewModel? = nil,
         talkModel: TalkSessionViewModel? = nil,
         learnerPlanModel: LearnerPlanViewModel? = nil,
+        learnerCourseModel: LearnerCourseViewModel? = nil,
         profileModel: ProfileSelectionViewModel? = nil,
         makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)? = nil
     ) {
@@ -43,6 +45,7 @@ public struct RootView: View {
         self.homeModel = homeModel
         self.talkModel = talkModel
         self.learnerPlanModel = learnerPlanModel
+        self.learnerCourseModel = learnerCourseModel
         self.profileModel = profileModel
         self.makeLanguageSettingsModel = makeLanguageSettingsModel
     }
@@ -98,7 +101,18 @@ public struct RootView: View {
             case .loading:
                 ProgressView("Loading your languages…")
             case .needsOnboarding:
+                // If a previous session completed onboarding, the model's
+                // `isComplete` is still true from that draft — OnboardingGate
+                // would then skip straight back to mainShell and strand the
+                // learner on Home's "Let's set up your learning" placeholder
+                // with no way forward. Resetting the draft here forces the
+                // gate to render the onboarding flow so the learner can pick
+                // a language and start again.
                 onboardingThenShell
+                    .onAppear {
+                        didChooseLanguage = false
+                        onboardingModel.startNewLanguageOnboarding()
+                    }
             case let .single(profile):
                 if profile.isComplete {
                     mainShell
@@ -152,6 +166,13 @@ public struct RootView: View {
         guard await profileModel.selectLanguage(profile.languageKey) else { return }
         onboardingModel.hydrate(from: profile.profile, completed: true)
         await homeModel?.load()
+        // Language switch changes the active language on the backend, but
+        // the LearnerCourseViewModel is cached from the previous language.
+        // Without an explicit reload the course card stays on the old
+        // language's arc until the app is relaunched — the exact symptom
+        // Simon saw when switching from Greek back to German.
+        await learnerCourseModel?.load()
+        await learnerPlanModel?.load()
         didChooseLanguage = true
     }
 
@@ -194,6 +215,11 @@ public struct RootView: View {
         // the shell opens the new course instead of re-hydrating the old one.
         await profileModel.refresh()
         await homeModel?.load()
+        // Course + plan are per-language; the freshly-onboarded language
+        // has just been minted server-side (or the fallback taken), and
+        // its plan-driven Today card needs its own evidence.
+        await learnerCourseModel?.load()
+        await learnerPlanModel?.load()
         addLanguageActivationError = nil
         isAddingLanguage = false
         didChooseLanguage = true
@@ -209,6 +235,7 @@ public struct RootView: View {
             homeModel: homeModel,
             talkModel: talkModel,
             learnerPlanModel: learnerPlanModel,
+            learnerCourseModel: learnerCourseModel,
             languageManager: languageManagerContext
         )
     }
@@ -267,6 +294,7 @@ struct MainShellView: View {
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
+    var learnerCourseModel: LearnerCourseViewModel?
     var languageManager: LanguageManagerContext?
 
     #if os(iOS)
@@ -281,6 +309,7 @@ struct MainShellView: View {
                 homeModel: homeModel,
                 talkModel: talkModel,
                 learnerPlanModel: learnerPlanModel,
+            learnerCourseModel: learnerCourseModel,
                 languageManager: languageManager)
         case .splitView:
             SplitLayout(
@@ -288,6 +317,7 @@ struct MainShellView: View {
                 homeModel: homeModel,
                 talkModel: talkModel,
                 learnerPlanModel: learnerPlanModel,
+            learnerCourseModel: learnerCourseModel,
                 languageManager: languageManager)
         }
     }
@@ -311,6 +341,7 @@ private struct TabLayout: View {
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
+    var learnerCourseModel: LearnerCourseViewModel?
     var languageManager: LanguageManagerContext?
 
     var body: some View {
@@ -322,6 +353,7 @@ private struct TabLayout: View {
                         homeModel: homeModel,
                         talkModel: talkModel,
                         learnerPlanModel: learnerPlanModel,
+            learnerCourseModel: learnerCourseModel,
                         languageManager: languageManager,
                         onContinueLearning: { model.selectedRoute = .practice },
                         onStartTalk: { intent in
@@ -365,6 +397,7 @@ private struct SplitLayout: View {
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
+    var learnerCourseModel: LearnerCourseViewModel?
     var languageManager: LanguageManagerContext?
 
     var body: some View {
@@ -381,6 +414,7 @@ private struct SplitLayout: View {
                     homeModel: homeModel,
                     talkModel: talkModel,
                     learnerPlanModel: learnerPlanModel,
+            learnerCourseModel: learnerCourseModel,
                     languageManager: languageManager,
                     onContinueLearning: { model.selectedRoute = .practice },
                     onStartTalk: { intent in

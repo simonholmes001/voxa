@@ -15,6 +15,8 @@ public sealed class FunctionRouteContractTests
     [InlineData(nameof(VoxaHttpFunctions.IssueRealtimeSessionAsync), "realtime/session", "post")]
     [InlineData(nameof(VoxaHttpFunctions.GenerateRealtimeDebriefAsync), "realtime/debrief", "post")]
     [InlineData(nameof(VoxaHttpFunctions.GetLearnerPlanAsync), "learner/plan", "get")]
+    [InlineData(nameof(VoxaHttpFunctions.GetLearnerCourseAsync), "learner/course", "get")]
+    [InlineData(nameof(VoxaHttpFunctions.ReassessLearnerCourseAsync), "learner/course/reassess", "post")]
     [InlineData(nameof(VoxaHttpFunctions.ResumeSessionAsync), "session/resume", "get")]
     [InlineData(nameof(VoxaHttpFunctions.CompleteSessionAsync), "session/complete", "post")]
     [InlineData(nameof(VoxaHttpFunctions.ListLanguageProfilesAsync), "language-profiles", "get")]

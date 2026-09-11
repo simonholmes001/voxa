@@ -250,6 +250,8 @@ public sealed class FunctionInvalidJsonTests
             new RealtimeSessionEndpoint(new StubRealtimeSessionService()),
             new RealtimeDebriefEndpoint(new StubDebriefService(), new StubLearnerEvidenceService(), NullLogger<RealtimeDebriefEndpoint>.Instance),
             new LearnerPlanEndpoint(new StubLearnerPlanService()),
+            new LearnerCourseEndpoint(learnerStateRepository),
+            new CourseReassessmentEndpoint(new StubCourseReassessmentService()),
             new LearningSessionCompletionEndpoint(new StubLearningSessionCompletionService()),
             new ResumeSessionEndpoint(new StubLearnerSessionQueries()),
             new LanguageProfilesEndpoint(new LanguageProfileService(learnerStateRepository)),
@@ -396,6 +398,16 @@ public sealed class FunctionInvalidJsonTests
     {
         public Task<ResumeCheckpointResponse> CompleteAsync(
             CompleteLearningSessionCommand command,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class StubCourseReassessmentService : ICourseReassessmentService
+    {
+        public Task<ActiveLearningPlan> ReassessAsync(
+            CourseReassessmentCommand command,
             CancellationToken cancellationToken)
         {
             throw new NotSupportedException();

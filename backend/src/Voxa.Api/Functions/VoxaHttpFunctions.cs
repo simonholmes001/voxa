@@ -19,6 +19,8 @@ public sealed class VoxaHttpFunctions(
     RealtimeSessionEndpoint realtimeSession,
     RealtimeDebriefEndpoint realtimeDebrief,
     LearnerPlanEndpoint learnerPlan,
+    LearnerCourseEndpoint learnerCourse,
+    CourseReassessmentEndpoint courseReassessment,
     LearningSessionCompletionEndpoint learningSessionCompletion,
     ResumeSessionEndpoint resumeSession,
     LanguageProfilesEndpoint languageProfiles,
@@ -185,6 +187,41 @@ public sealed class VoxaHttpFunctions(
             request,
             await learnerPlan.GetAsync(
                 Principal(request),
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("learner-course")]
+    public async Task<HttpResponseData> GetLearnerCourseAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "learner/course")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        return await WriteAsync(
+            request,
+            await learnerCourse.GetAsync(
+                Principal(request),
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("learner-course-reassess")]
+    public async Task<HttpResponseData> ReassessLearnerCourseAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "learner/course/reassess")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadJsonAsync<CourseReassessmentHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
+        return await WriteAsync(
+            request,
+            await courseReassessment.PostAsync(
+                Principal(request),
+                body.Value,
                 CorrelationId(request),
                 cancellationToken),
             cancellationToken);

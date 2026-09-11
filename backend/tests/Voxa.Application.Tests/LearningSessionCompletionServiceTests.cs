@@ -140,6 +140,144 @@ public sealed class LearningSessionCompletionServiceTests
         Assert.Equal("different-unit", checkpoint.ReviewQueue.First().KnowledgeUnitId);
     }
 
+    [Fact]
+    public async Task CompleteAsyncAdvancesActivePlanOnGuidedLesson()
+    {
+        var tenantId = TenantId.Create("tenant-a");
+        var userId = UserId.Create("user-a");
+        var repository = new RecordingLearnerStateRepository();
+        await repository.SaveAsync(
+            CreateStateWithPlannedLessons(tenantId, userId),
+            expectedVersion: null,
+            CancellationToken.None);
+        var service = new LearningSessionCompletionService(repository);
+
+        var checkpoint = await service.CompleteAsync(
+            CompleteLearningSessionCommand.Create(
+                tenantId.Value,
+                userId.Value,
+                "session-guided-1",
+                lessonId: null,
+                knowledgeUnitId: null,
+                durationSeconds: 900,
+                sessionIntent: "guided_lesson",
+                correlationId: "corr-guided"),
+            CancellationToken.None);
+
+        Assert.Equal("corr-guided", checkpoint.CorrelationId);
+        // The planned lessons are exposed via ActivePlan.CurrentLesson which
+        // now points at lesson-2; lesson-1 flipped to Completed.
+        var saved = await repository.GetAsync(tenantId, userId, CancellationToken.None);
+        Assert.NotNull(saved);
+        var lessons = saved!.ActivePlan.Lessons.OrderBy(l => l.Order).ToArray();
+        Assert.Equal(PlannedLessonStatus.Completed, lessons[0].Status);
+        Assert.Equal(PlannedLessonStatus.Current, lessons[1].Status);
+        Assert.Equal(PlannedLessonStatus.Pending, lessons[2].Status);
+    }
+
+    [Fact]
+    public async Task CompleteAsyncGuidedLessonRespectsClientSuppliedLessonId()
+    {
+        var tenantId = TenantId.Create("tenant-a");
+        var userId = UserId.Create("user-a");
+        var repository = new RecordingLearnerStateRepository();
+        await repository.SaveAsync(
+            CreateStateWithPlannedLessons(tenantId, userId),
+            expectedVersion: null,
+            CancellationToken.None);
+        var service = new LearningSessionCompletionService(repository);
+
+        // Client says the learner was on lesson-2 (out-of-order review),
+        // even though lesson-1 is Current server-side.
+        await service.CompleteAsync(
+            CompleteLearningSessionCommand.Create(
+                tenantId.Value,
+                userId.Value,
+                "session-guided-2",
+                lessonId: "lesson-2",
+                knowledgeUnitId: null,
+                durationSeconds: 600,
+                sessionIntent: "guided_lesson",
+                correlationId: "corr-guided"),
+            CancellationToken.None);
+
+        var saved = await repository.GetAsync(tenantId, userId, CancellationToken.None);
+        Assert.NotNull(saved);
+        var lessons = saved!.ActivePlan.Lessons.OrderBy(l => l.Order).ToArray();
+        // lesson-1 stays Current (still on the arc), lesson-2 is Completed,
+        // lesson-3 stays Pending (advancement doesn't leapfrog the arc).
+        Assert.Equal(PlannedLessonStatus.Current, lessons[0].Status);
+        Assert.Equal(PlannedLessonStatus.Completed, lessons[1].Status);
+        Assert.Equal(PlannedLessonStatus.Pending, lessons[2].Status);
+    }
+
+    [Fact]
+    public async Task CompleteAsyncGuidedLessonLeavesPlanUnchangedWhenNoLessons()
+    {
+        var tenantId = TenantId.Create("tenant-a");
+        var userId = UserId.Create("user-a");
+        var repository = new RecordingLearnerStateRepository();
+        await repository.SaveAsync(CreateState(tenantId, userId), expectedVersion: null, CancellationToken.None);
+        var service = new LearningSessionCompletionService(repository);
+
+        await service.CompleteAsync(
+            CompleteLearningSessionCommand.Create(
+                tenantId.Value,
+                userId.Value,
+                "session-guided-empty",
+                lessonId: null,
+                knowledgeUnitId: null,
+                durationSeconds: 600,
+                sessionIntent: "guided_lesson",
+                correlationId: "corr-guided"),
+            CancellationToken.None);
+
+        var saved = await repository.GetAsync(tenantId, userId, CancellationToken.None);
+        Assert.NotNull(saved);
+        Assert.Empty(saved!.ActivePlan.Lessons);
+    }
+
+    [Fact]
+    public async Task CompleteAsyncGuidedLessonLeavesLastCurrentAlreadyCompleted()
+    {
+        var tenantId = TenantId.Create("tenant-a");
+        var userId = UserId.Create("user-a");
+        var repository = new RecordingLearnerStateRepository();
+        // A plan with lessons 1 and 2 completed, 3 current, none pending.
+        var state = CreateStateWithPlannedLessons(tenantId, userId, currentOrder: 3);
+        state = state with
+        {
+            ActivePlan = state.ActivePlan with
+            {
+                Lessons = new[]
+                {
+                    new PlannedLesson("lesson-1", "One", "…", 1, 15, PlannedLessonStatus.Completed),
+                    new PlannedLesson("lesson-2", "Two", "…", 2, 15, PlannedLessonStatus.Completed),
+                    new PlannedLesson("lesson-3", "Three", "…", 3, 15, PlannedLessonStatus.Current),
+                }
+            }
+        };
+        await repository.SaveAsync(state, expectedVersion: null, CancellationToken.None);
+        var service = new LearningSessionCompletionService(repository);
+
+        await service.CompleteAsync(
+            CompleteLearningSessionCommand.Create(
+                tenantId.Value,
+                userId.Value,
+                "session-guided-last",
+                lessonId: null,
+                knowledgeUnitId: null,
+                durationSeconds: 600,
+                sessionIntent: "guided_lesson",
+                correlationId: "corr-guided"),
+            CancellationToken.None);
+
+        var saved = await repository.GetAsync(tenantId, userId, CancellationToken.None);
+        Assert.NotNull(saved);
+        Assert.All(saved!.ActivePlan.Lessons, l => Assert.Equal(PlannedLessonStatus.Completed, l.Status));
+        Assert.Null(saved.ActivePlan.CurrentLesson);
+    }
+
     private static LearnerState CreateState(TenantId tenantId, UserId userId)
     {
         return LearnerState.Create(
@@ -147,6 +285,30 @@ public sealed class LearningSessionCompletionServiceTests
             userId,
             new LearnerProfile(tenantId, userId, "fr-FR", "en-US", "A1", ["travel"], 15),
             new ActiveLearningPlan("plan-1", "Beginner Foundations", ["greetings"]),
+            new LessonCheckpoint("lesson-1", "greetings", 1, DateTimeOffset.Parse("2026-08-29T07:00:00Z")),
+            ReviewQueue.Empty,
+            RecentSessionSummaries.Empty);
+    }
+
+    private static LearnerState CreateStateWithPlannedLessons(
+        TenantId tenantId,
+        UserId userId,
+        int currentOrder = 1)
+    {
+        var lessons = new PlannedLesson[]
+        {
+            new("lesson-1", "Greetings", "Say hello", 1, 15,
+                currentOrder == 1 ? PlannedLessonStatus.Current : PlannedLessonStatus.Pending),
+            new("lesson-2", "Ordering food", "Order a meal", 2, 15,
+                currentOrder == 2 ? PlannedLessonStatus.Current : PlannedLessonStatus.Pending),
+            new("lesson-3", "Small talk", "Chat about the weather", 3, 15,
+                currentOrder == 3 ? PlannedLessonStatus.Current : PlannedLessonStatus.Pending),
+        };
+        return LearnerState.Create(
+            tenantId,
+            userId,
+            new LearnerProfile(tenantId, userId, "de-DE", "en-US", "A1", ["travel"], 15),
+            new ActiveLearningPlan("plan-1", "Everyday German — A1", ["greetings"], lessons),
             new LessonCheckpoint("lesson-1", "greetings", 1, DateTimeOffset.Parse("2026-08-29T07:00:00Z")),
             ReviewQueue.Empty,
             RecentSessionSummaries.Empty);
