@@ -84,16 +84,67 @@ public sealed class CourseReassessmentServiceTests
     {
         // A concurrent write from another endpoint (e.g. session
         // completion) could bump the version between our Get and Save.
-        // The service reads fresh state and retries.
+        // The service reads fresh state and retries the SAVE — but
+        // never re-authors the course, because the OpenAI call is
+        // expensive and non-idempotent; re-running it under contention
+        // could silently swap one accepted plan for a different one.
         var repository = new FakeRepository();
         repository.Seed(StateWithLessons([new PlannedLesson("l1", "T", "…", 1, 15, PlannedLessonStatus.Current)]));
         repository.FailNextSavesWithStaleVersion = 2;
-        var author = new FakeCourseAuthor((_, _) => Task.FromResult(NewPlan("t", [])));
+        var authorInvocationCount = 0;
+        var author = new FakeCourseAuthor((_, _) =>
+        {
+            authorInvocationCount++;
+            return Task.FromResult(NewPlan("t", [new PlannedLesson("l1", "T", "…", 1, 15, PlannedLessonStatus.Current)]));
+        });
         var service = new CourseReassessmentService(repository, author);
 
         await service.ReassessAsync(SampleCommand(null), CancellationToken.None);
 
         Assert.Equal(3, repository.SaveAttempts);
+        // Non-idempotent model call runs exactly once even under
+        // contended saves. The retry loop remaps completion statuses
+        // locally instead of re-authoring.
+        Assert.Equal(1, authorInvocationCount);
+    }
+
+    [Fact]
+    public async Task ReassessAsyncRemapsCompletedLessonStatusesFromFreshStateOnRetry()
+    {
+        // Between the initial mint and the (retried) save, another write
+        // (e.g. a guided-lesson completion) marks lesson "l2" as
+        // Completed. The retry path must reflect that fresh completion
+        // in the saved plan without re-authoring — the model call is
+        // hoisted out of the loop.
+        var repository = new FakeRepository();
+        repository.Seed(StateWithLessons([
+            new PlannedLesson("l1", "One", "…", 1, 15, PlannedLessonStatus.Completed),
+            new PlannedLesson("l2", "Two", "…", 2, 15, PlannedLessonStatus.Current),
+            new PlannedLesson("l3", "Three", "…", 3, 15, PlannedLessonStatus.Pending),
+        ]));
+        var mintedPlanLessons = new PlannedLesson[]
+        {
+            new("l1", "One", "…", 1, 15, PlannedLessonStatus.Completed),
+            new("l2", "Two", "…", 2, 15, PlannedLessonStatus.Current),
+            new("l3", "Three", "…", 3, 15, PlannedLessonStatus.Pending),
+        };
+        var author = new FakeCourseAuthor((_, _) => Task.FromResult(NewPlan("Revised", mintedPlanLessons)));
+        // First save conflicts; between the first and second attempts the
+        // Seed changes so a re-read sees "l2" also completed.
+        repository.FailNextSavesWithStaleVersion = 1;
+        repository.OnStaleReSeed = () => StateWithLessons([
+            new PlannedLesson("l1", "One", "…", 1, 15, PlannedLessonStatus.Completed),
+            new PlannedLesson("l2", "Two", "…", 2, 15, PlannedLessonStatus.Completed),
+            new PlannedLesson("l3", "Three", "…", 3, 15, PlannedLessonStatus.Current),
+        ]);
+        var service = new CourseReassessmentService(repository, author);
+
+        var result = await service.ReassessAsync(SampleCommand(null), CancellationToken.None);
+
+        // Both l1 and l2 land as Completed; l3 becomes Current.
+        Assert.Equal(PlannedLessonStatus.Completed, result.Lessons.First(l => l.LessonId == "l1").Status);
+        Assert.Equal(PlannedLessonStatus.Completed, result.Lessons.First(l => l.LessonId == "l2").Status);
+        Assert.Equal(PlannedLessonStatus.Current, result.Lessons.First(l => l.LessonId == "l3").Status);
     }
 
     [Fact]
@@ -149,6 +200,13 @@ public sealed class CourseReassessmentServiceTests
         public List<LearnerState> Saved { get; } = new();
         public int SaveAttempts { get; private set; }
         public int FailNextSavesWithStaleVersion { get; set; }
+        /// <summary>
+        /// Optional hook: when a save fails with a stale-version conflict,
+        /// this factory runs and replaces the seeded state — modeling a
+        /// concurrent write from another endpoint (e.g. a guided-lesson
+        /// completion that lands between our mint and our save).
+        /// </summary>
+        public Func<LearnerState>? OnStaleReSeed { get; set; }
 
         public void Seed(LearnerState state)
         {
@@ -167,6 +225,10 @@ public sealed class CourseReassessmentServiceTests
             if (FailNextSavesWithStaleVersion > 0)
             {
                 FailNextSavesWithStaleVersion--;
+                if (OnStaleReSeed is not null)
+                {
+                    Seed(OnStaleReSeed());
+                }
                 throw new StaleLearnerStateVersionException(
                     state.TenantId,
                     state.UserId,
