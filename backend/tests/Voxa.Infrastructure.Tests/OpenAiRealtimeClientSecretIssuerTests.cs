@@ -234,8 +234,14 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
         // End-of-lesson closure reaches the model.
         Assert.Contains("End of lesson", handler.Body, StringComparison.Ordinal);
         Assert.Contains("Session complete", handler.Body, StringComparison.Ordinal);
-        // L1 opener uses the caller's nativeLanguage (embedded twice in
-        // the rendered opener block).
+        // Ongoing bilingual scaffolding reaches the model — L1 is not
+        // just an opener/closer, it accompanies every scaffolding move
+        // at A1/A2.
+        Assert.Contains("Bilingual scaffolding for beginner bands", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("L2 model", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("L1 gloss", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("40", handler.Body, StringComparison.Ordinal); // "40–60% nativeLanguage at A1"
+        // L1 opener uses the caller's nativeLanguage.
         Assert.Contains("English", handler.Body, StringComparison.Ordinal);
     }
 
