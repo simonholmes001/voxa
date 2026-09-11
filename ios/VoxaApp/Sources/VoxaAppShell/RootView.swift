@@ -20,6 +20,7 @@ public struct RootView: View {
     private let homeModel: HomeViewModel?
     private let talkModel: TalkSessionViewModel?
     private let learnerPlanModel: LearnerPlanViewModel?
+    private let learnerCourseModel: LearnerCourseViewModel?
     private let profileModel: ProfileSelectionViewModel?
     private let makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)?
     @State private var isAddingLanguage = false
@@ -34,6 +35,7 @@ public struct RootView: View {
         homeModel: HomeViewModel? = nil,
         talkModel: TalkSessionViewModel? = nil,
         learnerPlanModel: LearnerPlanViewModel? = nil,
+        learnerCourseModel: LearnerCourseViewModel? = nil,
         profileModel: ProfileSelectionViewModel? = nil,
         makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)? = nil
     ) {
@@ -43,6 +45,7 @@ public struct RootView: View {
         self.homeModel = homeModel
         self.talkModel = talkModel
         self.learnerPlanModel = learnerPlanModel
+        self.learnerCourseModel = learnerCourseModel
         self.profileModel = profileModel
         self.makeLanguageSettingsModel = makeLanguageSettingsModel
     }
@@ -209,6 +212,7 @@ public struct RootView: View {
             homeModel: homeModel,
             talkModel: talkModel,
             learnerPlanModel: learnerPlanModel,
+            learnerCourseModel: learnerCourseModel,
             languageManager: languageManagerContext
         )
     }
@@ -267,6 +271,7 @@ struct MainShellView: View {
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
+    var learnerCourseModel: LearnerCourseViewModel?
     var languageManager: LanguageManagerContext?
 
     #if os(iOS)
@@ -281,6 +286,7 @@ struct MainShellView: View {
                 homeModel: homeModel,
                 talkModel: talkModel,
                 learnerPlanModel: learnerPlanModel,
+            learnerCourseModel: learnerCourseModel,
                 languageManager: languageManager)
         case .splitView:
             SplitLayout(
@@ -288,6 +294,7 @@ struct MainShellView: View {
                 homeModel: homeModel,
                 talkModel: talkModel,
                 learnerPlanModel: learnerPlanModel,
+            learnerCourseModel: learnerCourseModel,
                 languageManager: languageManager)
         }
     }
@@ -311,6 +318,7 @@ private struct TabLayout: View {
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
+    var learnerCourseModel: LearnerCourseViewModel?
     var languageManager: LanguageManagerContext?
 
     var body: some View {
@@ -322,6 +330,7 @@ private struct TabLayout: View {
                         homeModel: homeModel,
                         talkModel: talkModel,
                         learnerPlanModel: learnerPlanModel,
+            learnerCourseModel: learnerCourseModel,
                         languageManager: languageManager,
                         onContinueLearning: { model.selectedRoute = .practice },
                         onStartTalk: { intent in
@@ -365,6 +374,7 @@ private struct SplitLayout: View {
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
+    var learnerCourseModel: LearnerCourseViewModel?
     var languageManager: LanguageManagerContext?
 
     var body: some View {
@@ -381,6 +391,7 @@ private struct SplitLayout: View {
                     homeModel: homeModel,
                     talkModel: talkModel,
                     learnerPlanModel: learnerPlanModel,
+            learnerCourseModel: learnerCourseModel,
                     languageManager: languageManager,
                     onContinueLearning: { model.selectedRoute = .practice },
                     onStartTalk: { intent in

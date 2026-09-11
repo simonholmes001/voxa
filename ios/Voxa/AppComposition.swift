@@ -29,6 +29,7 @@ enum AppComposition {
         )
         let profileModel = makeProfileModel(authModel: authModel)
         let learnerPlanModel = makeLearnerPlanModel(authModel: authModel)
+        let learnerCourseModel = makeLearnerCourseModel(authModel: authModel)
         return RootView(
             authModel: authModel,
             onboardingModel: onboardingModel,
@@ -36,16 +37,20 @@ enum AppComposition {
             talkModel: makeTalkModel(
                 authModel: authModel,
                 onboardingModel: onboardingModel,
-                onSessionCompleted: { [weak learnerPlanModel] in
+                onSessionCompleted: { [weak learnerPlanModel, weak learnerCourseModel] in
                     await homeModel.resumeIfAvailable()
                     await profileModel.refresh()
                     // The debrief we just wrote is fresh evidence; the next
                     // plan fetch should reflect it. Reloading here means the
-                    // Today card refreshes without a manual pull.
+                    // Today card refreshes without a manual pull. Same
+                    // reason for the course — a completed lesson bumps the
+                    // "lesson N of M" progress on Home.
                     await learnerPlanModel?.load()
+                    await learnerCourseModel?.load()
                 }
             ),
             learnerPlanModel: learnerPlanModel,
+            learnerCourseModel: learnerCourseModel,
             profileModel: profileModel,
             makeLanguageSettingsModel: { profile in
                 LanguageSettingsViewModel(profile: profile, service: languageSettingsService)
@@ -66,6 +71,21 @@ enum AppComposition {
                 reason: "Personalised learner plans aren't configured for this build yet.")
         }
         return VoxaBackendLearnerPlanService(baseURL: baseURL)
+    }
+
+    @MainActor
+    static func makeLearnerCourseModel(authModel: AuthViewModel) -> LearnerCourseViewModel {
+        LearnerCourseViewModel(
+            service: makeLearnerCourseService(),
+            accessTokenProvider: accessTokenProvider(for: authModel))
+    }
+
+    static func makeLearnerCourseService() -> any LearnerCourseService {
+        guard let baseURL = backendBaseURL() else {
+            return NotConfiguredLearnerCourseService(
+                reason: "Personalised courses aren't configured for this build yet.")
+        }
+        return VoxaBackendLearnerCourseService(baseURL: baseURL)
     }
 
     @MainActor

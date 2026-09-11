@@ -15,6 +15,7 @@ struct RouteDestinationView: View {
     var homeModel: HomeViewModel?
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
+    var learnerCourseModel: LearnerCourseViewModel?
     var languageManager: LanguageManagerContext?
     var onContinueLearning: () -> Void = {}
     var onStartTalk: (RealtimeTutorIntent) -> Void = { _ in }
@@ -24,6 +25,7 @@ struct RouteDestinationView: View {
         case .home where homeModel != nil:
             HomeView(
                 model: homeModel!,
+                courseModel: learnerCourseModel,
                 talkModel: talkModel,
                 languages: homeLanguages,
                 onContinueLearning: onContinueLearning,
@@ -31,7 +33,8 @@ struct RouteDestinationView: View {
                 onReviewPractice: { topic in
                     onStartTalk(.review(dueCount: learningContext.dueReviewCount, focusTitle: topic))
                 },
-                onSelectLanguage: selectLanguage
+                onSelectLanguage: selectLanguage,
+                onStartTalk: onStartTalk
             )
         case .talk where talkModel != nil:
             TalkView(model: talkModel!)

@@ -6,29 +6,36 @@ import VoxaRealtime
 /// active languages and a clear way back into the learning flow.
 public struct HomeView: View {
     @Bindable private var model: HomeViewModel
+    private let courseModel: LearnerCourseViewModel?
     private let talkModel: TalkSessionViewModel?
     private let languages: [LearnerLanguageSummary]
     private let onContinueLearning: () -> Void
     private let onVoicePractice: () -> Void
     private let onReviewPractice: (String) -> Void
     private let onSelectLanguage: (String) -> Void
+    private let onStartTalk: (RealtimeTutorIntent) -> Void
+    @State private var isPresentingReassessSheet = false
 
     public init(
         model: HomeViewModel,
+        courseModel: LearnerCourseViewModel? = nil,
         talkModel: TalkSessionViewModel? = nil,
         languages: [LearnerLanguageSummary] = [],
         onContinueLearning: @escaping () -> Void,
         onVoicePractice: @escaping () -> Void,
         onReviewPractice: @escaping (String) -> Void = { _ in },
-        onSelectLanguage: @escaping (String) -> Void = { _ in }
+        onSelectLanguage: @escaping (String) -> Void = { _ in },
+        onStartTalk: @escaping (RealtimeTutorIntent) -> Void = { _ in }
     ) {
         self.model = model
+        self.courseModel = courseModel
         self.talkModel = talkModel
         self.languages = languages
         self.onContinueLearning = onContinueLearning
         self.onVoicePractice = onVoicePractice
         self.onReviewPractice = onReviewPractice
         self.onSelectLanguage = onSelectLanguage
+        self.onStartTalk = onStartTalk
     }
 
     public var body: some View {
@@ -36,6 +43,14 @@ public struct HomeView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle("Home")
             .task { await model.resumeIfAvailable() }
+            .task { await courseModel?.load() }
+            .sheet(isPresented: $isPresentingReassessSheet) {
+                if let courseModel {
+                    ReassessCourseSheet(model: courseModel) {
+                        isPresentingReassessSheet = false
+                    }
+                }
+            }
     }
 
     @ViewBuilder
@@ -69,6 +84,9 @@ public struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 languagesCard(summary)
+                if let courseModel {
+                    courseArcSection(courseModel: courseModel)
+                }
                 todayCard(summary)
                 practiceCard(summary)
             }
@@ -76,6 +94,140 @@ public struct HomeView: View {
             .frame(maxWidth: 640, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
+    }
+
+    @ViewBuilder
+    private func courseArcSection(courseModel: LearnerCourseViewModel) -> some View {
+        switch courseModel.state {
+        case .idle, .loading:
+            courseCardShell {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Loading your course…")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        case let .ready(course):
+            courseCard(course, isReassessing: false)
+        case let .reassessing(previous):
+            courseCard(previous, isReassessing: true)
+        case let .failed(message):
+            // Non-blocking — Home still shows Today card + Practice
+            // action below. A small warning is enough.
+            courseCardShell {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Couldn't load your course", systemImage: "exclamationmark.triangle")
+                        .font(.subheadline)
+                        .foregroundStyle(.orange)
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Try again") {
+                        Task { await courseModel.load() }
+                    }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private func courseCard(_ course: LearnerCourse, isReassessing: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your course")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.tint)
+                        .textCase(.uppercase)
+                    Text(course.title)
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                    if course.totalLessons > 0 {
+                        Text(progressCaption(for: course))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if isReassessing {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            if course.totalLessons > 0 {
+                ProgressView(value: course.progressFraction)
+                    .accessibilityIdentifier("home-course-progress")
+            }
+            if let current = course.currentLesson {
+                Button {
+                    onStartTalk(current.intent)
+                } label: {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "play.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.tint)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(current.title)
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text(current.learningObjective)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(3)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                    .padding(12)
+                    .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("home-course-current-lesson")
+                .disabled(isReassessing)
+            }
+            HStack {
+                Button {
+                    isPresentingReassessSheet = true
+                } label: {
+                    Label("Reassess my course", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isReassessing)
+                .accessibilityIdentifier("home-reassess")
+                Spacer()
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.tint.opacity(0.2)))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("home-course-card")
+    }
+
+    private func courseCardShell<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Your course")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(.tint)
+                .textCase(.uppercase)
+            content()
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("home-course-card")
+    }
+
+    private func progressCaption(for course: LearnerCourse) -> String {
+        return "Lesson \(course.currentLessonIndex) of \(course.totalLessons)"
     }
 
     private func languagesCard(_ summary: LearnerProfileSummary) -> some View {
