@@ -13,7 +13,7 @@ namespace Voxa.Infrastructure.OpenAI;
 
 /// <summary>
 /// IDebriefService backed by the OpenAI Chat Completions API. Resolves the
-/// `realtime-tutor/debrief.v1` prompt through the registry, renders it with the
+/// `realtime-tutor/debrief.v2` prompt through the registry, renders it with the
 /// session's target language / band / activity + a transcript, calls the
 /// AssessmentModel with `response_format: json_object`, and parses the returned
 /// structured JSON into a SessionDebrief.
@@ -25,7 +25,10 @@ public sealed class OpenAiDebriefService(
     IPromptRegistry promptRegistry,
     ILogger<OpenAiDebriefService> logger) : IDebriefService
 {
-    private static readonly PromptRef DebriefPromptRef = new("realtime-tutor/debrief", 1);
+    // Pinned to v2 (§6.3 requires explicit version bumps on every ref).
+    // v1 remains in the registry as deprecated for the 90-day retention
+    // window called out in that section.
+    private static readonly PromptRef DebriefPromptRef = new("realtime-tutor/debrief", 2);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,

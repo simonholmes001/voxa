@@ -1,0 +1,5 @@
+---
+"voxa": patch
+---
+
+Debrief v2: surface single-session signal instead of three empty placeholders. v1 refused to flag a "recurring mistake" that occurred only once, so a short first session showed only the summary followed by three empty cards ("Nothing recurring flagged this session…", "No standout phrases yet…", "Nothing to note yet…") even when there was concrete grammar / vocabulary evidence to act on. v2 accepts a single medium-plus mistake with a clear example — the learner used the wrong verb, tense, article, or preposition and the tutor's response confirms the miss — as a surfaceable "recurring" item. It also asks the assessor to prefer surfacing at least one useful phrase (tutor-introduced if the learner produced none, marked as such) when the transcript supports it. Prompt schema is unchanged so the parse path is untouched. v1 stays in the registry as deprecated per §6.3 until no PromptTrace has referenced it for 90 days. `OpenAiDebriefService` now pins the ref to v2; a new test locks v1/v2 co-existence in the registry and asserts the v2-specific rule text reaches the model.
