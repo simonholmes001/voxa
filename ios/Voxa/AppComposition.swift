@@ -186,7 +186,11 @@ enum AppComposition {
     ) -> LearnerProfileSummary? {
         guard let profile else { return nil }
         return LearnerProfileSummary(
-            languageName: OnboardingLanguages.displayName(forKey: profile.targetLanguage),
+            // For a catalog language (e.g. "de-DE") this yields "German".
+            // For a custom language the fallback returns the raw key
+            // ("greek") — title-case it so Progress reads "Greek in motion"
+            // rather than "greek in motion".
+            languageName: OnboardingLanguages.displayName(forKey: profile.targetLanguage).asLanguageDisplayName,
             levelName: profile.placementLevel.displayName,
             goalName: profile.goals.map(GoalSelection.displayTitle).joined(separator: ", "),
             dailyMinutes: profile.minutesPerDay,

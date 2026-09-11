@@ -242,6 +242,14 @@ public struct HomeView: View {
             if course.totalLessons > 0 {
                 ProgressView(value: course.progressFraction)
                     .accessibilityIdentifier("home-course-progress")
+            } else {
+                // Zero-lesson recovery. The backend's course mint can fail
+                // (rate limit, model timeout, unfamiliar language input) and
+                // fall back to the placeholder plan title with no lessons.
+                // Rather than stranding the learner on an empty card, give
+                // them a prominent affordance that opens the Reassess sheet
+                // — which under the hood calls the course author again.
+                zeroLessonRecoveryCard()
             }
             if let current = course.currentLesson {
                 Button {
@@ -272,26 +280,28 @@ public struct HomeView: View {
                 .disabled(isReassessing)
             }
             HStack(spacing: 8) {
-                Button {
-                    isPresentingCourseDetail = true
-                } label: {
-                    Label("See all \(course.totalLessons) lessons", systemImage: "list.bullet")
-                        .font(.caption)
+                if course.totalLessons > 0 {
+                    Button {
+                        isPresentingCourseDetail = true
+                    } label: {
+                        Label("See all \(course.totalLessons) lessons", systemImage: "list.bullet")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isReassessing)
+                    .accessibilityIdentifier("home-course-see-all")
+                    Button {
+                        isPresentingReassessSheet = true
+                    } label: {
+                        Label("Reassess my course", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isReassessing)
+                    .accessibilityIdentifier("home-reassess")
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(isReassessing || course.totalLessons == 0)
-                .accessibilityIdentifier("home-course-see-all")
-                Button {
-                    isPresentingReassessSheet = true
-                } label: {
-                    Label("Reassess my course", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.caption)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(isReassessing)
-                .accessibilityIdentifier("home-reassess")
                 Spacer()
             }
         }
@@ -301,6 +311,38 @@ public struct HomeView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.tint.opacity(0.2)))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home-course-card")
+    }
+
+    @ViewBuilder
+    private func zeroLessonRecoveryCard() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "wand.and.stars")
+                    .font(.title3)
+                    .foregroundStyle(.tint)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Your course isn't ready yet")
+                        .font(.headline)
+                    Text("We couldn't build your lessons automatically. Tap below to generate them now.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            Button {
+                reassessHint = "Please generate my full course."
+                isPresentingReassessSheet = true
+            } label: {
+                Label("Generate my course", systemImage: "sparkles")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+            .accessibilityIdentifier("home-course-generate")
+        }
+        .padding(12)
+        .background(.tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func courseCardShell<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {

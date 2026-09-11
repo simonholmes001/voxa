@@ -31,7 +31,7 @@ public struct LanguageChoiceView: View {
                     } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(profile.displayName)
+                                Text(profile.displayName.asLanguageDisplayName)
                                     .font(.headline)
                                 Text(subtitle(for: profile))
                                     .font(.caption)

@@ -166,6 +166,13 @@ public struct RootView: View {
         guard await profileModel.selectLanguage(profile.languageKey) else { return }
         onboardingModel.hydrate(from: profile.profile, completed: true)
         await homeModel?.load()
+        // Language switch changes the active language on the backend, but
+        // the LearnerCourseViewModel is cached from the previous language.
+        // Without an explicit reload the course card stays on the old
+        // language's arc until the app is relaunched — the exact symptom
+        // Simon saw when switching from Greek back to German.
+        await learnerCourseModel?.load()
+        await learnerPlanModel?.load()
         didChooseLanguage = true
     }
 
@@ -208,6 +215,11 @@ public struct RootView: View {
         // the shell opens the new course instead of re-hydrating the old one.
         await profileModel.refresh()
         await homeModel?.load()
+        // Course + plan are per-language; the freshly-onboarded language
+        // has just been minted server-side (or the fallback taken), and
+        // its plan-driven Today card needs its own evidence.
+        await learnerCourseModel?.load()
+        await learnerPlanModel?.load()
         addLanguageActivationError = nil
         isAddingLanguage = false
         didChooseLanguage = true

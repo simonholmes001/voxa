@@ -95,7 +95,10 @@ struct RouteDestinationView: View {
         return languageManager.profileModel.allProfiles.map { profile in
             LearnerLanguageSummary(
                 id: profile.languageKey,
-                name: shortLanguageName(profile.displayName),
+                // Custom language names come in as free-text (e.g. "greek");
+                // title-case for display so the Home languages card never
+                // shows lowercase names.
+                name: shortLanguageName(profile.displayName).asLanguageDisplayName,
                 levelName: profile.profile.placementLevel.displayName,
                 dailyMinutes: profile.profile.minutesPerDay,
                 isActive: profile.languageKey == languageManager.profileModel.activeLanguageKey

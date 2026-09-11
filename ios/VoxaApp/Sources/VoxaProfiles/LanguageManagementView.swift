@@ -110,7 +110,7 @@ public struct LanguageManagementView: View {
             }
             Button("Cancel", role: .cancel) { profileToDelete = nil }
         } message: { profile in
-            Text("This removes your progress for \(profile.displayName).")
+            Text("This removes your progress for \(profile.displayName.asLanguageDisplayName).")
         }
         .sheet(item: $editingProfile) { profile in
             NavigationStack {
@@ -139,7 +139,7 @@ private struct LanguageRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(profile.displayName)
+                Text(profile.displayName.asLanguageDisplayName)
                     .font(.headline)
                 Text(summary)
                     .font(.caption)

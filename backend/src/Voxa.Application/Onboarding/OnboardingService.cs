@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Voxa.Application.Learners;
 using Voxa.Domain.Learners;
 
@@ -5,8 +7,11 @@ namespace Voxa.Application.Onboarding;
 
 public sealed class OnboardingService(
     ILearnerStateRepository repository,
-    ICourseAuthorService? courseAuthor = null)
+    ICourseAuthorService? courseAuthor = null,
+    ILogger<OnboardingService>? logger = null)
 {
+    private readonly ILogger<OnboardingService> logger = logger ?? NullLogger<OnboardingService>.Instance;
+
     public async Task<OnboardingSubmitResponse> SubmitAsync(
         OnboardingSubmitCommand command,
         CancellationToken cancellationToken)
@@ -132,13 +137,21 @@ public sealed class OnboardingService(
                     ReassessmentRequest: null),
                 cancellationToken);
         }
-        catch (CourseAuthorException)
+        catch (CourseAuthorException ex)
         {
-            // Non-fatal: onboarding succeeds with the pre-C3 placeholder
-            // plan and the learner can request a reassessment later. The
-            // hosting layer (Voxa.Api) surfaces the correlation-id header
-            // in its response so operators can still trace the failure via
-            // the CourseAuthorException already logged inside the service.
+            // Non-fatal: onboarding succeeds with the placeholder plan and
+            // the learner can request a reassessment ("Generate my course"
+            // on Home) later. Log the failure with correlation id + target
+            // language so operators can diagnose why the mint didn't
+            // return a course — the learner's Home card is otherwise
+            // stranded on the fallback title with 0 lessons.
+            logger.LogWarning(
+                ex,
+                "course.mint.failed correlationId={CorrelationId} targetLanguage={TargetLanguage} nativeLanguage={NativeLanguage} proficiency={Proficiency}",
+                command.CorrelationId.Value,
+                profile.TargetLanguage,
+                profile.NativeLanguage,
+                profile.ProficiencyLevel);
             _ = fallbackPlan;
             return null;
         }
