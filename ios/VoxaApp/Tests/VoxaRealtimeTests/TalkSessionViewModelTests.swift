@@ -149,6 +149,7 @@ final class TalkSessionViewModelTests: XCTestCase {
         completionService: FakeRealtimeSessionCompletionService? = nil,
         transport: FakeRealtimeTransport = FakeRealtimeTransport(),
         debriefService: any DebriefService = NotConfiguredDebriefService(),
+        idleTimerControl: any IdleTimerControl = RecordingIdleTimerControl(),
         token: String? = "access-token",
         onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {},
         nowProvider: @escaping @MainActor @Sendable () -> Date = { Date() }
@@ -160,6 +161,7 @@ final class TalkSessionViewModelTests: XCTestCase {
             completionService: completionService,
             transport: transport,
             debriefService: debriefService,
+            idleTimerControl: idleTimerControl,
             accessTokenProvider: { token },
             onSessionCompleted: onSessionCompleted,
             nowProvider: nowProvider
@@ -597,5 +599,123 @@ final class TalkSessionViewModelTests: XCTestCase {
         model.acknowledgeDebrief()
 
         XCTAssertEqual(model.debriefState, .idle)
+    }
+
+    // MARK: - Idle-timer
+
+    func testStartKeepsScreenAwakeOnceOnConnectedTransition() async {
+        // Regression: mid-session the iPhone was auto-locking after ~30 s
+        // of no touches, which killed the WebSocket and ended the tutor
+        // session unexpectedly. The view model now claims the awake lock
+        // once when the session reaches .connected.
+        let idle = RecordingIdleTimerControl()
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: idle)
+
+        await model.start()
+
+        XCTAssertEqual(model.state, .connected)
+        XCTAssertEqual(idle.events, [.keepAwake])
+        XCTAssertTrue(idle.isCurrentlyKeepingAwake)
+    }
+
+    func testEndReleasesTheAwakeClaimSoTheScreenCanAutoLockAgain() async {
+        let idle = RecordingIdleTimerControl()
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: idle)
+
+        await model.start()
+        await model.end()
+
+        XCTAssertEqual(idle.events, [.keepAwake, .allowSleep])
+        XCTAssertFalse(idle.isCurrentlyKeepingAwake)
+    }
+
+    func testFailedConnectDoesNotKeepScreenAwake() async {
+        // If the transport connect fails before we ever reach .connected,
+        // we never claimed the lock — so we don't need to release either.
+        let idle = RecordingIdleTimerControl()
+        let transport = FakeRealtimeTransport(
+            connectResult: .failure(RealtimeTransportError.connectionFailed("nope")))
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            transport: transport,
+            idleTimerControl: idle)
+
+        await model.start()
+
+        if case .failed = model.state {} else { XCTFail("expected .failed, got \(model.state)") }
+        XCTAssertEqual(idle.events, [])
+    }
+
+    func testMissingMicPermissionDoesNotKeepScreenAwake() async {
+        let idle = RecordingIdleTimerControl()
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .denied),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: idle)
+
+        await model.start()
+
+        XCTAssertEqual(idle.events, [])
+    }
+
+    func testEndCalledFromIdleStateIsANoOpAgainstTheIdleTimerControl() {
+        // Guard against the reviewer's specific worry: if `end()` fires
+        // without a matching `.connected` claim (view torn down, or a
+        // stranger tearing down while another live session holds the
+        // process-shared coordinator), it must not force the flag off.
+        // The RecordingIdleTimerControl now enforces the per-instance
+        // refcount contract, so an unmatched release records NO event.
+        let idle = RecordingIdleTimerControl()
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: idle)
+
+        // Even calling end() many times from idle leaves no claim on
+        // the screen and adds no events.
+        Task { await model.end() }
+        Task { await model.end() }
+
+        XCTAssertEqual(idle.events, [])
+        XCTAssertFalse(idle.isCurrentlyKeepingAwake)
+    }
+
+    func testTwoOverlappingViewModelsDoNotStarveEachOthersScreenAwakeClaim() async {
+        // Reviewer's headline scenario. If a user starts session A,
+        // starts session B while A is still live, then ends A, the
+        // shared process-global idle-timer flag must stay disabled
+        // because B still needs the screen awake.
+        //
+        // Both view models get their own SystemIdleTimerControl (the
+        // production impl) so they route through the same shared
+        // IdleTimerCoordinator — the same code path production uses.
+        IdleTimerCoordinator.shared.resetForTesting()
+
+        let modelA = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: SystemIdleTimerControl())
+        let modelB = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            idleTimerControl: SystemIdleTimerControl())
+
+        await modelA.start()
+        await modelB.start()
+        XCTAssertEqual(IdleTimerCoordinator.shared.currentClaimCount, 2)
+
+        await modelA.end()
+        // A's teardown must NOT starve B: the flag stays disabled.
+        XCTAssertEqual(IdleTimerCoordinator.shared.currentClaimCount, 1)
+
+        await modelB.end()
+        XCTAssertEqual(IdleTimerCoordinator.shared.currentClaimCount, 0)
     }
 }

@@ -16,6 +16,7 @@ public final class TalkSessionViewModel {
     /// connection is already torn down.
     public private(set) var debriefState: DebriefState = .idle
 
+    private let idleTimerControl: any IdleTimerControl
     private let settingsProvider: @MainActor @Sendable () -> RealtimeCoachingSettings
     private let permission: any MicrophonePermission
     private let service: any RealtimeSessionService
@@ -39,6 +40,7 @@ public final class TalkSessionViewModel {
         completionService: (any RealtimeSessionCompletionService)? = nil,
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
         debriefService: any DebriefService = NotConfiguredDebriefService(),
+        idleTimerControl: any IdleTimerControl = SystemIdleTimerControl(),
         accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil },
         onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {},
         onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {},
@@ -50,6 +52,7 @@ public final class TalkSessionViewModel {
         self.completionService = completionService
         self.transport = transport
         self.debriefService = debriefService
+        self.idleTimerControl = idleTimerControl
         self.accessTokenProvider = accessTokenProvider
         self.onAuthenticationRequired = onAuthenticationRequired
         self.onSessionCompleted = onSessionCompleted
@@ -64,6 +67,7 @@ public final class TalkSessionViewModel {
         completionService: (any RealtimeSessionCompletionService)? = nil,
         transport: any RealtimeTransport = UnavailableRealtimeTransport(),
         debriefService: any DebriefService = NotConfiguredDebriefService(),
+        idleTimerControl: any IdleTimerControl = SystemIdleTimerControl(),
         accessTokenProvider: @escaping @MainActor @Sendable () -> String? = { nil },
         onAuthenticationRequired: @escaping @MainActor @Sendable () async -> Void = {},
         onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {},
@@ -76,6 +80,7 @@ public final class TalkSessionViewModel {
             completionService: completionService,
             transport: transport,
             debriefService: debriefService,
+            idleTimerControl: idleTimerControl,
             accessTokenProvider: accessTokenProvider,
             onAuthenticationRequired: onAuthenticationRequired,
             onSessionCompleted: onSessionCompleted,
@@ -138,6 +143,11 @@ public final class TalkSessionViewModel {
         state = .connected
         activeCredential = credential
         connectedAt = nowProvider()
+        // Keep the screen on for the duration of the live session. Without
+        // this, iOS auto-locks after ~30 s of no touches, dropping the
+        // WebSocket and ending the tutor session unexpectedly. Paired with
+        // `allowScreenSleep()` in `end()` and in the `.failed` teardown paths.
+        idleTimerControl.keepScreenAwake()
     }
 
     /// Interrupts the tutor mid-sentence. Safe to call any time — a no-op
@@ -160,6 +170,10 @@ public final class TalkSessionViewModel {
         activeCredential = nil
         connectedAt = nil
         state = .ended
+        // Release the keep-awake claim so the screen resumes normal
+        // auto-lock behaviour outside a live session. Idempotent — safe
+        // if the session never reached `.connected`.
+        idleTimerControl.allowScreenSleep()
         if !transcript.isEmpty, let settings {
             await runDebrief(settings: settings, transcript: transcript)
         } else {
