@@ -338,6 +338,62 @@ public sealed class OpenAiCourseAuthorServiceTests
             service.AuthorCourseAsync(InitialMintRequest(), CancellationToken.None));
     }
 
+    // MARK: - Upstream failure mapping (High finding from PR #111 review)
+
+    [Fact]
+    public async Task AuthorCourseAsyncWrapsHttpRequestExceptionAsCourseAuthorException()
+    {
+        // A network / DNS / socket failure would otherwise escape the
+        // author boundary as HttpRequestException — OnboardingService
+        // would then abort onboarding instead of falling back. Prove
+        // the boundary wraps it uniformly.
+        var handler = new ThrowingHttpMessageHandler(new HttpRequestException("network down"));
+        var service = MakeService(handler);
+
+        await Assert.ThrowsAsync<CourseAuthorException>(() =>
+            service.AuthorCourseAsync(InitialMintRequest(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AuthorCourseAsyncWrapsHttpClientTimeoutAsCourseAuthorException()
+    {
+        // HttpClient.Timeout hitting throws TaskCanceledException with
+        // no CT cancellation — the boundary wraps as CourseAuthor so
+        // onboarding falls back rather than 500-ing on slow upstream.
+        var handler = new ThrowingHttpMessageHandler(new TaskCanceledException("timeout"));
+        var service = MakeService(handler);
+
+        await Assert.ThrowsAsync<CourseAuthorException>(() =>
+            service.AuthorCourseAsync(InitialMintRequest(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AuthorCourseAsyncDoesNotSwallowCallerCancellation()
+    {
+        // OperationCanceledException triggered by the caller's CT must
+        // propagate untouched — the HTTP handler layer should not
+        // become a black hole for cooperative cancellation.
+        var handler = new RecordingHttpMessageHandler(SampleTwentyLessonResponseBody("Test"));
+        var service = MakeService(handler);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.AuthorCourseAsync(InitialMintRequest(), cts.Token));
+    }
+
+    [Fact]
+    public async Task AuthorCourseAsyncWrapsMalformedEnvelopeAsCourseAuthorException()
+    {
+        // A malformed OpenAI envelope (not the inner course JSON, but
+        // the outer wire shape) would previously escape as JsonException.
+        var handler = new RecordingHttpMessageHandler("this is not JSON at all");
+        var service = MakeService(handler);
+
+        await Assert.ThrowsAsync<CourseAuthorException>(() =>
+            service.AuthorCourseAsync(InitialMintRequest(), CancellationToken.None));
+    }
+
     // MARK: - Helpers
 
     private static string SampleTwentyLessonResponseBody(string courseTitle)
@@ -396,7 +452,7 @@ public sealed class OpenAiCourseAuthorServiceTests
             ReassessmentRequest: null);
     }
 
-    private static OpenAiCourseAuthorService MakeService(RecordingHttpMessageHandler handler)
+    private static OpenAiCourseAuthorService MakeService(HttpMessageHandler handler)
     {
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.openai.example/") };
         return new OpenAiCourseAuthorService(
@@ -429,6 +485,16 @@ public sealed class OpenAiCourseAuthorServiceTests
             {
                 Content = new StringContent(responseBody, Encoding.UTF8, "application/json"),
             };
+        }
+    }
+
+    private sealed class ThrowingHttpMessageHandler(Exception exception) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            throw exception;
         }
     }
 

@@ -137,21 +137,33 @@ public sealed class OnboardingService(
                     ReassessmentRequest: null),
                 cancellationToken);
         }
-        catch (CourseAuthorException ex)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Non-fatal: onboarding succeeds with the placeholder plan and
-            // the learner can request a reassessment ("Generate my course"
-            // on Home) later. Log the failure with correlation id + target
-            // language so operators can diagnose why the mint didn't
-            // return a course — the learner's Home card is otherwise
-            // stranded on the fallback title with 0 lessons.
+            // The Voxa.Api caller cancelled — bubble so cooperative
+            // cancellation semantics reach the HTTP layer.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Non-fatal: onboarding succeeds with the placeholder plan
+            // and Home shows the "Generate my course" recovery card. We
+            // catch anything the author boundary didn't wrap
+            // (CourseAuthorException is the intended type, but the
+            // synchronous first-run path is critical enough to defend
+            // against surprises — a rogue HttpRequestException,
+            // TaskCanceledException from a client timeout, JsonException,
+            // configuration InvalidOperationException, etc. must not
+            // strand a brand-new learner). Log with correlation id +
+            // language so operators can diagnose which mints are failing
+            // and why.
             logger.LogWarning(
                 ex,
-                "course.mint.failed correlationId={CorrelationId} targetLanguage={TargetLanguage} nativeLanguage={NativeLanguage} proficiency={Proficiency}",
+                "course.mint.failed correlationId={CorrelationId} targetLanguage={TargetLanguage} nativeLanguage={NativeLanguage} proficiency={Proficiency} exceptionType={ExceptionType}",
                 command.CorrelationId.Value,
                 profile.TargetLanguage,
                 profile.NativeLanguage,
-                profile.ProficiencyLevel);
+                profile.ProficiencyLevel,
+                ex.GetType().Name);
             _ = fallbackPlan;
             return null;
         }

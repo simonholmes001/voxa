@@ -91,7 +91,44 @@ public sealed class OpenAiCourseAuthorService(
         };
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
 
-        using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
+        HttpResponseMessage response;
+        try
+        {
+            response = await httpClient.SendAsync(httpRequest, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Caller cancellation — never swallow. Preserves cooperative
+            // cancellation semantics up to Voxa.Api.
+            throw;
+        }
+        catch (HttpRequestException exception)
+        {
+            // Network/DNS/socket failure OR a non-success status when the
+            // handler pipeline was configured to throw on those. Both are
+            // transient upstream conditions; wrap so the boundary is
+            // uniform for OnboardingService's fallback and
+            // CourseReassessmentEndpoint's 503 mapping.
+            logger.LogError(
+                exception,
+                "Course author upstream transport failure. model={Model}",
+                route.Model);
+            throw new CourseAuthorException(
+                "Course author upstream call failed with a transport error.");
+        }
+        catch (TaskCanceledException exception)
+        {
+            // TaskCanceledException with cancellationToken NOT requested
+            // is HttpClient's timeout (HttpClient.Timeout hit). Wrap so
+            // onboarding falls back rather than aborting first-run.
+            logger.LogError(
+                exception,
+                "Course author upstream timed out. model={Model}",
+                route.Model);
+            throw new CourseAuthorException("Course author upstream call timed out.");
+        }
+
+        using var _ = response;
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -105,9 +142,26 @@ public sealed class OpenAiCourseAuthorService(
                 $"Course author upstream call failed with status {(int)response.StatusCode}.");
         }
 
-        var body = await response.Content.ReadFromJsonAsync<OpenAiChatCompletionResponse>(
-            JsonOptions,
-            cancellationToken);
+        OpenAiChatCompletionResponse? body;
+        try
+        {
+            body = await response.Content.ReadFromJsonAsync<OpenAiChatCompletionResponse>(
+                JsonOptions,
+                cancellationToken);
+        }
+        catch (JsonException exception)
+        {
+            // The OpenAI envelope itself was malformed (not the inner
+            // course-author JSON). Distinct from the "content is not
+            // JSON" throw below because that one is on the model's own
+            // response-format contract, not the API wire shape.
+            logger.LogError(
+                exception,
+                "Course author upstream envelope was not valid JSON. model={Model}",
+                route.Model);
+            throw new CourseAuthorException(
+                "Course author upstream response envelope was not valid JSON.");
+        }
         var text = body?.Choices?.FirstOrDefault()?.Message?.Content;
         if (string.IsNullOrWhiteSpace(text))
         {
