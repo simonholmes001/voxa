@@ -101,7 +101,18 @@ public struct RootView: View {
             case .loading:
                 ProgressView("Loading your languages…")
             case .needsOnboarding:
+                // If a previous session completed onboarding, the model's
+                // `isComplete` is still true from that draft — OnboardingGate
+                // would then skip straight back to mainShell and strand the
+                // learner on Home's "Let's set up your learning" placeholder
+                // with no way forward. Resetting the draft here forces the
+                // gate to render the onboarding flow so the learner can pick
+                // a language and start again.
                 onboardingThenShell
+                    .onAppear {
+                        didChooseLanguage = false
+                        onboardingModel.startNewLanguageOnboarding()
+                    }
             case let .single(profile):
                 if profile.isComplete {
                     mainShell

@@ -279,7 +279,15 @@ public struct HomeView: View {
     }
 
     private func progressCaption(for course: LearnerCourse) -> String {
-        return "Lesson \(course.currentLessonIndex) of \(course.totalLessons)"
+        let completed = course.lessons.filter { $0.status == .completed }.count
+        let total = course.totalLessons
+        if completed == 0 {
+            return "Lesson \(course.currentLessonIndex) of \(total)"
+        }
+        if completed == total {
+            return "\(total) of \(total) — course complete"
+        }
+        return "Lesson \(course.currentLessonIndex) of \(total) · \(completed) done"
     }
 
     private func languagesCard(_ summary: LearnerProfileSummary) -> some View {
@@ -329,36 +337,30 @@ public struct HomeView: View {
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
     }
 
+    /// Today card — the daily-practice quota surface. Deliberately narrow
+    /// after C3.1: the Course card above already carries "which lesson
+    /// next?" so this card focuses on "how much have I practised today?"
+    /// and gives a single Continue-learning CTA that resumes the arc.
+    /// Removes the pre-C3 activePlanTitle/currentLessonTitle rows because
+    /// they duplicated the Course card and made the two cards read like
+    /// competing surfaces on the same screen.
     private func todayCard(_ summary: LearnerProfileSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Today")
-                .font(.headline)
-            Text("Continue \(summary.languageName)")
-                .font(.title3)
-                .fontWeight(.semibold)
-            Text("\(summary.levelName) • \(summary.goalName.lowercased()) • about \(summary.dailyMinutes) min today")
+            Text("Today's practice")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
-            if let plan = summary.activePlanTitle {
-                Label(plan, systemImage: "map")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            if let lesson = summary.currentLessonTitle {
-                Label(currentLessonText(lesson, stepIndex: summary.currentLessonStepIndex), systemImage: "bookmark")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+                .fontWeight(.semibold)
+                .foregroundStyle(.tint)
+                .textCase(.uppercase)
             VStack(alignment: .leading, spacing: 6) {
                 ProgressView(value: summary.dailyProgressFraction)
                     .accessibilityIdentifier("home-daily-progress")
                 Text(summary.practicedTodayLabel)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
             HStack(spacing: 12) {
                 Button(action: onContinueLearning) {
-                    Label("Continue learning", systemImage: "play.fill")
+                    Label(continueLearningTitle, systemImage: "play.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -377,6 +379,17 @@ public struct HomeView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Title for the Today-card CTA. When the course has a current
+    /// lesson, name it so the button reads like a resumption, not a
+    /// generic "Continue".
+    private var continueLearningTitle: String {
+        if let course = courseModel, case let .ready(loaded) = course.state,
+           let current = loaded.currentLesson {
+            return "Continue: \(current.title)"
+        }
+        return "Continue learning"
     }
 
     private func practiceCard(_ summary: LearnerProfileSummary) -> some View {
@@ -446,11 +459,6 @@ public struct HomeView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(.secondary.opacity(0.10), in: Capsule())
-    }
-
-    private func currentLessonText(_ lesson: String, stepIndex: Int?) -> String {
-        guard let stepIndex else { return "Continue \(lesson)" }
-        return "Continue \(lesson), step \(stepIndex + 1)"
     }
 
     private func resolvedLanguages(for summary: LearnerProfileSummary) -> [LearnerLanguageSummary] {
