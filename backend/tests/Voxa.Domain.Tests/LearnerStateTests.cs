@@ -54,4 +54,59 @@ public sealed class LearnerStateTests
         Assert.Single(state.ReviewQueue.Items);
         Assert.Single(state.RecentSessions.Items);
     }
+
+    [Fact]
+    public void ActiveLearningPlanCurrentLessonPrefersExplicitlyCurrentOverFirstPending()
+    {
+        var plan = new ActiveLearningPlan("plan", "Everyday German", [], new PlannedLesson[]
+        {
+            new("l1", "Greetings", "…", 1, 10, PlannedLessonStatus.Completed),
+            new("l2", "Cooking verbs", "…", 2, 15, PlannedLessonStatus.Current),
+            new("l3", "Past tense", "…", 3, 15, PlannedLessonStatus.Pending),
+        });
+
+        Assert.Equal("l2", plan.CurrentLesson?.LessonId);
+    }
+
+    [Fact]
+    public void ActiveLearningPlanCurrentLessonFallsBackToFirstPendingWhenNoCurrentMarked()
+    {
+        var plan = new ActiveLearningPlan("plan", "Everyday German", [], new PlannedLesson[]
+        {
+            new("l1", "Greetings", "…", 1, 10, PlannedLessonStatus.Completed),
+            new("l2", "Cooking verbs", "…", 2, 15, PlannedLessonStatus.Pending),
+            new("l3", "Past tense", "…", 3, 15, PlannedLessonStatus.Pending),
+        });
+
+        Assert.Equal("l2", plan.CurrentLesson?.LessonId);
+    }
+
+    [Fact]
+    public void ActiveLearningPlanCurrentLessonIsNullWhenTheCourseIsFullyCompleted()
+    {
+        var plan = new ActiveLearningPlan("plan", "Everyday German", [], new PlannedLesson[]
+        {
+            new("l1", "Greetings", "…", 1, 10, PlannedLessonStatus.Completed),
+            new("l2", "Cooking verbs", "…", 2, 15, PlannedLessonStatus.Completed),
+        });
+
+        Assert.Null(plan.CurrentLesson);
+    }
+
+    [Fact]
+    public void ActiveLearningPlanEmptyLessonsListYieldsNoCurrentLesson()
+    {
+        Assert.Null(ActiveLearningPlan.Empty.CurrentLesson);
+    }
+
+    [Fact]
+    public void LegacyActiveLearningPlanConstructorDefaultsLessonsToEmpty()
+    {
+        // Back-compat overload: existing callsites that pass PlanId +
+        // Title + KnowledgeUnitIds get an empty Lessons list without
+        // having to specify it, so pre-C3 code compiles unchanged.
+        var plan = new ActiveLearningPlan("plan-legacy", "Legacy title", ["greetings"]);
+        Assert.Empty(plan.Lessons);
+        Assert.Null(plan.CurrentLesson);
+    }
 }

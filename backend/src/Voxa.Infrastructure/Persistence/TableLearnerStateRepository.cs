@@ -282,7 +282,10 @@ internal sealed record LearnerStateDocument(
             new ActiveLearningPlanDocument(
                 state.ActivePlan.PlanId,
                 state.ActivePlan.Title,
-                state.ActivePlan.KnowledgeUnitIds),
+                state.ActivePlan.KnowledgeUnitIds,
+                state.ActivePlan.Lessons
+                    .Select(PlannedLessonDocument.FromDomain)
+                    .ToArray()),
             new LessonCheckpointDocument(
                 state.CurrentLesson.LessonId,
                 state.CurrentLesson.KnowledgeUnitId,
@@ -317,7 +320,10 @@ internal sealed record LearnerStateDocument(
             new ActiveLearningPlan(
                 ActivePlan.PlanId,
                 ActivePlan.Title,
-                ActivePlan.KnowledgeUnitIds),
+                ActivePlan.KnowledgeUnitIds,
+                (ActivePlan.Lessons ?? [])
+                    .Select(doc => doc.ToDomain())
+                    .ToArray()),
             new LessonCheckpoint(
                 CurrentLesson.LessonId,
                 CurrentLesson.KnowledgeUnitId,
@@ -348,7 +354,36 @@ internal sealed record ActiveLanguageDocument(string ActiveLanguageKey);
 internal sealed record ActiveLearningPlanDocument(
     string PlanId,
     string Title,
-    IReadOnlyList<string> KnowledgeUnitIds);
+    IReadOnlyList<string> KnowledgeUnitIds,
+    IReadOnlyList<PlannedLessonDocument>? Lessons = null);
+
+internal sealed record PlannedLessonDocument(
+    string LessonId,
+    string Title,
+    string LearningObjective,
+    int Order,
+    int EstimatedMinutes,
+    string Status)
+{
+    public static PlannedLessonDocument FromDomain(PlannedLesson lesson)
+    {
+        return new PlannedLessonDocument(
+            lesson.LessonId,
+            lesson.Title,
+            lesson.LearningObjective,
+            lesson.Order,
+            lesson.EstimatedMinutes,
+            lesson.Status.ToString());
+    }
+
+    public PlannedLesson ToDomain()
+    {
+        var status = Enum.TryParse<PlannedLessonStatus>(Status, ignoreCase: true, out var parsed)
+            ? parsed
+            : PlannedLessonStatus.Pending;
+        return new PlannedLesson(LessonId, Title, LearningObjective, Order, EstimatedMinutes, status);
+    }
+}
 
 internal sealed record LessonCheckpointDocument(
     string LessonId,

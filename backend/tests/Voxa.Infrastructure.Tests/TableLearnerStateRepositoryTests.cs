@@ -226,6 +226,81 @@ public sealed class TableLearnerStateRepositoryTests
         Assert.Empty(loaded.TutorEvidence.RecentDebriefs);
     }
 
+    [Fact]
+    public async Task SaveAsyncRoundTripsPlannedLessonsIncludingOrderStatusAndObjective()
+    {
+        // C3 durability: the course arc lands in Table Storage as JSON
+        // and must survive round trip with every field intact. Home
+        // depends on Order, Status, and Title for the arc rendering.
+        var table = new InMemoryLearnerStateTable();
+        var repository = new TableLearnerStateRepository(table);
+        var lessons = new PlannedLesson[]
+        {
+            new("lesson-1", "Greetings", "Say hello and goodbye naturally.", 1, 10, PlannedLessonStatus.Completed),
+            new("lesson-2", "Cooking verbs", "Talk about preparing food.", 2, 15, PlannedLessonStatus.Current),
+            new("lesson-3", "Past tense basics", "Describe what you did yesterday.", 3, 15, PlannedLessonStatus.Pending),
+        };
+        var state = LearnerState.Create(
+            TenantId.Create("tenant-a"),
+            UserId.Create("user-a"),
+            new LearnerProfile(TenantId.Create("tenant-a"), UserId.Create("user-a"), "de-DE", "en-US", "A1", ["travel"], 15),
+            new ActiveLearningPlan("plan-c3", "Everyday German", ["greetings"], lessons),
+            LessonCheckpoint.None,
+            ReviewQueue.Empty,
+            RecentSessionSummaries.Empty);
+
+        await repository.SaveAsync(state, null, CancellationToken.None);
+        var loaded = await repository.GetAsync(state.TenantId, state.UserId, CancellationToken.None);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(3, loaded.ActivePlan.Lessons.Count);
+        Assert.Equal("lesson-2", loaded.ActivePlan.CurrentLesson?.LessonId);
+        Assert.Equal("Cooking verbs", loaded.ActivePlan.Lessons[1].Title);
+        Assert.Equal("Talk about preparing food.", loaded.ActivePlan.Lessons[1].LearningObjective);
+        Assert.Equal(2, loaded.ActivePlan.Lessons[1].Order);
+        Assert.Equal(15, loaded.ActivePlan.Lessons[1].EstimatedMinutes);
+        Assert.Equal(PlannedLessonStatus.Completed, loaded.ActivePlan.Lessons[0].Status);
+        Assert.Equal(PlannedLessonStatus.Current, loaded.ActivePlan.Lessons[1].Status);
+        Assert.Equal(PlannedLessonStatus.Pending, loaded.ActivePlan.Lessons[2].Status);
+    }
+
+    [Fact]
+    public async Task GetAsyncTreatsLegacyDocumentsWithoutLessonsAsEmpty()
+    {
+        // Backwards compatibility: rows written before C3 don't have the
+        // lessons array. They load with an empty Lessons list — Home
+        // falls back to the pre-C3 title-only rendering.
+        var table = new InMemoryLearnerStateTable();
+        var repository = new TableLearnerStateRepository(table);
+        await table.UpsertAsync(
+            new LearnerStateTableEntity(
+                "tenant-a",
+                "user-a",
+                "etag-1",
+                2,
+                """
+                {
+                  "tenantId": "tenant-a",
+                  "userId": "user-a",
+                  "version": 2,
+                  "profile": { "targetLanguage": "fr", "nativeLanguage": "en", "proficiencyLevel": "A1", "goals": ["travel"], "dailyMinutes": 15 },
+                  "activePlan": { "planId": "legacy-plan", "title": "Old plan", "knowledgeUnitIds": ["greetings"] },
+                  "currentLesson": { "lessonId": "", "knowledgeUnitId": "", "stepIndex": 0, "updatedAt": "1970-01-01T00:00:00Z" },
+                  "reviewQueue": [],
+                  "recentSessions": []
+                }
+                """),
+            null,
+            CancellationToken.None);
+
+        var loaded = await repository.GetAsync(TenantId.Create("tenant-a"), UserId.Create("user-a"), CancellationToken.None);
+
+        Assert.NotNull(loaded);
+        Assert.Equal("legacy-plan", loaded.ActivePlan.PlanId);
+        Assert.Empty(loaded.ActivePlan.Lessons);
+        Assert.Null(loaded.ActivePlan.CurrentLesson);
+    }
+
     private static LearnerState CreateState(TenantId tenantId, UserId userId)
     {
         return LearnerState.Create(
