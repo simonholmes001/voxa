@@ -3,7 +3,9 @@ using Voxa.Domain.Learners;
 
 namespace Voxa.Application.Onboarding;
 
-public sealed class OnboardingService(ILearnerStateRepository repository)
+public sealed class OnboardingService(
+    ILearnerStateRepository repository,
+    ICourseAuthorService? courseAuthor = null)
 {
     public async Task<OnboardingSubmitResponse> SubmitAsync(
         OnboardingSubmitCommand command,
@@ -64,12 +66,20 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
         // Generate initial learning plan based on proficiency and goals
         var activePlan = GenerateInitialPlan(command.ProficiencyLevel, command.Goals);
 
+        // Attempt to mint a personalised course from the learner's profile
+        // synchronously so onboarding completes with a real course visible
+        // on Home. The learner has been kept on a "Building your course…"
+        // progress screen through the call. Failure is non-fatal: we fall
+        // back to the placeholder plan below so onboarding always succeeds.
+        var mintedPlan = await TryMintInitialCourseAsync(command, profile, activePlan, cancellationToken);
+        var planForState = mintedPlan ?? activePlan;
+
         var state = LearnerState.Create(
             command.TenantId,
             command.UserId,
             profile,
-            activePlan,
-            CreateInitialLessonCheckpoint(activePlan),
+            planForState,
+            CreateInitialLessonCheckpoint(planForState),
             ReviewQueue.Empty,
             RecentSessionSummaries.Empty);
 
@@ -96,6 +106,42 @@ public sealed class OnboardingService(ILearnerStateRepository repository)
                 saved.ActivePlan.Title,
                 saved.ActivePlan.KnowledgeUnitIds),
             saved.Version.Value);
+    }
+
+    private async Task<ActiveLearningPlan?> TryMintInitialCourseAsync(
+        OnboardingSubmitCommand command,
+        LearnerProfile profile,
+        ActiveLearningPlan fallbackPlan,
+        CancellationToken cancellationToken)
+    {
+        if (courseAuthor is null)
+        {
+            return null;
+        }
+        try
+        {
+            return await courseAuthor.AuthorCourseAsync(
+                new CourseAuthorRequest(
+                    command.TenantId,
+                    command.UserId,
+                    command.CorrelationId,
+                    profile,
+                    ExistingCourse: null,
+                    CompletedLessonIds: [],
+                    RecentDebriefs: [],
+                    ReassessmentRequest: null),
+                cancellationToken);
+        }
+        catch (CourseAuthorException)
+        {
+            // Non-fatal: onboarding succeeds with the pre-C3 placeholder
+            // plan and the learner can request a reassessment later. The
+            // hosting layer (Voxa.Api) surfaces the correlation-id header
+            // in its response so operators can still trace the failure via
+            // the CourseAuthorException already logged inside the service.
+            _ = fallbackPlan;
+            return null;
+        }
     }
 
     private static ActiveLearningPlan GenerateInitialPlan(string proficiencyLevel, IReadOnlyList<string> goals)
