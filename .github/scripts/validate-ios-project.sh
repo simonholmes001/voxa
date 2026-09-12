@@ -4,8 +4,14 @@ set -euo pipefail
 PROJECT_PATH="${VOXA_XCODE_PROJECT:-}"
 WORKSPACE_PATH="${VOXA_XCODE_WORKSPACE:-}"
 SCHEME="${VOXA_XCODE_SCHEME:-}"
-MANIFEST_PATH="${VOXA_PRIVACY_MANIFEST_PATH:-ios/VoxaApp/PrivacyInfo.xcprivacy}"
-INFO_PLIST_PATH="${VOXA_INFO_PLIST_PATH:-ios/Voxa/Info.plist}"
+# Defaults are resolved relative to the caller's current directory.
+# The TestFlight workflow now runs this script from `ios/` so the
+# defaults match what VOXA_XCODE_PROJECT (e.g. "Voxa.xcodeproj")
+# expects — a path relative to the iOS project root. Callers who
+# still want repo-root-relative behaviour can override either path
+# via VOXA_PRIVACY_MANIFEST_PATH or VOXA_INFO_PLIST_PATH.
+MANIFEST_PATH="${VOXA_PRIVACY_MANIFEST_PATH:-VoxaApp/PrivacyInfo.xcprivacy}"
+INFO_PLIST_PATH="${VOXA_INFO_PLIST_PATH:-Voxa/Info.plist}"
 
 if [ -z "$SCHEME" ]; then
   echo "VOXA_XCODE_SCHEME is required" >&2
