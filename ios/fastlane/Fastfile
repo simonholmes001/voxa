@@ -22,15 +22,25 @@ platform :ios do
     workspace_path = ENV["VOXA_XCODE_WORKSPACE"]
     scheme = ENV.fetch("VOXA_XCODE_SCHEME")
 
-    increment_build_number(
-      build_number: ENV.fetch("VOXA_BUILD_NUMBER")
-    )
+    # Version and build number are injected via xcargs so the pbxproj
+    # is not mutated in the CI checkout. MARKETING_VERSION comes from
+    # the changeset-driven git tag (see .github/workflows/ios-testflight.yml)
+    # and is optional — if unset the value in project.yml is used as a
+    # fallback. CURRENT_PROJECT_VERSION is the GitHub Actions run number,
+    # which is monotonic and guarantees a unique build number per upload.
+    build_number = ENV.fetch("VOXA_BUILD_NUMBER")
+    marketing_version = ENV["VOXA_MARKETING_VERSION"]
+
+    xcargs_parts = ["CURRENT_PROJECT_VERSION=#{build_number}"]
+    xcargs_parts << "MARKETING_VERSION=#{marketing_version}" if marketing_version && !marketing_version.empty?
+    xcargs = xcargs_parts.join(" ")
 
     gym_options = {
       scheme: scheme,
       configuration: "Release",
       export_method: "app-store",
-      clean: true
+      clean: true,
+      xcargs: xcargs
     }
 
     if project_path && !project_path.empty?

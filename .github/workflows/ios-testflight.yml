@@ -1,13 +1,33 @@
 name: iOS TestFlight
 
+# Trigger model:
+#
+# 1. **Tag push** — a merge to main triggers `.github/workflows/release.yml`,
+#    which consumes any pending `.changeset/*.md` files and pushes a
+#    `v<semver>` tag. That tag push triggers this workflow, which builds
+#    and uploads a TestFlight build with MARKETING_VERSION derived from
+#    the tag and CURRENT_PROJECT_VERSION derived from the run number
+#    (monotonic — guarantees a unique CFBundleVersion per upload).
+#
+# 2. **Manual dispatch** — for re-uploads, hotfix rebuilds, or the very
+#    first upload before the first tag exists. Optionally accepts a
+#    marketing_version input; if omitted, the newest `v*` tag is used.
+#
+# No push-to-main trigger: it would race with `release.yml` (the tag it
+# creates would not yet exist when the upload starts) and would upload
+# a build even when there was nothing releasable.
+
 on:
   push:
-    branches: [main]
-    paths:
-      - "ios/**"
-      - ".github/workflows/ios-testflight.yml"
-      - ".github/scripts/validate-ios-project.sh"
+    tags:
+      - "v*"
   workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: "Marketing version (e.g. 0.20.0). Leave blank to use the newest v* tag."
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -19,6 +39,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          # Full history so we can resolve the newest v* tag on
+          # workflow_dispatch when the caller does not supply one.
+          fetch-depth: 0
 
       - name: Detect iOS project
         id: detect
@@ -38,6 +62,33 @@ jobs:
             exit 0
           fi
           echo "exists=true" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve marketing version
+        id: version
+        if: steps.detect.outputs.exists == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Tag push. Strip the "v" prefix so 'v0.20.0' → '0.20.0'.
+            version="${GITHUB_REF_NAME#v}"
+          else
+            # workflow_dispatch. Prefer the caller's input if given,
+            # otherwise fall back to the newest v* tag.
+            supplied="${{ github.event.inputs.marketing_version }}"
+            if [ -n "$supplied" ]; then
+              version="$supplied"
+            else
+              tag="$(git tag --list 'v*' --sort=-version:refname | head -n1 || true)"
+              if [ -z "$tag" ]; then
+                echo "No v* tag found and no marketing_version input provided." >&2
+                exit 1
+              fi
+              version="${tag#v}"
+            fi
+          fi
+          echo "marketing_version=$version" >> "$GITHUB_OUTPUT"
+          echo "Resolved marketing version: $version"
 
       - name: Validate required secrets
         if: steps.detect.outputs.exists == 'true'
@@ -135,6 +186,7 @@ jobs:
           VOXA_XCODE_WORKSPACE: ${{ secrets.VOXA_XCODE_WORKSPACE }}
           VOXA_XCODE_SCHEME: ${{ secrets.VOXA_XCODE_SCHEME }}
           VOXA_BUILD_NUMBER: ${{ github.run_number }}
+          VOXA_MARKETING_VERSION: ${{ steps.version.outputs.marketing_version }}
         run: bundle exec fastlane ios upload_internal_testflight
 
       - name: Cleanup App Store Connect API key
