@@ -97,7 +97,7 @@ the `voxa` repo:
 | `VOXA_ITC_TEAM_ID` | e.g. `123456789` | App Store Connect → Users → your name → Team ID |
 | `VOXA_TEAM_ID` | `2PA85SU4UQ` | developer.apple.com → Membership |
 | `VOXA_XCODE_SCHEME` | `Voxa` | The `Voxa` scheme in `Voxa.xcodeproj` |
-| `VOXA_XCODE_PROJECT` | `Voxa.xcodeproj` | Path relative to `ios/` |
+| `VOXA_XCODE_PROJECT` | `Voxa.xcodeproj` | Filename only — no `ios/` prefix. The workflow runs both the validation and the fastlane build from `ios/` so the value is resolved from there. |
 | `MATCH_GIT_URL` | `git@github.com:simonholmes001/voxa-certificates.git` | The private cert repo you created |
 | `MATCH_PASSWORD` | the passphrase you chose in step 1 | Encrypts certs in the private repo |
 | `MATCH_KEYCHAIN_PASSWORD` | any strong random string | Ephemeral CI keychain — never reused |

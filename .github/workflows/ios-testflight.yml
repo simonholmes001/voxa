@@ -162,11 +162,16 @@ jobs:
       - name: Validate iOS project, scheme, and privacy manifest
         if: steps.detect.outputs.exists == 'true'
         shell: bash
+        # Run from ios/ so VOXA_XCODE_PROJECT (e.g. "Voxa.xcodeproj")
+        # resolves the same way here as it does for the fastlane upload
+        # step below. The script's default MANIFEST_PATH and
+        # INFO_PLIST_PATH are ios-relative to match.
+        working-directory: ios
         env:
           VOXA_XCODE_PROJECT: ${{ secrets.VOXA_XCODE_PROJECT }}
           VOXA_XCODE_WORKSPACE: ${{ secrets.VOXA_XCODE_WORKSPACE }}
           VOXA_XCODE_SCHEME: ${{ secrets.VOXA_XCODE_SCHEME }}
-        run: bash .github/scripts/validate-ios-project.sh
+        run: bash ../.github/scripts/validate-ios-project.sh
 
       - name: Upload internal TestFlight build
         if: steps.detect.outputs.exists == 'true'
