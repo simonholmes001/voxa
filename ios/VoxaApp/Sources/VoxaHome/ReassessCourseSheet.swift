@@ -45,7 +45,7 @@ struct ReassessCourseSheet: View {
                 } header: {
                     Text("Your feedback")
                 } footer: {
-                    Text("For example: “more speaking practice”, “this is too easy”, or “add travel vocabulary”. Leave blank to let Voxa reshape based on your recent sessions.")
+                    Text("For example: “more speaking practice”, “this is too easy”, or “add travel vocabulary”. Leave blank to let voxa reshape based on your recent sessions.")
                 }
                 Section {
                     Button {

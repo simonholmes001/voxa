@@ -48,7 +48,7 @@ public struct OnboardingView: View {
     private var stepContent: some View {
         switch model.currentStep {
         case .welcome:
-            header("Welcome to Voxa", "Answer a few quick questions and we'll tailor your learning plan.")
+            header("Welcome to voxa", "Answer a few quick questions and we'll tailor your learning plan.")
         case .targetLanguage:
             header("What do you want to learn?", "Choose your target language.")
             picker(selection: targetLanguageBinding, options: Self.languages)

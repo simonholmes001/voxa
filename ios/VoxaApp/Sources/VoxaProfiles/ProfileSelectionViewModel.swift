@@ -190,7 +190,7 @@ public final class ProfileSelectionViewModel {
         case LanguageProfilesError.notConfigured:
             return "Language profiles aren't configured for this build yet."
         case LanguageProfilesError.transport:
-            return "We couldn't reach Voxa. Check your connection and try again."
+            return "We couldn't reach voxa. Check your connection and try again."
         default:
             return "We couldn't load your languages. Please try again."
         }

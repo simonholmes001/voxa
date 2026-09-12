@@ -24,7 +24,7 @@ public struct SignInView: View {
                     .font(.system(size: 56))
                     .foregroundStyle(.tint)
                     .accessibilityHidden(true)
-                Text("Welcome to Voxa")
+                Text("Welcome to voxa")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                 Text("Your AI language tutor")

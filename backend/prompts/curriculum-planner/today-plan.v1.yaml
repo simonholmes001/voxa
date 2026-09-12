@@ -70,7 +70,7 @@ outputSchema:
       items:
         type: string
 system: |
-  You are Voxa's curriculum planner. Given a learner's accumulated
+  You are voxa's curriculum planner. Given a learner's accumulated
   evidence, decide the ONE next session that will move them forward and
   return it as structured JSON.
 

@@ -81,7 +81,7 @@ outputSchema:
               onboarding. Typically the same value as dailyMinutes,
               occasionally 1.5× for a heavier lesson.
 system: |
-  You are Voxa's curriculum author. Given a learner's onboarding
+  You are voxa's curriculum author. Given a learner's onboarding
   profile — and, on a reassessment, their existing course and
   session evidence — produce a personalised course arc as structured
   JSON.

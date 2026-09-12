@@ -91,7 +91,7 @@ public final class AuthViewModel {
         case AuthenticationServiceError.sessionExpired:
             return "Your session expired. Please sign in again."
         case AuthenticationServiceError.transport:
-            return "We couldn't reach Voxa. Check your connection and try again."
+            return "We couldn't reach voxa. Check your connection and try again."
         default:
             return "Sign in failed. Please try again."
         }

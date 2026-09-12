@@ -77,7 +77,7 @@ fragment: |
   - Forms already accepted at the learner's level.
 
   Do NOT contradict this fragment based on your general knowledge of language
-  teaching; Voxa's correction policy is authoritative here.
+  teaching; voxa's correction policy is authoritative here.
 guardrails: {}
 notes: >
   See docs/specs/correction-and-explanation-policy.md §4 (behavior matrix),

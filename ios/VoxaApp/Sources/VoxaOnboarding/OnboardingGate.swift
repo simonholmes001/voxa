@@ -53,7 +53,7 @@ struct BuildingYourCourseOverlay: View {
                 .font(.title2)
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.center)
-            Text("Voxa is designing 20–30 lessons around your goals. This takes a few seconds.")
+            Text("voxa is designing 20–30 lessons around your goals. This takes a few seconds.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

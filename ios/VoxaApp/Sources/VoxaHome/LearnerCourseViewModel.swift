@@ -113,7 +113,7 @@ public final class LearnerCourseViewModel {
         case LearnerCourseServiceError.notFound:
             return "Complete onboarding first to build your course."
         case LearnerCourseServiceError.transport:
-            return "We couldn't reach Voxa to load your course. Try again later."
+            return "We couldn't reach voxa to load your course. Try again later."
         case let LearnerCourseServiceError.server(code, _):
             return "The course service returned an error (\(code)). Try again later."
         default:
