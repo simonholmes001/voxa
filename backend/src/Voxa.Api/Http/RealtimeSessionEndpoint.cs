@@ -32,6 +32,7 @@ public sealed class RealtimeSessionEndpoint(IRealtimeSessionService realtimeSess
                 request.CoachingMode,
                 request.ProficiencyBand,
                 request.TargetLanguage,
+                request.NativeLanguage,
                 request.SessionIntent,
                 request.FocusTitle,
                 request.DueReviewCount,
@@ -73,7 +74,8 @@ public sealed record RealtimeSessionHttpRequest(
     string? TargetLanguage,
     string? SessionIntent = null,
     string? FocusTitle = null,
-    int? DueReviewCount = null);
+    int? DueReviewCount = null,
+    string? NativeLanguage = null);
 
 public sealed record RealtimeSessionHttpResponse(
     string CorrelationId,

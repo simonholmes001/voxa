@@ -82,7 +82,8 @@ public sealed class RealtimeSessionEndpointTests
                     command.TargetLanguage,
                     command.SessionIntent,
                     command.FocusTitle,
-                    command.DueReviewCount)));
+                    command.DueReviewCount,
+                    command.NativeLanguage)));
         }
     }
 }

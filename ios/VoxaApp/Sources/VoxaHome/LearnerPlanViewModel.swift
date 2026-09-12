@@ -67,7 +67,7 @@ public final class LearnerPlanViewModel {
         case let LearnerPlanServiceError.notConfigured(reason):
             return reason
         case LearnerPlanServiceError.transport:
-            return "We couldn't reach Voxa to generate your plan. Using a general recommendation."
+            return "We couldn't reach voxa to generate your plan. Using a general recommendation."
         case let LearnerPlanServiceError.server(code, _):
             return "The plan service returned an error (\(code)). Using a general recommendation."
         default:

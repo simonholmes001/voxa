@@ -184,7 +184,7 @@ enum LearningAssistantPlanFactory {
             title: "Review",
             symbol: "arrow.triangle.2.circlepath",
             headline: "Strengthen your \(context.language)",
-            detail: "Voxa should turn each tutor session into focused review: mistakes, unstable words, and pronunciation targets.",
+            detail: "voxa should turn each tutor session into focused review: mistakes, unstable words, and pronunciation targets.",
             primaryTitle: "Review with tutor",
             primarySymbol: "mic.fill",
             rows: [

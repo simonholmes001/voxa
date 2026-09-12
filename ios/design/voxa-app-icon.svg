@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  voxa app icon — wordmark concept.
+
+  The name IS the mark. No V-monogram, no separate waveform — the
+  four letters "voxa" (always lowercase) sit centred on a warm
+  gradient and do the branding on their own. Reads at a glance at
+  every icon size because there's exactly one thing to see.
+
+  Design intent:
+  - 1024×1024 master, iOS corner radius (22.37% ≈ 229 px).
+  - Same tint family the app already uses (blue → violet → coral),
+    so the icon feels like the product opened.
+  - Wordmark in rounded-sans, bold. Renders as San Francisco Rounded
+    on macOS/iOS via the system-ui font stack; the SVG stays crisp
+    at any size and Xcode's App Icon composer picks up the 1024 PNG
+    faithfully.
+  - Lowercase: "voxa" — the product refers to itself in lowercase
+    everywhere (Info.plist display name, tutor persona, all
+    user-visible copy). The icon matches.
+  - Off-white with a subtle warm cast so it doesn't feel bleached
+    against a light iOS home-screen wallpaper.
+
+  To ship:
+  1. rsvg-convert -w 1024 ios/design/voxa-app-icon.svg -o AppIcon-1024.png
+  2. Add to Voxa/Assets.xcassets/AppIcon.appiconset (iOS 17+ takes
+     one 1024×1024 and generates the size grid).
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1024 1024"
+     width="1024"
+     height="1024">
+
+  <defs>
+    <!-- Same corner-to-corner gradient family the Home + Practice
+         cards use, so the icon feels like the product opened. -->
+    <linearGradient id="voxa-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#2B6BF6"/>
+      <stop offset="55%"  stop-color="#7A5AF0"/>
+      <stop offset="100%" stop-color="#F26A8D"/>
+    </linearGradient>
+
+    <!-- Soft radial highlight upper-left so the flat gradient
+         doesn't read plastic. -->
+    <radialGradient id="voxa-highlight" cx="30%" cy="25%" r="65%">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="55%"  stop-color="#FFFFFF" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Small drop shadow for lift. Blur kept low so the shadow
+         disappears at 40 px and below. -->
+    <filter id="voxa-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
+      <feOffset dx="0" dy="6" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.30"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded-square background. iOS masks this at install time;
+       the explicit radius keeps previews outside Xcode true. -->
+  <rect x="0" y="0" width="1024" height="1024"
+        rx="229" ry="229"
+        fill="url(#voxa-bg)"/>
+  <rect x="0" y="0" width="1024" height="1024"
+        rx="229" ry="229"
+        fill="url(#voxa-highlight)"/>
+
+  <!-- Wordmark. Rounded-sans, bold, title case.
+       - font-size 380 gives a strong presence with ~60px side margins.
+       - letter-spacing tightens the mark so it reads as one word,
+         not four letters.
+       - text-anchor="middle" + x=512 horizontally centres it.
+       - dominant-baseline="central" + y=520 puts the visual centre
+         (not baseline) on the icon's vertical centreline, so the
+         mark sits optically balanced. -->
+  <g filter="url(#voxa-shadow)">
+    <text x="512" y="520"
+          font-family="system-ui, -apple-system, 'SF Pro Rounded', 'SF Pro Display', 'SF Pro', Nunito, Poppins, sans-serif"
+          font-weight="800"
+          font-size="440"
+          letter-spacing="-12"
+          fill="#F7F3FF"
+          text-anchor="middle"
+          dominant-baseline="central">voxa</text>
+  </g>
+</svg>

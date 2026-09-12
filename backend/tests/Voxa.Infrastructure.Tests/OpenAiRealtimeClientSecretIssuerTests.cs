@@ -190,10 +190,90 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
 
         await issuer.IssueAsync(CreateRequest(sessionIntent: "lesson", focusTitle: "Survival German"), CancellationToken.None);
 
-        // New: lesson intent resolves to the guided-lesson prompt template.
+        // Lesson intent resolves to the guided-lesson prompt template.
         Assert.Contains("Activity: Guided lesson on", handler.Body, StringComparison.Ordinal);
         Assert.Contains("Survival German", handler.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("metadata", handler.Body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task IssueAsyncGuidedLessonV2IncludesNativeLanguageOpenerAndAntiLoopAndEndOfLesson()
+    {
+        // Regression: the tutor was looping on "Say your name is X" and
+        // never terminating the lesson. Prove that the guided-lesson v2
+        // prompt renders the L1 opener with the caller's nativeLanguage,
+        // the anti-loop guarantee, and the end-of-lesson closure so the
+        // model has the instructions it needs to STOP.
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": {"type": "realtime", "model": "gpt-realtime-2.1"}
+            }
+            """);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.openai.example/") };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel, "gpt-realtime-2.1", "low",
+                ModelRouteSource.ConfigDefault, null)),
+            EmbeddedPromptRegistry.CreateDefault(),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(
+            CreateRequest(
+                sessionIntent: "guided_lesson",
+                focusTitle: "Greeting people",
+                nativeLanguage: "English"),
+            CancellationToken.None);
+
+        // Anti-loop rule reaches the model.
+        Assert.Contains("Anti-loop guarantee", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("MUST NOT repeat the same prompt", handler.Body, StringComparison.Ordinal);
+        // End-of-lesson closure reaches the model.
+        Assert.Contains("End of lesson", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("Session complete", handler.Body, StringComparison.Ordinal);
+        // Ongoing bilingual scaffolding reaches the model — L1 is not
+        // just an opener/closer, it accompanies every scaffolding move
+        // at A1/A2.
+        Assert.Contains("Bilingual scaffolding for beginner bands", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("L2 model", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("L1 gloss", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("40", handler.Body, StringComparison.Ordinal); // "40–60% nativeLanguage at A1"
+        // L1 opener uses the caller's nativeLanguage.
+        Assert.Contains("English", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task IssueAsyncGuidedLessonV2FallsBackToEnglishWhenNativeLanguageMissing()
+    {
+        // A legacy client that doesn't send nativeLanguage still gets a
+        // valid render — the L1 scaffolding is degraded (English framing)
+        // but the session doesn't fail.
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": {"type": "realtime", "model": "gpt-realtime-2.1"}
+            }
+            """);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.openai.example/") };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel, "gpt-realtime-2.1", "low",
+                ModelRouteSource.ConfigDefault, null)),
+            EmbeddedPromptRegistry.CreateDefault(),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(
+            CreateRequest(sessionIntent: "guided_lesson", focusTitle: "Greetings", nativeLanguage: null),
+            CancellationToken.None);
+
+        Assert.Contains("English", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("Session complete", handler.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -346,20 +426,21 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
     }
 
     [Theory]
-    [InlineData("pronunciation_drill", "realtime-tutor/pronunciation-drill")]
-    [InlineData("roleplay", "realtime-tutor/roleplay")]
-    [InlineData("mistakes_replay", "realtime-tutor/mistakes-replay")]
-    [InlineData("vocabulary_drill", "realtime-tutor/vocabulary-drill")]
-    [InlineData("listening_practice", "realtime-tutor/listening-practice")]
-    [InlineData("key_language", "realtime-tutor/key-language")]
-    [InlineData("open_practice", "realtime-tutor/open-practice")]
-    [InlineData("practice", "realtime-tutor/open-practice")]
-    [InlineData("guided_lesson", "realtime-tutor/guided-lesson")]
-    [InlineData("something_the_router_does_not_know", "realtime-tutor/open-practice")]
-    [InlineData(null, "realtime-tutor/open-practice")]
+    [InlineData("pronunciation_drill", "realtime-tutor/pronunciation-drill", 1)]
+    [InlineData("roleplay", "realtime-tutor/roleplay", 1)]
+    [InlineData("mistakes_replay", "realtime-tutor/mistakes-replay", 1)]
+    [InlineData("vocabulary_drill", "realtime-tutor/vocabulary-drill", 1)]
+    [InlineData("listening_practice", "realtime-tutor/listening-practice", 1)]
+    [InlineData("key_language", "realtime-tutor/key-language", 1)]
+    [InlineData("open_practice", "realtime-tutor/open-practice", 1)]
+    [InlineData("practice", "realtime-tutor/open-practice", 1)]
+    [InlineData("guided_lesson", "realtime-tutor/guided-lesson", 2)]
+    [InlineData("something_the_router_does_not_know", "realtime-tutor/open-practice", 1)]
+    [InlineData(null, "realtime-tutor/open-practice", 1)]
     public void ResolvePromptRefRoutesEachIntentToItsActivityPromptWithOpenPracticeFallback(
         string? intent,
-        string expectedPromptId)
+        string expectedPromptId,
+        int expectedVersion)
     {
         var settings = new RealtimeSessionSettingsContract(
             CoachingMode: "tutor",
@@ -370,7 +451,7 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
         var promptRef = OpenAiRealtimeClientSecretIssuer.ResolvePromptRef(settings);
 
         Assert.Equal(expectedPromptId, promptRef.Id);
-        Assert.Equal(1, promptRef.Version);
+        Assert.Equal(expectedVersion, promptRef.Version);
     }
 
     [Fact]
@@ -506,13 +587,14 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
     private static RealtimeSessionRequest CreateRequest(
         string? sessionIntent = null,
         string? focusTitle = null,
-        int? dueReviewCount = null)
+        int? dueReviewCount = null,
+        string? nativeLanguage = "English")
     {
         return new RealtimeSessionRequest(
             TenantId.Create("tenant-default"),
             UserId.Create("user-a"),
             CorrelationId.Create("corr-123"),
-            new RealtimeSessionSettingsContract("tutor", "B1-B2", "fr-FR", sessionIntent, focusTitle, dueReviewCount));
+            new RealtimeSessionSettingsContract("tutor", "B1-B2", "fr-FR", sessionIntent, focusTitle, dueReviewCount, nativeLanguage));
     }
 
     private sealed class RecordingHttpMessageHandler(

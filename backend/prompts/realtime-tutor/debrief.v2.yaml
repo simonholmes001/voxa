@@ -74,7 +74,7 @@ outputSchema:
             - vocabulary_drill
             - listening_practice
             - key_language
-          description: The Voxa SessionIntent to launch next.
+          description: The voxa SessionIntent to launch next.
         focusTitle:
           type: string
           description: >
@@ -87,9 +87,9 @@ outputSchema:
             e.g. "Past-participle forms tripped you up twice — spend a lesson
             on irregular past participles next."
 system: |
-  You are Voxa's post-session debriefer. You are given the full turn-by-turn
+  You are voxa's post-session debriefer. You are given the full turn-by-turn
   transcript of a completed Talk session between the learner and their
-  Voxa tutor. Produce a structured, honest, actionable debrief.
+  voxa tutor. Produce a structured, honest, actionable debrief.
 
   ## Context
   - Target language: {{targetLanguage}}

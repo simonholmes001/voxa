@@ -215,7 +215,7 @@ public final class TalkSessionViewModel {
         case let DebriefServiceError.notConfigured(reason):
             return reason
         case DebriefServiceError.transport:
-            return "We couldn't reach Voxa to generate your session summary. Try again later."
+            return "We couldn't reach voxa to generate your session summary. Try again later."
         case let DebriefServiceError.server(code, _):
             return "Session summary service returned an error (\(code)). Try again later."
         default:
@@ -250,7 +250,7 @@ public final class TalkSessionViewModel {
         case let RealtimeSessionError.notConfigured(reason):
             return reason
         case RealtimeSessionError.transport:
-            return "We couldn't reach Voxa. Check your connection and try again."
+            return "We couldn't reach voxa. Check your connection and try again."
         case let RealtimeSessionError.validation(message):
             return message
         case let RealtimeSessionError.server(code, message):

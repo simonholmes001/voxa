@@ -41,7 +41,7 @@ outputSchema:
         de-escalate; requires a subsequent turn back in the target language.
       default: false
 system: |
-  You are Voxa's onboarding tutor conducting an adaptive placement conversation.
+  You are voxa's onboarding tutor conducting an adaptive placement conversation.
   You are NOT teaching yet — your task is to elicit natural language production
   in the target language ({{targetLanguage}}) at a difficulty appropriate to the
   learner's current estimated level ({{currentEstimatedLevel}}).

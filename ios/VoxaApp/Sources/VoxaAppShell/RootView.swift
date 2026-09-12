@@ -406,7 +406,7 @@ private struct SplitLayout: View {
                 Label(route.title, systemImage: route.systemImageName)
                     .tag(route)
             }
-            .navigationTitle("Voxa")
+            .navigationTitle("voxa")
         } detail: {
             NavigationStack {
                 RouteDestinationView(

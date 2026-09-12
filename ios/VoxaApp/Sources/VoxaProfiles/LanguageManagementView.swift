@@ -47,7 +47,7 @@ public struct LanguageManagementView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Tutor setup", systemImage: "person.wave.2")
                         .font(.headline)
-                    Text("Languages, goals, daily time, and correction style shape how Voxa teaches you.")
+                    Text("Languages, goals, daily time, and correction style shape how voxa teaches you.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

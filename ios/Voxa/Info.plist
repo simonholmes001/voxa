@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Voxa</string>
+	<string>voxa</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,9 +23,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Voxa uses the microphone so you can speak with your AI language tutor.</string>
+	<string>voxa uses the microphone so you can speak with your AI language tutor.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Voxa uses speech recognition to understand and give feedback on what you say in your target language.</string>
+	<string>voxa uses speech recognition to understand and give feedback on what you say in your target language.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>VOXA_API_BASE_URL</key>

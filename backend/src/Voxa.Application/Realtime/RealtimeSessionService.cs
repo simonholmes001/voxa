@@ -25,7 +25,8 @@ public sealed class RealtimeSessionService(
             command.TargetLanguage,
             command.SessionIntent,
             command.FocusTitle,
-            command.DueReviewCount);
+            command.DueReviewCount,
+            command.NativeLanguage);
 
         try
         {
