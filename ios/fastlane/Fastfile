@@ -31,8 +31,20 @@ platform :ios do
     build_number = ENV.fetch("VOXA_BUILD_NUMBER")
     marketing_version = ENV["VOXA_MARKETING_VERSION"]
 
+    # Force manual signing with the match-installed profile. project.yml
+    # ships CODE_SIGN_STYLE=Automatic (fine for local Xcode work), but
+    # match installs a specifically-named manual profile in the CI
+    # keychain and Xcode won't pick it up unless we opt out of automatic
+    # signing at build time. Everything below is a build-only override
+    # via xcargs — the project file stays untouched.
+    app_id = ENV.fetch("VOXA_APP_IDENTIFIER")
+    team_id = ENV.fetch("VOXA_TEAM_ID")
     xcargs_parts = ["CURRENT_PROJECT_VERSION=#{build_number}"]
     xcargs_parts << "MARKETING_VERSION=#{marketing_version}" if marketing_version && !marketing_version.empty?
+    xcargs_parts << "CODE_SIGN_STYLE=Manual"
+    xcargs_parts << "DEVELOPMENT_TEAM=#{team_id}"
+    xcargs_parts << "CODE_SIGN_IDENTITY=\"Apple Distribution\""
+    xcargs_parts << "PROVISIONING_PROFILE_SPECIFIER=\"match AppStore #{app_id}\""
     xcargs = xcargs_parts.join(" ")
 
     gym_options = {
