@@ -18,9 +18,18 @@ name: iOS TestFlight
 # a build even when there was nothing releasable.
 
 on:
-  push:
-    tags:
-      - "v*"
+  # Auto-trigger: fires when the Release workflow completes on main.
+  # Release creates and pushes the v<semver> tag via GITHUB_TOKEN,
+  # which GitHub deliberately does NOT let trigger downstream
+  # workflows via the tag-push event (loop prevention). workflow_run
+  # is exempt from that rule: it triggers on the completion of a
+  # named workflow, regardless of what token the initiator used.
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+    branches: [main]
+  # Manual dispatch: for re-uploads, hotfix rebuilds, or the very
+  # first upload before the first v* tag exists.
   workflow_dispatch:
     inputs:
       marketing_version:
@@ -36,6 +45,10 @@ jobs:
   upload-testflight:
     name: Upload Internal TestFlight Build
     runs-on: macos-latest
+    # Skip when workflow_run fires but Release did not actually
+    # succeed (e.g. Release ran but no changesets were present, or
+    # the tag step failed). Manual dispatch always runs.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -69,24 +82,36 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "push" ]; then
-            # Tag push. Strip the "v" prefix so 'v0.20.0' → '0.20.0'.
-            version="${GITHUB_REF_NAME#v}"
-          else
-            # workflow_dispatch. Prefer the caller's input if given,
-            # otherwise fall back to the newest v* tag.
-            supplied="${{ github.event.inputs.marketing_version }}"
-            if [ -n "$supplied" ]; then
-              version="$supplied"
-            else
+          case "${{ github.event_name }}" in
+            workflow_run)
+              # Release just finished on main; fetch the newest v* tag
+              # it pushed. checkout used fetch-depth: 0 so the tag is
+              # already local.
               tag="$(git tag --list 'v*' --sort=-version:refname | head -n1 || true)"
               if [ -z "$tag" ]; then
-                echo "No v* tag found and no marketing_version input provided." >&2
+                echo "workflow_run: no v* tag found after Release completion." >&2
                 exit 1
               fi
               version="${tag#v}"
-            fi
-          fi
+              ;;
+            workflow_dispatch)
+              supplied="${{ github.event.inputs.marketing_version }}"
+              if [ -n "$supplied" ]; then
+                version="$supplied"
+              else
+                tag="$(git tag --list 'v*' --sort=-version:refname | head -n1 || true)"
+                if [ -z "$tag" ]; then
+                  echo "No v* tag found and no marketing_version input provided." >&2
+                  exit 1
+                fi
+                version="${tag#v}"
+              fi
+              ;;
+            *)
+              echo "Unexpected event: ${{ github.event_name }}" >&2
+              exit 1
+              ;;
+          esac
           echo "marketing_version=$version" >> "$GITHUB_OUTPUT"
           echo "Resolved marketing version: $version"
 
