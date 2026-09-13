@@ -53,8 +53,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          # Full history so we can resolve the newest v* tag on
-          # workflow_dispatch when the caller does not supply one.
+          # workflow_run: pin the checkout to the exact commit the
+          # completed Release workflow ran against, so the archive we
+          # build is byte-identical to the code that produced the tag.
+          # workflow_dispatch: falls back to the default ref (usually
+          # refs/heads/main).
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          # Full history so we can resolve tags — needed to find the
+          # v* tag that points at head_sha (workflow_run) or the
+          # newest v* tag (workflow_dispatch fallback).
           fetch-depth: 0
 
       - name: Detect iOS project
@@ -84,15 +91,33 @@ jobs:
           set -euo pipefail
           case "${{ github.event_name }}" in
             workflow_run)
-              # Release just finished on main; fetch the newest v* tag
-              # it pushed. checkout used fetch-depth: 0 so the tag is
-              # already local.
-              tag="$(git tag --list 'v*' --sort=-version:refname | head -n1 || true)"
-              if [ -z "$tag" ]; then
-                echo "workflow_run: no v* tag found after Release completion." >&2
+              # Bind the marketing version to the exact commit Release
+              # ran against — not the newest global v* tag. Avoids a
+              # race where an unrelated tag pushed between Release
+              # finishing and this job starting would leak into the
+              # upload (High-severity finding from the PR review). The
+              # tag must exist and point at head_sha; otherwise Release
+              # produced no tag (empty changesets) or something else
+              # is off — either way we refuse to guess.
+              head_sha="${{ github.event.workflow_run.head_sha }}"
+              if [ -z "$head_sha" ]; then
+                echo "workflow_run: missing workflow_run.head_sha payload." >&2
                 exit 1
               fi
-              version="${tag#v}"
+              # Make sure tags are up to date (Release just pushed one).
+              git fetch --tags --force origin >/dev/null 2>&1 || true
+              tags="$(git tag --list 'v*' --points-at "$head_sha")"
+              if [ -z "$tags" ]; then
+                echo "workflow_run: no v* tag points at ${head_sha}. Release must have skipped tag creation (no changesets?) — skipping upload." >&2
+                exit 1
+              fi
+              count=$(printf '%s\n' "$tags" | wc -l | tr -d ' ')
+              if [ "$count" -ne 1 ]; then
+                echo "workflow_run: expected exactly one v* tag on ${head_sha}, found ${count}:" >&2
+                printf '  %s\n' "$tags" >&2
+                exit 1
+              fi
+              version="${tags#v}"
               ;;
             workflow_dispatch)
               supplied="${{ github.event.inputs.marketing_version }}"
