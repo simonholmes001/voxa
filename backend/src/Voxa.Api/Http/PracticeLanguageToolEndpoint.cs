@@ -7,7 +7,8 @@ namespace Voxa.Api.Http;
 public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService service)
 {
     private const int MaxTextLength = 2_000;
-    private const int MaxImageBase64Length = 7_500_000;
+    private const int MaxImageDecodedBytes = 5_000_000;
+    private const int MaxImageBase64Length = ((MaxImageDecodedBytes + 2) / 3) * 4;
 
     public async Task<ApiResponse<AskAnythingHttpResponse>> AskAsync(
         AppSessionPrincipal? principal,
@@ -99,11 +100,13 @@ public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService se
         var targetLanguage = NormalizeRequired(request.TargetLanguage);
         var imageBase64 = NormalizeRequired(request.ImageBase64);
         var mimeType = NormalizeRequired(request.MimeType);
+        var validatedImage = imageBase64 is null || mimeType is null
+            ? null
+            : ValidateImagePayload(imageBase64, mimeType);
         if (targetLanguage is null ||
             imageBase64 is null ||
             mimeType is null ||
-            imageBase64.Length > MaxImageBase64Length ||
-            !AllowedImageMimeTypes.Contains(mimeType))
+            validatedImage is null)
         {
             return Validation<ImageTranslationHttpResponse>("Image translation requires a png, jpeg, or webp image under the upload limit.", correlationId);
         }
@@ -114,8 +117,8 @@ public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService se
                 new ImageTranslationCommand(
                     NormalizeOptional(request.SourceLanguage),
                     targetLanguage,
-                    imageBase64,
-                    mimeType,
+                    validatedImage.Value.Base64,
+                    validatedImage.Value.MimeType,
                     CorrelationId.Create(correlationId)),
                 cancellationToken);
             return ApiResponse<ImageTranslationHttpResponse>.Ok(new ImageTranslationHttpResponse(
@@ -218,12 +221,77 @@ public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService se
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
 
+    private static ValidatedImagePayload? ValidateImagePayload(string imageBase64, string mimeType)
+    {
+        if (!AllowedImageMimeTypes.Contains(mimeType) || imageBase64.Length > MaxImageBase64Length)
+        {
+            return null;
+        }
+
+        var buffer = new byte[MaxDecodedByteCount(imageBase64.Length)];
+        if (!Convert.TryFromBase64String(imageBase64, buffer, out var bytesWritten) ||
+            bytesWritten == 0 ||
+            bytesWritten > MaxImageDecodedBytes)
+        {
+            return null;
+        }
+
+        var bytes = buffer.AsSpan(0, bytesWritten);
+        if (!MatchesDeclaredMimeType(bytes, mimeType))
+        {
+            return null;
+        }
+
+        return new ValidatedImagePayload(Convert.ToBase64String(bytes), mimeType.ToLowerInvariant());
+    }
+
+    private static int MaxDecodedByteCount(int base64Length)
+    {
+        return ((base64Length + 3) / 4) * 3;
+    }
+
+    private static bool MatchesDeclaredMimeType(ReadOnlySpan<byte> bytes, string mimeType)
+    {
+        return mimeType.ToLowerInvariant() switch
+        {
+            "image/jpeg" => IsJpeg(bytes),
+            "image/png" => IsPng(bytes),
+            "image/webp" => IsWebP(bytes),
+            _ => false,
+        };
+    }
+
+    private static bool IsJpeg(ReadOnlySpan<byte> bytes)
+    {
+        return bytes.Length >= 3 &&
+               bytes[0] == 0xFF &&
+               bytes[1] == 0xD8 &&
+               bytes[2] == 0xFF;
+    }
+
+    private static bool IsPng(ReadOnlySpan<byte> bytes)
+    {
+        ReadOnlySpan<byte> signature = stackalloc byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+        return bytes.StartsWith(signature);
+    }
+
+    private static bool IsWebP(ReadOnlySpan<byte> bytes)
+    {
+        ReadOnlySpan<byte> riff = stackalloc byte[] { 0x52, 0x49, 0x46, 0x46 };
+        ReadOnlySpan<byte> webp = stackalloc byte[] { 0x57, 0x45, 0x42, 0x50 };
+        return bytes.Length >= 12 &&
+               bytes[..4].SequenceEqual(riff) &&
+               bytes[8..12].SequenceEqual(webp);
+    }
+
     private static readonly HashSet<string> AllowedImageMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg",
         "image/png",
         "image/webp",
     };
+
+    private readonly record struct ValidatedImagePayload(string Base64, string MimeType);
 }
 
 public sealed record AskAnythingHttpRequest(

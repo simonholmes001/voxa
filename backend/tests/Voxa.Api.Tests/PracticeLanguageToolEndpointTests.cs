@@ -48,12 +48,89 @@ public sealed class PracticeLanguageToolEndpointTests
 
         var response = await endpoint.TranslateImageAsync(
             Principal(),
-            new ImageTranslationHttpRequest(null, "French", "abcd", "image/gif"),
+            new ImageTranslationHttpRequest(null, "French", ValidPngBase64(), "image/gif"),
             "corr-123",
             CancellationToken.None);
 
         Assert.Equal(400, response.StatusCode);
         Assert.Equal("validation_error", response.Error?.Code);
+    }
+
+    [Fact]
+    public async Task TranslateImageRejectsInvalidBase64()
+    {
+        var service = new StubPracticeLanguageToolService();
+        var endpoint = new PracticeLanguageToolEndpoint(service);
+
+        var response = await endpoint.TranslateImageAsync(
+            Principal(),
+            new ImageTranslationHttpRequest(null, "French", "not-base64", "image/png"),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal("validation_error", response.Error?.Code);
+        Assert.Null(service.ImageCommand);
+    }
+
+    [Fact]
+    public async Task TranslateImageRejectsDecodedImagesOverLimit()
+    {
+        var service = new StubPracticeLanguageToolService();
+        var endpoint = new PracticeLanguageToolEndpoint(service);
+        var bytes = new byte[5_000_001];
+        bytes[0] = 0x89;
+        bytes[1] = 0x50;
+        bytes[2] = 0x4E;
+        bytes[3] = 0x47;
+        bytes[4] = 0x0D;
+        bytes[5] = 0x0A;
+        bytes[6] = 0x1A;
+        bytes[7] = 0x0A;
+
+        var response = await endpoint.TranslateImageAsync(
+            Principal(),
+            new ImageTranslationHttpRequest(null, "French", Convert.ToBase64String(bytes), "image/png"),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal("validation_error", response.Error?.Code);
+        Assert.Null(service.ImageCommand);
+    }
+
+    [Fact]
+    public async Task TranslateImageRejectsMimeTypeThatDoesNotMatchImageBytes()
+    {
+        var service = new StubPracticeLanguageToolService();
+        var endpoint = new PracticeLanguageToolEndpoint(service);
+
+        var response = await endpoint.TranslateImageAsync(
+            Principal(),
+            new ImageTranslationHttpRequest(null, "French", ValidPngBase64(), "image/jpeg"),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal("validation_error", response.Error?.Code);
+        Assert.Null(service.ImageCommand);
+    }
+
+    [Fact]
+    public async Task TranslateImageForwardsOnlyValidatedNormalizedImagePayload()
+    {
+        var service = new StubPracticeLanguageToolService();
+        var endpoint = new PracticeLanguageToolEndpoint(service);
+
+        var response = await endpoint.TranslateImageAsync(
+            Principal(),
+            new ImageTranslationHttpRequest(null, "French", ValidPngBase64(), "IMAGE/PNG"),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal(ValidPngBase64(), service.ImageCommand?.ImageBase64);
+        Assert.Equal("image/png", service.ImageCommand?.MimeType);
     }
 
     [Fact]
@@ -77,9 +154,20 @@ public sealed class PracticeLanguageToolEndpointTests
         return new AppSessionPrincipal(TenantId.Create("tenant-default"), UserId.Create("user-a"));
     }
 
+    private static string ValidPngBase64()
+    {
+        return Convert.ToBase64String(new byte[]
+        {
+            0x89, 0x50, 0x4E, 0x47,
+            0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x00,
+        });
+    }
+
     private sealed class StubPracticeLanguageToolService : IPracticeLanguageToolService
     {
         public AskAnythingCommand? AskCommand { get; private set; }
+        public ImageTranslationCommand? ImageCommand { get; private set; }
         public VocabularyQuizCommand? VocabularyCommand { get; private set; }
 
         public Task<AskAnythingResult> AskAnythingAsync(
@@ -107,6 +195,7 @@ public sealed class PracticeLanguageToolEndpointTests
             ImageTranslationCommand command,
             CancellationToken cancellationToken)
         {
+            ImageCommand = command;
             return Task.FromResult(new ImageTranslationResult(
                 "Sortie",
                 command.SourceLanguage ?? "French",
