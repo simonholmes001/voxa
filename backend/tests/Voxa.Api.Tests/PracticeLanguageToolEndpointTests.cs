@@ -41,6 +41,48 @@ public sealed class PracticeLanguageToolEndpointTests
         Assert.Equal("A bientot", response.Body?.Examples[0].Target);
     }
 
+    [Theory]
+    [InlineData("targetLanguage")]
+    [InlineData("nativeLanguage")]
+    public async Task AskRejectsOversizedPromptFields(string fieldName)
+    {
+        var service = new StubPracticeLanguageToolService();
+        var endpoint = new PracticeLanguageToolEndpoint(service);
+        var targetLanguage = fieldName == "targetLanguage" ? LongText(129) : "French";
+        var nativeLanguage = fieldName == "nativeLanguage" ? LongText(129) : "English";
+
+        var response = await endpoint.AskAsync(
+            Principal(),
+            new AskAnythingHttpRequest(targetLanguage, nativeLanguage, "How do I say hello?"),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal("validation_error", response.Error?.Code);
+        Assert.Null(service.AskCommand);
+    }
+
+    [Theory]
+    [InlineData("sourceLanguage")]
+    [InlineData("targetLanguage")]
+    public async Task TranslateRejectsOversizedPromptFields(string fieldName)
+    {
+        var service = new StubPracticeLanguageToolService();
+        var endpoint = new PracticeLanguageToolEndpoint(service);
+        var sourceLanguage = fieldName == "sourceLanguage" ? LongText(129) : "English";
+        var targetLanguage = fieldName == "targetLanguage" ? LongText(129) : "French";
+
+        var response = await endpoint.TranslateAsync(
+            Principal(),
+            new TranslationHttpRequest(sourceLanguage, targetLanguage, "Hello"),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal("validation_error", response.Error?.Code);
+        Assert.Null(service.TranslationCommand);
+    }
+
     [Fact]
     public async Task TranslateImageRejectsUnsupportedMimeType()
     {
@@ -54,6 +96,27 @@ public sealed class PracticeLanguageToolEndpointTests
 
         Assert.Equal(400, response.StatusCode);
         Assert.Equal("validation_error", response.Error?.Code);
+    }
+
+    [Theory]
+    [InlineData("sourceLanguage")]
+    [InlineData("targetLanguage")]
+    public async Task TranslateImageRejectsOversizedPromptFields(string fieldName)
+    {
+        var service = new StubPracticeLanguageToolService();
+        var endpoint = new PracticeLanguageToolEndpoint(service);
+        var sourceLanguage = fieldName == "sourceLanguage" ? LongText(129) : "French";
+        var targetLanguage = fieldName == "targetLanguage" ? LongText(129) : "English";
+
+        var response = await endpoint.TranslateImageAsync(
+            Principal(),
+            new ImageTranslationHttpRequest(sourceLanguage, targetLanguage, ValidPngBase64(), "image/png"),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal("validation_error", response.Error?.Code);
+        Assert.Null(service.ImageCommand);
     }
 
     [Fact]
@@ -149,9 +212,37 @@ public sealed class PracticeLanguageToolEndpointTests
         Assert.Equal(10, service.VocabularyCommand?.Count);
     }
 
+    [Theory]
+    [InlineData("targetLanguage")]
+    [InlineData("proficiencyBand")]
+    [InlineData("focus")]
+    public async Task VocabularyQuizRejectsOversizedPromptFields(string fieldName)
+    {
+        var service = new StubPracticeLanguageToolService();
+        var endpoint = new PracticeLanguageToolEndpoint(service);
+        var targetLanguage = fieldName == "targetLanguage" ? LongText(129) : "French";
+        var proficiencyBand = fieldName == "proficiencyBand" ? LongText(129) : "A1-A2";
+        var focus = fieldName == "focus" ? LongText(257) : "travel";
+
+        var response = await endpoint.VocabularyQuizAsync(
+            Principal(),
+            new VocabularyQuizHttpRequest(targetLanguage, proficiencyBand, focus, 5),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal("validation_error", response.Error?.Code);
+        Assert.Null(service.VocabularyCommand);
+    }
+
     private static AppSessionPrincipal Principal()
     {
         return new AppSessionPrincipal(TenantId.Create("tenant-default"), UserId.Create("user-a"));
+    }
+
+    private static string LongText(int length)
+    {
+        return new string('x', length);
     }
 
     private static string ValidPngBase64()
@@ -167,6 +258,7 @@ public sealed class PracticeLanguageToolEndpointTests
     private sealed class StubPracticeLanguageToolService : IPracticeLanguageToolService
     {
         public AskAnythingCommand? AskCommand { get; private set; }
+        public TranslationCommand? TranslationCommand { get; private set; }
         public ImageTranslationCommand? ImageCommand { get; private set; }
         public VocabularyQuizCommand? VocabularyCommand { get; private set; }
 
@@ -184,6 +276,7 @@ public sealed class PracticeLanguageToolEndpointTests
             TranslationCommand command,
             CancellationToken cancellationToken)
         {
+            TranslationCommand = command;
             return Task.FromResult(new TranslationResult(
                 command.SourceLanguage ?? "English",
                 command.TargetLanguage,

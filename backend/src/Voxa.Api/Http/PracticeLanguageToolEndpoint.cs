@@ -7,6 +7,8 @@ namespace Voxa.Api.Http;
 public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService service)
 {
     private const int MaxTextLength = 2_000;
+    private const int MaxPromptLabelLength = 128;
+    private const int MaxFocusLength = 256;
     private const int MaxImageDecodedBytes = 5_000_000;
     private const int MaxImageBase64Length = ((MaxImageDecodedBytes + 2) / 3) * 4;
 
@@ -22,10 +24,17 @@ public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService se
         }
 
         var targetLanguage = NormalizeRequired(request.TargetLanguage);
+        var nativeLanguage = NormalizeOptional(request.NativeLanguage);
         var question = NormalizeRequired(request.Question);
-        if (targetLanguage is null || question is null || question.Length > MaxTextLength)
+        if (targetLanguage is null ||
+            question is null ||
+            !WithinLimit(targetLanguage, MaxPromptLabelLength) ||
+            !WithinLimit(nativeLanguage, MaxPromptLabelLength) ||
+            !WithinLimit(question, MaxTextLength))
         {
-            return Validation<AskAnythingHttpResponse>("Ask anything requires a target language and a question under 2,000 characters.", correlationId);
+            return Validation<AskAnythingHttpResponse>(
+                "Ask anything requires a target language under 128 characters, an optional native language under 128 characters, and a question under 2,000 characters.",
+                correlationId);
         }
 
         try
@@ -33,7 +42,7 @@ public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService se
             var result = await service.AskAnythingAsync(
                 new AskAnythingCommand(
                     targetLanguage,
-                    NormalizeOptional(request.NativeLanguage),
+                    nativeLanguage,
                     question,
                     CorrelationId.Create(correlationId)),
                 cancellationToken);
@@ -59,17 +68,24 @@ public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService se
         }
 
         var targetLanguage = NormalizeRequired(request.TargetLanguage);
+        var sourceLanguage = NormalizeOptional(request.SourceLanguage);
         var text = NormalizeRequired(request.Text);
-        if (targetLanguage is null || text is null || text.Length > MaxTextLength)
+        if (targetLanguage is null ||
+            text is null ||
+            !WithinLimit(sourceLanguage, MaxPromptLabelLength) ||
+            !WithinLimit(targetLanguage, MaxPromptLabelLength) ||
+            !WithinLimit(text, MaxTextLength))
         {
-            return Validation<TranslationHttpResponse>("Translation requires a target language and text under 2,000 characters.", correlationId);
+            return Validation<TranslationHttpResponse>(
+                "Translation requires source and target languages under 128 characters and text under 2,000 characters.",
+                correlationId);
         }
 
         try
         {
             var result = await service.TranslateAsync(
                 new TranslationCommand(
-                    NormalizeOptional(request.SourceLanguage),
+                    sourceLanguage,
                     targetLanguage,
                     text,
                     CorrelationId.Create(correlationId)),
@@ -98,6 +114,7 @@ public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService se
         }
 
         var targetLanguage = NormalizeRequired(request.TargetLanguage);
+        var sourceLanguage = NormalizeOptional(request.SourceLanguage);
         var imageBase64 = NormalizeRequired(request.ImageBase64);
         var mimeType = NormalizeRequired(request.MimeType);
         var validatedImage = imageBase64 is null || mimeType is null
@@ -106,16 +123,20 @@ public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService se
         if (targetLanguage is null ||
             imageBase64 is null ||
             mimeType is null ||
+            !WithinLimit(sourceLanguage, MaxPromptLabelLength) ||
+            !WithinLimit(targetLanguage, MaxPromptLabelLength) ||
             validatedImage is null)
         {
-            return Validation<ImageTranslationHttpResponse>("Image translation requires a png, jpeg, or webp image under the upload limit.", correlationId);
+            return Validation<ImageTranslationHttpResponse>(
+                "Image translation requires source and target languages under 128 characters and a png, jpeg, or webp image under the upload limit.",
+                correlationId);
         }
 
         try
         {
             var result = await service.TranslateImageAsync(
                 new ImageTranslationCommand(
-                    NormalizeOptional(request.SourceLanguage),
+                    sourceLanguage,
                     targetLanguage,
                     validatedImage.Value.Base64,
                     validatedImage.Value.MimeType,
@@ -147,10 +168,17 @@ public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService se
 
         var targetLanguage = NormalizeRequired(request.TargetLanguage);
         var proficiencyBand = NormalizeRequired(request.ProficiencyBand);
+        var focus = NormalizeOptional(request.Focus);
         var count = Math.Clamp(request.Count ?? 5, 3, 10);
-        if (targetLanguage is null || proficiencyBand is null)
+        if (targetLanguage is null ||
+            proficiencyBand is null ||
+            !WithinLimit(targetLanguage, MaxPromptLabelLength) ||
+            !WithinLimit(proficiencyBand, MaxPromptLabelLength) ||
+            !WithinLimit(focus, MaxFocusLength))
         {
-            return Validation<VocabularyQuizHttpResponse>("Vocabulary quiz requires a target language and proficiency band.", correlationId);
+            return Validation<VocabularyQuizHttpResponse>(
+                "Vocabulary quiz requires a target language and proficiency band under 128 characters, and an optional focus under 256 characters.",
+                correlationId);
         }
 
         try
@@ -159,7 +187,7 @@ public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService se
                 new VocabularyQuizCommand(
                     targetLanguage,
                     proficiencyBand,
-                    NormalizeOptional(request.Focus),
+                    focus,
                     count,
                     CorrelationId.Create(correlationId)),
                 cancellationToken);
@@ -219,6 +247,11 @@ public sealed class PracticeLanguageToolEndpoint(IPracticeLanguageToolService se
     {
         var trimmed = value?.Trim();
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+    }
+
+    private static bool WithinLimit(string? value, int maxLength)
+    {
+        return value is null || value.Length <= maxLength;
     }
 
     private static ValidatedImagePayload? ValidateImagePayload(string imageBase64, string mimeType)
