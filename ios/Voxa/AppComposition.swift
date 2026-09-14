@@ -5,6 +5,7 @@ import VoxaAuth
 import VoxaHome
 import VoxaNetworking
 import VoxaOnboarding
+import VoxaPractice
 import VoxaProfiles
 import VoxaRealtime
 import VoxaRealtimeWebRTC

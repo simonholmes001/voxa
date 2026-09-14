@@ -1,5 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import VoxaPractice
 
 #if canImport(PhotosUI)
 import PhotosUI

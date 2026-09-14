@@ -1,5 +1,6 @@
 import XCTest
 @testable import VoxaHome
+import VoxaPractice
 
 @MainActor
 final class PracticeLanguageToolViewModelTests: XCTestCase {

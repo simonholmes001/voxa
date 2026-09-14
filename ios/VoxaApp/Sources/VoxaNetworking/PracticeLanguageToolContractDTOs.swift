@@ -1,5 +1,5 @@
 import Foundation
-import VoxaHome
+import VoxaPractice
 
 struct AskAnythingRequestDTO: Encodable {
     let targetLanguage: String

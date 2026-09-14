@@ -1,6 +1,6 @@
 import XCTest
 @testable import VoxaNetworking
-import VoxaHome
+import VoxaPractice
 
 final class VoxaBackendPracticeLanguageToolServiceTests: XCTestCase {
     private var service: VoxaBackendPracticeLanguageToolService!

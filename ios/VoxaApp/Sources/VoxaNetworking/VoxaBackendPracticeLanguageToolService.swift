@@ -1,5 +1,5 @@
 import Foundation
-import VoxaHome
+import VoxaPractice
 
 public struct VoxaBackendPracticeLanguageToolService: PracticeLanguageToolService {
     private let baseURL: URL
