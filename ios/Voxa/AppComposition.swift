@@ -31,6 +31,7 @@ enum AppComposition {
         let profileModel = makeProfileModel(authModel: authModel)
         let learnerPlanModel = makeLearnerPlanModel(authModel: authModel)
         let learnerCourseModel = makeLearnerCourseModel(authModel: authModel)
+        let practiceLanguageToolModel = makePracticeLanguageToolModel(authModel: authModel)
         return RootView(
             authModel: authModel,
             onboardingModel: onboardingModel,
@@ -53,6 +54,7 @@ enum AppComposition {
             ),
             learnerPlanModel: learnerPlanModel,
             learnerCourseModel: learnerCourseModel,
+            practiceLanguageToolModel: practiceLanguageToolModel,
             profileModel: profileModel,
             makeLanguageSettingsModel: { profile in
                 LanguageSettingsViewModel(
@@ -62,6 +64,20 @@ enum AppComposition {
                     previewer: makeAiTutorPreviewer(authModel: authModel))
             }
         )
+    }
+
+    @MainActor
+    static func makePracticeLanguageToolModel(authModel: AuthViewModel) -> PracticeLanguageToolViewModel {
+        PracticeLanguageToolViewModel(
+            service: makePracticeLanguageToolService(),
+            accessTokenProvider: accessTokenProvider(for: authModel))
+    }
+
+    static func makePracticeLanguageToolService() -> any PracticeLanguageToolService {
+        guard let baseURL = backendBaseURL() else {
+            return NotConfiguredPracticeLanguageToolService()
+        }
+        return VoxaBackendPracticeLanguageToolService(baseURL: baseURL)
     }
 
     @MainActor

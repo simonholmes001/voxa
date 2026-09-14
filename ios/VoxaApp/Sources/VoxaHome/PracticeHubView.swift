@@ -10,17 +10,20 @@ public struct PracticeHubView: View {
     private let summary: LearnerProfileSummary?
     private let planState: LearnerPlanState
     private let courseState: LearnerCourseState
+    private let languageToolModel: PracticeLanguageToolViewModel?
     private let onStartTalk: (RealtimeTutorIntent) -> Void
 
     public init(
         summary: LearnerProfileSummary?,
         planState: LearnerPlanState = .idle,
         courseState: LearnerCourseState = .idle,
+        languageToolModel: PracticeLanguageToolViewModel? = nil,
         onStartTalk: @escaping (RealtimeTutorIntent) -> Void
     ) {
         self.summary = summary
         self.planState = planState
         self.courseState = courseState
+        self.languageToolModel = languageToolModel
         self.onStartTalk = onStartTalk
     }
 
@@ -28,6 +31,7 @@ public struct PracticeHubView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 todayCard
+                languageToolsSection
                 tileGridSection
             }
             .frame(maxWidth: 720, alignment: .leading)
@@ -110,6 +114,98 @@ public struct PracticeHubView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var languageToolsSection: some View {
+        if let languageToolModel {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Language tools")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                    .accessibilityAddTraits(.isHeader)
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 160), spacing: 12)],
+                    spacing: 12
+                ) {
+                    NavigationLink {
+                        VocabularyQuizView(
+                            model: languageToolModel,
+                            targetLanguage: targetLanguage,
+                            proficiencyBand: proficiencyBand,
+                            defaultFocus: summary?.currentLessonTitle ?? summary?.activePlanTitle)
+                    } label: {
+                        toolCard("Vocabulary test", "checklist", "Multiple-choice word checks.")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("practice-tool-vocabulary-test")
+
+                    NavigationLink {
+                        AskAnythingView(
+                            model: languageToolModel,
+                            targetLanguage: targetLanguage,
+                            nativeLanguage: nil)
+                    } label: {
+                        toolCard("Ask anything", "questionmark.bubble", "How do I say it?")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("practice-tool-ask-anything")
+
+                    NavigationLink {
+                        TranslationToolView(
+                            model: languageToolModel,
+                            targetLanguage: targetLanguage)
+                    } label: {
+                        toolCard("Translate", "character.bubble", "Text translation.")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("practice-tool-translate")
+
+                    NavigationLink {
+                        ImageTranslationToolView(
+                            model: languageToolModel,
+                            targetLanguage: targetLanguage)
+                    } label: {
+                        toolCard("Image translate", "camera.viewfinder", "Translate a photo.")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("practice-tool-image-translate")
+                }
+            }
+        }
+    }
+
+    private func toolCard(_ title: String, _ symbol: String, _ subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: symbol)
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
+        }
+        .padding()
+        .frame(minHeight: 116, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(.tint.opacity(0.15), lineWidth: 1)
+        )
+    }
+
+    private var targetLanguage: String {
+        summary?.languageName ?? "your target language"
+    }
+
+    private var proficiencyBand: String {
+        summary?.levelName ?? "A1-A2"
     }
 
     private func tileButton(_ tile: PracticeHubTile) -> some View {

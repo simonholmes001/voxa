@@ -21,6 +21,7 @@ public struct RootView: View {
     private let talkModel: TalkSessionViewModel?
     private let learnerPlanModel: LearnerPlanViewModel?
     private let learnerCourseModel: LearnerCourseViewModel?
+    private let practiceLanguageToolModel: PracticeLanguageToolViewModel?
     private let profileModel: ProfileSelectionViewModel?
     private let makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)?
     @State private var isAddingLanguage = false
@@ -36,6 +37,7 @@ public struct RootView: View {
         talkModel: TalkSessionViewModel? = nil,
         learnerPlanModel: LearnerPlanViewModel? = nil,
         learnerCourseModel: LearnerCourseViewModel? = nil,
+        practiceLanguageToolModel: PracticeLanguageToolViewModel? = nil,
         profileModel: ProfileSelectionViewModel? = nil,
         makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)? = nil
     ) {
@@ -46,6 +48,7 @@ public struct RootView: View {
         self.talkModel = talkModel
         self.learnerPlanModel = learnerPlanModel
         self.learnerCourseModel = learnerCourseModel
+        self.practiceLanguageToolModel = practiceLanguageToolModel
         self.profileModel = profileModel
         self.makeLanguageSettingsModel = makeLanguageSettingsModel
     }
@@ -236,6 +239,7 @@ public struct RootView: View {
             talkModel: talkModel,
             learnerPlanModel: learnerPlanModel,
             learnerCourseModel: learnerCourseModel,
+            practiceLanguageToolModel: practiceLanguageToolModel,
             languageManager: languageManagerContext
         )
     }
@@ -295,6 +299,7 @@ struct MainShellView: View {
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
     var learnerCourseModel: LearnerCourseViewModel?
+    var practiceLanguageToolModel: PracticeLanguageToolViewModel?
     var languageManager: LanguageManagerContext?
 
     #if os(iOS)
@@ -309,7 +314,8 @@ struct MainShellView: View {
                 homeModel: homeModel,
                 talkModel: talkModel,
                 learnerPlanModel: learnerPlanModel,
-            learnerCourseModel: learnerCourseModel,
+                learnerCourseModel: learnerCourseModel,
+                practiceLanguageToolModel: practiceLanguageToolModel,
                 languageManager: languageManager)
         case .splitView:
             SplitLayout(
@@ -317,7 +323,8 @@ struct MainShellView: View {
                 homeModel: homeModel,
                 talkModel: talkModel,
                 learnerPlanModel: learnerPlanModel,
-            learnerCourseModel: learnerCourseModel,
+                learnerCourseModel: learnerCourseModel,
+                practiceLanguageToolModel: practiceLanguageToolModel,
                 languageManager: languageManager)
         }
     }
@@ -342,6 +349,7 @@ private struct TabLayout: View {
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
     var learnerCourseModel: LearnerCourseViewModel?
+    var practiceLanguageToolModel: PracticeLanguageToolViewModel?
     var languageManager: LanguageManagerContext?
 
     var body: some View {
@@ -353,7 +361,8 @@ private struct TabLayout: View {
                         homeModel: homeModel,
                         talkModel: talkModel,
                         learnerPlanModel: learnerPlanModel,
-            learnerCourseModel: learnerCourseModel,
+                        learnerCourseModel: learnerCourseModel,
+                        practiceLanguageToolModel: practiceLanguageToolModel,
                         languageManager: languageManager,
                         onContinueLearning: { model.selectedRoute = .practice },
                         onStartTalk: { intent in
@@ -398,6 +407,7 @@ private struct SplitLayout: View {
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
     var learnerCourseModel: LearnerCourseViewModel?
+    var practiceLanguageToolModel: PracticeLanguageToolViewModel?
     var languageManager: LanguageManagerContext?
 
     var body: some View {
@@ -414,7 +424,8 @@ private struct SplitLayout: View {
                     homeModel: homeModel,
                     talkModel: talkModel,
                     learnerPlanModel: learnerPlanModel,
-            learnerCourseModel: learnerCourseModel,
+                    learnerCourseModel: learnerCourseModel,
+                    practiceLanguageToolModel: practiceLanguageToolModel,
                     languageManager: languageManager,
                     onContinueLearning: { model.selectedRoute = .practice },
                     onStartTalk: { intent in

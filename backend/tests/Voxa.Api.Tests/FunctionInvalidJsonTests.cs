@@ -10,6 +10,7 @@ using Voxa.Api.Http;
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
 using Voxa.Application.Onboarding;
+using Voxa.Application.Practice;
 using Voxa.Application.Realtime;
 using Voxa.Domain.Learners;
 using Voxa.Infrastructure.Authentication;
@@ -86,6 +87,10 @@ public sealed class FunctionInvalidJsonTests
     [InlineData("auth/logout")]
     [InlineData("onboarding")]
     [InlineData("realtime/session")]
+    [InlineData("practice/vocabulary-quiz")]
+    [InlineData("language-tools/ask")]
+    [InlineData("language-tools/translate")]
+    [InlineData("language-tools/translate-image")]
     public async Task PostFunctionsReturnInvalidJsonForMalformedBodies(string route)
     {
         var tokenIssuer = CreateTokenIssuer();
@@ -105,6 +110,10 @@ public sealed class FunctionInvalidJsonTests
             "auth/logout" => await functions.LogoutAsync(request, CancellationToken.None),
             "onboarding" => await functions.SubmitOnboardingAsync(request, CancellationToken.None),
             "realtime/session" => await functions.IssueRealtimeSessionAsync(request, CancellationToken.None),
+            "practice/vocabulary-quiz" => await functions.CreateVocabularyQuizAsync(request, CancellationToken.None),
+            "language-tools/ask" => await functions.AskLanguageToolAsync(request, CancellationToken.None),
+            "language-tools/translate" => await functions.TranslateLanguageToolAsync(request, CancellationToken.None),
+            "language-tools/translate-image" => await functions.TranslateImageLanguageToolAsync(request, CancellationToken.None),
             _ => throw new ArgumentOutOfRangeException(nameof(route), route, null)
         };
 
@@ -255,6 +264,7 @@ public sealed class FunctionInvalidJsonTests
             new LearningSessionCompletionEndpoint(new StubLearningSessionCompletionService()),
             new ResumeSessionEndpoint(new StubLearnerSessionQueries()),
             new LanguageProfilesEndpoint(new LanguageProfileService(learnerStateRepository)),
+            new PracticeLanguageToolEndpoint(new StubPracticeLanguageToolService()),
             new OnboardingSubmitEndpoint(new OnboardingService(learnerStateRepository)),
             new DevResetEndpoint(learnerStateRepository, enabled: true),
             tokenIssuer,
@@ -442,6 +452,37 @@ public sealed class FunctionInvalidJsonTests
     {
         public Task<SessionDebrief> GenerateDebriefAsync(
             SessionDebriefRequest request,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class StubPracticeLanguageToolService : IPracticeLanguageToolService
+    {
+        public Task<AskAnythingResult> AskAnythingAsync(
+            AskAnythingCommand command,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<TranslationResult> TranslateAsync(
+            TranslationCommand command,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ImageTranslationResult> TranslateImageAsync(
+            ImageTranslationCommand command,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<VocabularyQuizResult> CreateVocabularyQuizAsync(
+            VocabularyQuizCommand command,
             CancellationToken cancellationToken)
         {
             throw new NotSupportedException();

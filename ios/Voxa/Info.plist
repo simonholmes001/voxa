@@ -25,7 +25,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>voxa doesn't currently use your camera. This declaration is required because the WebRTC library voxa uses for real-time voice with your tutor references the camera API even when it isn't in use.</string>
+	<string>voxa uses the camera when you choose to translate text from a photo.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>voxa uses the microphone so you can speak with your AI language tutor.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
