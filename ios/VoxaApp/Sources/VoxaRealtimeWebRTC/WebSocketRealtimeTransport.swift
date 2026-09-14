@@ -157,29 +157,34 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         self.socket = socket
         socket.resume()
 
-        #if os(iOS)
-        try configureAudio()
-        try startPlaybackEngineIfNeeded()
-        #endif
-        receiveLoop(socket)
-        try await waitForHandshakeEvent("session.created")
-        try await sendSessionUpdate(on: socket)
-        try await waitForHandshakeEvent("session.updated")
+        do {
+            #if os(iOS)
+            try configureAudio()
+            try startPlaybackEngineIfNeeded()
+            #endif
+            receiveLoop(socket)
+            try await waitForHandshakeEvent("session.created")
+            try await sendSessionUpdate(on: socket)
+            try await waitForHandshakeEvent("session.updated")
 
-        registerRequestedResponse()
-        try await sendJSON([
-            "type": "response.create",
-            "response": [
-                "conversation": "none",
-                "output_modalities": ["audio"],
-                "max_output_tokens": 80,
-                "metadata": ["response_purpose": "ai_tutor_voice_preview"],
-                "instructions": "Speak exactly this one short tutor preview and then stop: \"\(text)\""
-            ]
-        ], on: socket)
-        try await waitForHandshakeEvent("response.done", timeoutSeconds: 12)
-        await waitForPlaybackToDrain(maxSeconds: previewPlaybackTimeout(for: credential))
-        await disconnect()
+            registerRequestedResponse()
+            try await sendJSON([
+                "type": "response.create",
+                "response": [
+                    "conversation": "none",
+                    "output_modalities": ["audio"],
+                    "max_output_tokens": 80,
+                    "metadata": ["response_purpose": "ai_tutor_voice_preview"],
+                    "instructions": "Speak exactly this one short tutor preview and then stop: \"\(text)\""
+                ]
+            ], on: socket)
+            try await waitForHandshakeEvent("response.done", timeoutSeconds: 12)
+            await waitForPlaybackToDrain(maxSeconds: previewPlaybackTimeout(for: credential))
+            await disconnect()
+        } catch {
+            await disconnect()
+            throw error
+        }
     }
 
     private func sendSessionUpdate(on socket: URLSessionWebSocketTask) async throws {
@@ -519,6 +524,9 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     private func waitForPlaybackToDrain(maxSeconds: TimeInterval) async {
         let deadline = Date().timeIntervalSince1970 + maxSeconds
         while Date().timeIntervalSince1970 < deadline {
+            if Task.isCancelled {
+                return
+            }
             let remaining = playbackSecondsRemaining()
             if remaining <= 0 {
                 try? await Task.sleep(nanoseconds: 500_000_000)
