@@ -323,6 +323,7 @@ struct ImageTranslationToolView: View {
     @State private var sourceLanguage = ""
     @State private var imageData: Data?
     @State private var mimeType = "image/jpeg"
+    @State private var imagePreparationError: String?
     @State private var isShowingCamera = false
 
     #if canImport(PhotosUI)
@@ -377,8 +378,16 @@ struct ImageTranslationToolView: View {
         #if os(iOS) && canImport(UIKit)
         .sheet(isPresented: $isShowingCamera) {
             CameraCaptureView { data in
-                imageData = data
-                mimeType = "image/jpeg"
+                do {
+                    let payload = try ImageTranslationPayloadPreparer.prepareJPEG(from: data)
+                    imageData = payload.data
+                    mimeType = payload.mimeType
+                    imagePreparationError = nil
+                } catch {
+                    imageData = nil
+                    mimeType = "image/jpeg"
+                    imagePreparationError = ImageTranslationPayloadPreparer.message(for: error)
+                }
                 isShowingCamera = false
             }
         }
@@ -394,6 +403,8 @@ struct ImageTranslationToolView: View {
     private var statusSection: some View {
         if model.isLoading {
             Section { ProgressView("Working...") }
+        } else if let imagePreparationError {
+            Section { Text(imagePreparationError).foregroundStyle(.red) }
         } else if let error = model.errorMessage {
             Section { Text(error).foregroundStyle(.red) }
         } else if imageData != nil {
@@ -413,10 +424,25 @@ struct ImageTranslationToolView: View {
     #if canImport(PhotosUI)
     private func loadPhoto(_ item: PhotosPickerItem?) async {
         guard let item else { return }
-        if let data = try? await item.loadTransferable(type: Data.self) {
-            imageData = data
-            mimeType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
+        #if os(iOS) && canImport(UIKit)
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                throw ImageTranslationPayloadPreparationError.unreadable
+            }
+            let payload = try ImageTranslationPayloadPreparer.prepareJPEG(from: data)
+            imageData = payload.data
+            mimeType = payload.mimeType
+            imagePreparationError = nil
+        } catch {
+            imageData = nil
+            mimeType = "image/jpeg"
+            imagePreparationError = ImageTranslationPayloadPreparer.message(for: error)
         }
+        #else
+        imageData = nil
+        mimeType = "image/jpeg"
+        imagePreparationError = "Image translation is not available for this build."
+        #endif
     }
     #endif
 }
@@ -445,6 +471,109 @@ private func speechLocaleIdentifier(for language: String?) -> String {
 }
 
 #if os(iOS) && canImport(UIKit)
+struct PreparedImageTranslationPayload: Equatable {
+    let data: Data
+    let mimeType: String
+}
+
+enum ImageTranslationPayloadPreparationError: Error, Equatable {
+    case unreadable
+    case compressionFailed
+}
+
+enum ImageTranslationPayloadPreparer {
+    static let maxBytes = 5_000_000
+    private static let initialMaxPixelDimension: CGFloat = 1_800
+    private static let minimumMaxPixelDimension: CGFloat = 480
+    private static let compressionQualities: [CGFloat] = [0.86, 0.76, 0.66, 0.56, 0.46]
+
+    static func prepareJPEG(from data: Data, maxBytes: Int = maxBytes) throws -> PreparedImageTranslationPayload {
+        guard let image = UIImage(data: data) else {
+            throw ImageTranslationPayloadPreparationError.unreadable
+        }
+        return try prepareJPEG(from: image, maxBytes: maxBytes)
+    }
+
+    static func prepareJPEG(from image: UIImage, maxBytes: Int = maxBytes) throws -> PreparedImageTranslationPayload {
+        let largestPixelDimension = max(image.size.width * image.scale, image.size.height * image.scale)
+        var targetMaxPixelDimension = min(max(largestPixelDimension, minimumMaxPixelDimension), initialMaxPixelDimension)
+
+        while targetMaxPixelDimension >= minimumMaxPixelDimension {
+            let resized = image.resizedToFit(maxPixelDimension: targetMaxPixelDimension)
+            for quality in compressionQualities {
+                guard let data = resized.jpegData(compressionQuality: quality) else {
+                    continue
+                }
+                if data.count <= maxBytes {
+                    return PreparedImageTranslationPayload(data: data, mimeType: "image/jpeg")
+                }
+            }
+            targetMaxPixelDimension *= 0.75
+        }
+
+        throw ImageTranslationPayloadPreparationError.compressionFailed
+    }
+
+    static func message(for error: Error) -> String {
+        switch error {
+        case ImageTranslationPayloadPreparationError.unreadable:
+            return "This photo couldn't be read. Please choose another image."
+        case ImageTranslationPayloadPreparationError.compressionFailed:
+            return "This photo is too large to translate. Please choose a smaller image."
+        default:
+            return "This photo couldn't be prepared for translation. Please try another image."
+        }
+    }
+}
+
+private extension UIImage {
+    func resizedToFit(maxPixelDimension: CGFloat) -> UIImage {
+        let sourcePixelSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let largestDimension = max(sourcePixelSize.width, sourcePixelSize.height)
+        guard largestDimension > maxPixelDimension else {
+            return normalizedForJPEG()
+        }
+
+        let ratio = maxPixelDimension / largestDimension
+        let targetPixelSize = CGSize(
+            width: max(1, floor(sourcePixelSize.width * ratio)),
+            height: max(1, floor(sourcePixelSize.height * ratio)))
+        let targetPointSize = CGSize(
+            width: targetPixelSize.width / UIScreen.main.scale,
+            height: targetPixelSize.height / UIScreen.main.scale)
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = UIScreen.main.scale
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: targetPointSize, format: format).image { _ in
+            draw(in: CGRect(origin: .zero, size: targetPointSize))
+        }
+    }
+
+    func normalizedForJPEG() -> UIImage {
+        guard imageOrientation != .up || hasAlpha else {
+            return self
+        }
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = scale
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
+
+    var hasAlpha: Bool {
+        guard let alphaInfo = cgImage?.alphaInfo else { return false }
+        switch alphaInfo {
+        case .first, .last, .premultipliedFirst, .premultipliedLast:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 private struct CameraCaptureView: UIViewControllerRepresentable {
     let onImageData: (Data) -> Void
 
