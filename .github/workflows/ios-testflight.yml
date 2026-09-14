@@ -158,7 +158,7 @@ jobs:
           VOXA_XCODE_PROJECT: ${{ secrets.VOXA_XCODE_PROJECT }}
           VOXA_XCODE_WORKSPACE: ${{ secrets.VOXA_XCODE_WORKSPACE }}
           VOXA_XCODE_SCHEME: ${{ secrets.VOXA_XCODE_SCHEME }}
-          VOXA_API_BASE_URL: ${{ secrets.VOXA_API_BASE_URL }}
+          VOXA_API_BASE_URL: ${{ vars.VOXA_API_BASE_URL || secrets.VOXA_API_BASE_URL }}
         run: |
           required=(
             VOXA_APP_IDENTIFIER
@@ -244,7 +244,7 @@ jobs:
           VOXA_XCODE_SCHEME: ${{ secrets.VOXA_XCODE_SCHEME }}
           VOXA_BUILD_NUMBER: ${{ github.run_number }}
           VOXA_MARKETING_VERSION: ${{ steps.version.outputs.marketing_version }}
-          VOXA_API_BASE_URL: ${{ secrets.VOXA_API_BASE_URL }}
+          VOXA_API_BASE_URL: ${{ vars.VOXA_API_BASE_URL || secrets.VOXA_API_BASE_URL }}
         run: bundle exec fastlane ios upload_internal_testflight
 
       - name: Cleanup App Store Connect API key
