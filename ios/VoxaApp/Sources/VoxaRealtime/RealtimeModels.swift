@@ -25,6 +25,8 @@ public enum RealtimeTutorIntent: Sendable, Equatable {
     /// "Before you start" briefing on key structures the learner is about to
     /// encounter.
     case keyLanguage(topic: String)
+    /// A short one-shot sample of the selected voice/tone/speed.
+    case voicePreview
 
     public var title: String {
         switch self {
@@ -37,6 +39,7 @@ public enum RealtimeTutorIntent: Sendable, Equatable {
         case .vocabularyDrill: return "Vocabulary drill"
         case .listeningPractice: return "Listening practice"
         case let .keyLanguage(topic): return topic
+        case .voicePreview: return "Voice preview"
         }
     }
 
@@ -65,6 +68,8 @@ public enum RealtimeTutorIntent: Sendable, Equatable {
             return "Ready to work on your listening?"
         case let .keyLanguage(topic):
             return "Ready for a quick brief on \(topic)?"
+        case .voicePreview:
+            return "Preview your tutor voice?"
         }
     }
 
@@ -79,6 +84,7 @@ public enum RealtimeTutorIntent: Sendable, Equatable {
         case .vocabularyDrill: return "Start drill"
         case .listeningPractice: return "Start listening"
         case .keyLanguage: return "Start briefing"
+        case .voicePreview: return "Preview voice"
         }
     }
 }
@@ -96,6 +102,7 @@ public struct RealtimeCoachingSettings: Sendable, Equatable {
     /// prompt can scaffold beginner lessons in L1. Optional for backward
     /// compatibility with older clients (server falls back to "English").
     public var nativeLanguage: String?
+    public var aiTutorPreferences: AiTutorPreferences
 
     public init(
         coachingMode: String = "tutor",
@@ -104,7 +111,8 @@ public struct RealtimeCoachingSettings: Sendable, Equatable {
         sessionIntent: String? = nil,
         focusTitle: String? = nil,
         dueReviewCount: Int? = nil,
-        nativeLanguage: String? = nil
+        nativeLanguage: String? = nil,
+        aiTutorPreferences: AiTutorPreferences = .default
     ) {
         self.coachingMode = coachingMode
         self.proficiencyBand = proficiencyBand
@@ -113,6 +121,7 @@ public struct RealtimeCoachingSettings: Sendable, Equatable {
         self.focusTitle = focusTitle
         self.dueReviewCount = dueReviewCount
         self.nativeLanguage = nativeLanguage
+        self.aiTutorPreferences = aiTutorPreferences
     }
 
     /// Emits the backend-facing `SessionIntent` string for the activity. The
@@ -159,8 +168,117 @@ public struct RealtimeCoachingSettings: Sendable, Equatable {
             copy.sessionIntent = "key_language"
             copy.focusTitle = topic
             copy.dueReviewCount = nil
+        case .voicePreview:
+            copy.sessionIntent = "voice_preview"
+            copy.focusTitle = nil
+            copy.dueReviewCount = nil
         }
         return copy
+    }
+}
+
+/// Learner-facing AI tutor customization for live Realtime sessions.
+/// These values map to OpenAI Realtime session audio output configuration
+/// plus instruction guidance. OpenAI exposes named voices rather than
+/// male/female categories, so Voxa keeps the model honest and stores voices by
+/// supported voice id.
+public struct AiTutorPreferences: Sendable, Equatable, Codable {
+    public var voice: AiTutorVoice
+    public var tone: AiTutorTone
+    public var speed: Double
+    public var customInstructions: String
+
+    public static let minimumSpeed = 0.25
+    public static let maximumSpeed = 1.5
+    public static let previewText = "Hi, I'm your Voxa tutor. We'll keep this focused, natural, and easy to practise."
+    public static let `default` = AiTutorPreferences(
+        voice: .marin,
+        tone: .supportive,
+        speed: 1,
+        customInstructions: ""
+    )
+
+    public init(
+        voice: AiTutorVoice = .marin,
+        tone: AiTutorTone = .supportive,
+        speed: Double = 1,
+        customInstructions: String = ""
+    ) {
+        self.voice = voice
+        self.tone = tone
+        self.speed = min(max(speed, Self.minimumSpeed), Self.maximumSpeed)
+        self.customInstructions = String(customInstructions.prefix(400))
+    }
+
+    public var instructionText: String {
+        let custom = customInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if custom.isEmpty { return tone.instruction }
+        return "\(tone.instruction) \(custom)"
+    }
+}
+
+public enum AiTutorVoice: String, CaseIterable, Sendable, Codable, Identifiable {
+    case alloy
+    case ash
+    case ballad
+    case coral
+    case echo
+    case sage
+    case shimmer
+    case verse
+    case marin
+    case cedar
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .alloy: return "Alloy"
+        case .ash: return "Ash"
+        case .ballad: return "Ballad"
+        case .coral: return "Coral"
+        case .echo: return "Echo"
+        case .sage: return "Sage"
+        case .shimmer: return "Shimmer"
+        case .verse: return "Verse"
+        case .marin: return "Marin"
+        case .cedar: return "Cedar"
+        }
+    }
+}
+
+public enum AiTutorTone: String, CaseIterable, Sendable, Codable, Identifiable {
+    case supportive
+    case calm
+    case energetic
+    case direct
+    case playful
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .supportive: return "Supportive"
+        case .calm: return "Calm"
+        case .energetic: return "Energetic"
+        case .direct: return "Direct"
+        case .playful: return "Playful"
+        }
+    }
+
+    public var instruction: String {
+        switch self {
+        case .supportive:
+            return "Sound warm, patient, and encouraging while keeping the learner moving."
+        case .calm:
+            return "Sound calm, measured, and reassuring; give the learner room to think."
+        case .energetic:
+            return "Sound upbeat and lively without rushing or overwhelming the learner."
+        case .direct:
+            return "Sound concise, clear, and practical; correct efficiently and avoid extra chatter."
+        case .playful:
+            return "Sound lightly playful and curious while staying focused on language practice."
+        }
     }
 }
 

@@ -394,6 +394,85 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
     }
 
     [Fact]
+    public async Task IssueAsyncAddsAiTutorVoicePreferencesToRealtimeSession()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": { "type": "realtime", "model": "gpt-realtime-2.1" }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            EmbeddedPromptRegistry.CreateDefault(),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(
+            CreateRequest(
+                voice: "cedar",
+                voiceSpeed: 0.85,
+                voiceInstructions: "Sound direct and concise."),
+            CancellationToken.None);
+
+        Assert.Contains("\"voice\":\"cedar\"", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"speed\":0.85", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("Tutor voice preferences", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("Sound direct and concise.", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task IssueAsyncAddsOneShotInstructionsForVoicePreview()
+    {
+        var handler = new RecordingHttpMessageHandler("""
+            {
+              "value": "ek_prod_shape_123",
+              "expires_at": 1787991600,
+              "session": { "type": "realtime", "model": "gpt-realtime-2.1" }
+            }
+            """);
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://api.openai.example/")
+        };
+        var issuer = new OpenAiRealtimeClientSecretIssuer(
+            client,
+            new OpenAiRealtimeOptions("server-api-key"),
+            new StubModelRouter(new ModelRoute(
+                AiCapability.RealtimeTutorModel,
+                "gpt-realtime-2.1",
+                "low",
+                ModelRouteSource.ConfigDefault,
+                null)),
+            EmbeddedPromptRegistry.CreateDefault(),
+            NullLogger<OpenAiRealtimeClientSecretIssuer>.Instance);
+
+        await issuer.IssueAsync(
+            CreateRequest(
+                sessionIntent: "voice_preview",
+                voice: "cedar",
+                voiceSpeed: 0.85,
+                voiceInstructions: "Sound calm and reassuring."),
+            CancellationToken.None);
+
+        Assert.Contains("\"voice\":\"cedar\"", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"speed\":0.85", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("one-shot voice preview", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("Sound calm and reassuring.", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task IssueAsyncIncludesTargetLanguageHandoffCueInInstructions()
     {
         var handler = new RecordingHttpMessageHandler("""
@@ -588,13 +667,26 @@ public sealed class OpenAiRealtimeClientSecretIssuerTests
         string? sessionIntent = null,
         string? focusTitle = null,
         int? dueReviewCount = null,
-        string? nativeLanguage = "English")
+        string? nativeLanguage = "English",
+        string voice = RealtimeSessionCommand.DefaultVoice,
+        double voiceSpeed = 1.0,
+        string? voiceInstructions = null)
     {
         return new RealtimeSessionRequest(
             TenantId.Create("tenant-default"),
             UserId.Create("user-a"),
             CorrelationId.Create("corr-123"),
-            new RealtimeSessionSettingsContract("tutor", "B1-B2", "fr-FR", sessionIntent, focusTitle, dueReviewCount, nativeLanguage));
+            new RealtimeSessionSettingsContract(
+                "tutor",
+                "B1-B2",
+                "fr-FR",
+                sessionIntent,
+                focusTitle,
+                dueReviewCount,
+                nativeLanguage,
+                voice,
+                voiceSpeed,
+                voiceInstructions));
     }
 
     private sealed class RecordingHttpMessageHandler(

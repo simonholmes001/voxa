@@ -43,6 +43,13 @@ struct RouteDestinationView: View {
             .task { await learnerPlanModel?.load() }
         case .talk where talkModel != nil:
             TalkView(model: talkModel!)
+        case .tutor where languageManager != nil:
+            TutorSetupView(
+                profiles: languageManager!.profileModel.allProfiles,
+                activeKey: languageManager!.profileModel.activeLanguageKey,
+                makeSettingsModel: languageManager!.makeSettingsModel,
+                onSaved: { await languageManager!.profileModel.refresh() }
+            )
         case .practice:
             PracticeHubView(
                 summary: practiceSummary,

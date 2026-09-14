@@ -14,6 +14,12 @@ public protocol RealtimeTransport: Sendable {
     /// releases the mic gate, and asks the server to stop generating so the
     /// learner can take the floor. No-op when no response is in progress.
     func interrupt() async
+    /// Plays a single assistant response using the credential's voice settings
+    /// without opening a full learner conversation.
+    func playPreview(
+        using credential: RealtimeSessionCredential,
+        text: String
+    ) async throws
     /// The transcript accumulated during the session, in turn order. Returned
     /// after `disconnect()` so the post-session debrief can be generated from
     /// what was actually said. Empty for transports that don't capture
@@ -26,6 +32,12 @@ public extension RealtimeTransport {
     // source-compatible. Only WebSocketRealtimeTransport actually implements
     // barge-in and transcript capture today.
     func interrupt() async {}
+    func playPreview(
+        using credential: RealtimeSessionCredential,
+        text: String
+    ) async throws {
+        throw RealtimeTransportError.unavailable("Voice preview isn't configured for this build yet.")
+    }
     func capturedTranscript() -> [TranscriptTurn] { [] }
 }
 

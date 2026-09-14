@@ -37,7 +37,10 @@ public struct VoxaBackendRealtimeSessionService: RealtimeSessionService, Realtim
                 sessionIntent: settings.sessionIntent,
                 focusTitle: settings.focusTitle,
                 dueReviewCount: settings.dueReviewCount,
-                nativeLanguage: settings.nativeLanguage
+                nativeLanguage: settings.nativeLanguage,
+                voice: settings.aiTutorPreferences.voice.rawValue,
+                voiceSpeed: settings.aiTutorPreferences.speed,
+                voiceInstructions: settings.aiTutorPreferences.instructionText
             )
         )
 

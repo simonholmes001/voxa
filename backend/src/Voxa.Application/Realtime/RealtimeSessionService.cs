@@ -26,7 +26,10 @@ public sealed class RealtimeSessionService(
             command.SessionIntent,
             command.FocusTitle,
             command.DueReviewCount,
-            command.NativeLanguage);
+            command.NativeLanguage,
+            command.Voice ?? RealtimeSessionCommand.DefaultVoice,
+            command.VoiceSpeed ?? 1.0,
+            command.VoiceInstructions);
 
         try
         {

@@ -41,8 +41,28 @@ public sealed record RealtimeSessionCommand(
     string? SessionIntent,
     string? FocusTitle,
     int? DueReviewCount,
+    string? Voice,
+    double? VoiceSpeed,
+    string? VoiceInstructions,
     CorrelationId CorrelationId)
 {
+    public const double MinimumVoiceSpeed = 0.25;
+    public const double MaximumVoiceSpeed = 1.5;
+    public const string DefaultVoice = "marin";
+    private static readonly HashSet<string> SupportedVoices = new(StringComparer.Ordinal)
+    {
+        "alloy",
+        "ash",
+        "ballad",
+        "coral",
+        "echo",
+        "sage",
+        "shimmer",
+        "verse",
+        "marin",
+        "cedar",
+    };
+
     public static RealtimeSessionCommand Create(
         string? tenantId,
         string? userId,
@@ -61,6 +81,9 @@ public sealed record RealtimeSessionCommand(
             sessionIntent: null,
             focusTitle: null,
             dueReviewCount: null,
+            voice: null,
+            voiceSpeed: null,
+            voiceInstructions: null,
             correlationId);
     }
 
@@ -74,6 +97,9 @@ public sealed record RealtimeSessionCommand(
         string? sessionIntent,
         string? focusTitle,
         int? dueReviewCount,
+        string? voice,
+        double? voiceSpeed,
+        string? voiceInstructions,
         CorrelationId correlationId)
     {
         return new RealtimeSessionCommand(
@@ -86,6 +112,9 @@ public sealed record RealtimeSessionCommand(
             Optional(sessionIntent),
             Optional(focusTitle),
             dueReviewCount,
+            NormalizeVoice(voice),
+            NormalizeVoiceSpeed(voiceSpeed),
+            OptionalVoiceInstructions(voiceInstructions),
             correlationId);
     }
 
@@ -99,6 +128,25 @@ public sealed record RealtimeSessionCommand(
     private static string? Optional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static string NormalizeVoice(string? value)
+    {
+        var voice = Optional(value)?.ToLowerInvariant() ?? DefaultVoice;
+        return SupportedVoices.Contains(voice)
+            ? voice
+            : throw new ArgumentException($"{nameof(voice)} is not supported.", nameof(voice));
+    }
+
+    private static double NormalizeVoiceSpeed(double? value)
+    {
+        return Math.Clamp(value ?? 1.0, MinimumVoiceSpeed, MaximumVoiceSpeed);
+    }
+
+    private static string? OptionalVoiceInstructions(string? value)
+    {
+        var trimmed = Optional(value);
+        return trimmed is null ? null : trimmed[..Math.Min(trimmed.Length, 400)];
     }
 }
 
@@ -131,7 +179,10 @@ public sealed record RealtimeSessionSettingsContract(
     string? SessionIntent = null,
     string? FocusTitle = null,
     int? DueReviewCount = null,
-    string? NativeLanguage = null);
+    string? NativeLanguage = null,
+    string Voice = RealtimeSessionCommand.DefaultVoice,
+    double VoiceSpeed = 1.0,
+    string? VoiceInstructions = null);
 
 public sealed class RealtimeSessionIssueException(string message) : Exception(message);
 
