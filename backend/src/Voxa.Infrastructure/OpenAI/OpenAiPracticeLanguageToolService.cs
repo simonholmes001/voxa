@@ -25,6 +25,7 @@ public sealed class OpenAiPracticeLanguageToolService(
     {
         var payload = await CompleteJsonAsync<AskAnythingPayload>(
             PromptForAskAnything(command),
+            command.CorrelationId.Value,
             cancellationToken);
 
         return new AskAnythingResult(
@@ -44,6 +45,7 @@ public sealed class OpenAiPracticeLanguageToolService(
     {
         var payload = await CompleteJsonAsync<TranslationPayload>(
             PromptForTranslation(command),
+            command.CorrelationId.Value,
             cancellationToken);
 
         return new TranslationResult(
@@ -59,6 +61,7 @@ public sealed class OpenAiPracticeLanguageToolService(
     {
         var payload = await CompleteJsonAsync<ImageTranslationPayload>(
             PromptForImageTranslation(command),
+            command.CorrelationId.Value,
             cancellationToken,
             new OpenAiResponseInputImage(
                 "input_image",
@@ -79,6 +82,7 @@ public sealed class OpenAiPracticeLanguageToolService(
     {
         var payload = await CompleteJsonAsync<VocabularyQuizPayload>(
             PromptForVocabularyQuiz(command),
+            command.CorrelationId.Value,
             cancellationToken);
 
         return new VocabularyQuizResult(
@@ -95,6 +99,7 @@ public sealed class OpenAiPracticeLanguageToolService(
 
     private async Task<TPayload> CompleteJsonAsync<TPayload>(
         string prompt,
+        string correlationId,
         CancellationToken cancellationToken,
         OpenAiResponseInputImage? image = null)
     {
@@ -133,41 +138,100 @@ public sealed class OpenAiPracticeLanguageToolService(
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
 
-        using var response = await httpClient.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            logger.LogError(
-                "Practice language tool upstream call failed. status={Status} model={Model} body={Body}",
-                (int)response.StatusCode,
-                route.Model,
-                body.Length > 500 ? body[..500] : body);
-            throw new PracticeLanguageToolException("Language tool upstream call failed.");
-        }
-
-        var responseBody = await response.Content.ReadFromJsonAsync<OpenAiResponsesResponse>(
-            JsonOptions,
-            cancellationToken);
-        var text = responseBody?.OutputText ?? ExtractOutputText(responseBody);
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            logger.LogError("Practice language tool upstream call returned no output. model={Model}", route.Model);
-            throw new PracticeLanguageToolException("Language tool upstream call returned no output.");
-        }
-
+        HttpResponseMessage response;
         try
         {
-            return JsonSerializer.Deserialize<TPayload>(StripJsonFence(text), JsonOptions)
-                ?? throw new PracticeLanguageToolException("Language tool output was empty.");
+            response = await httpClient.SendAsync(request, cancellationToken);
         }
-        catch (JsonException exception)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException exception)
         {
             logger.LogError(
                 exception,
-                "Practice language tool output was not valid JSON. model={Model} body={Body}",
+                "Practice language tool upstream call timed out. model={Model} correlationId={CorrelationId}",
                 route.Model,
-                text.Length > 500 ? text[..500] : text);
-            throw new PracticeLanguageToolException("Language tool output was not valid JSON.");
+                correlationId);
+            throw new PracticeLanguageToolException("Language tool upstream call timed out.");
+        }
+        catch (HttpRequestException exception)
+        {
+            logger.LogError(
+                exception,
+                "Practice language tool upstream transport failed. model={Model} correlationId={CorrelationId}",
+                route.Model,
+                correlationId);
+            throw new PracticeLanguageToolException("Language tool upstream transport failed.");
+        }
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogError(
+                    "Practice language tool upstream call failed. status={Status} model={Model} correlationId={CorrelationId}",
+                    (int)response.StatusCode,
+                    route.Model,
+                    correlationId);
+                throw new PracticeLanguageToolException("Language tool upstream call failed.");
+            }
+
+            OpenAiResponsesResponse? responseBody;
+            try
+            {
+                responseBody = await response.Content.ReadFromJsonAsync<OpenAiResponsesResponse>(
+                    JsonOptions,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Practice language tool upstream response read timed out. model={Model} correlationId={CorrelationId}",
+                    route.Model,
+                    correlationId);
+                throw new PracticeLanguageToolException("Language tool upstream response read timed out.");
+            }
+            catch (JsonException exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Practice language tool upstream response envelope was not valid JSON. model={Model} correlationId={CorrelationId}",
+                    route.Model,
+                    correlationId);
+                throw new PracticeLanguageToolException("Language tool upstream response envelope was not valid JSON.");
+            }
+
+            var text = responseBody?.OutputText ?? ExtractOutputText(responseBody);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                logger.LogError(
+                    "Practice language tool upstream call returned no output. model={Model} correlationId={CorrelationId}",
+                    route.Model,
+                    correlationId);
+                throw new PracticeLanguageToolException("Language tool upstream call returned no output.");
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<TPayload>(StripJsonFence(text), JsonOptions)
+                    ?? throw new PracticeLanguageToolException("Language tool output was empty.");
+            }
+            catch (JsonException exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Practice language tool output was not valid JSON. model={Model} correlationId={CorrelationId}",
+                    route.Model,
+                    correlationId);
+                throw new PracticeLanguageToolException("Language tool output was not valid JSON.");
+            }
         }
     }
 
