@@ -92,6 +92,31 @@ final class VoxaBackendRealtimeSessionServiceTests: XCTestCase {
         XCTAssertEqual(body?["focusTitle"] as? String, "Survival French")
     }
 
+    func testCreateSessionPostsAiTutorPreferences() async throws {
+        StubURLProtocol.handler = { request, _ in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(self.responseJSON.utf8))
+        }
+
+        let customSettings = RealtimeCoachingSettings(
+            proficiencyBand: "B1-B2",
+            targetLanguage: "fr-FR",
+            aiTutorPreferences: AiTutorPreferences(
+                voice: .cedar,
+                tone: .direct,
+                speed: 0.85,
+                customInstructions: "Use a crisp classroom style."
+            )
+        )
+
+        _ = try await service.createSession(customSettings, accessToken: "access-token")
+
+        let body = try JSONSerialization.jsonObject(with: try XCTUnwrap(StubURLProtocol.lastBody)) as? [String: Any]
+        XCTAssertEqual(body?["voice"] as? String, "cedar")
+        XCTAssertEqual(body?["voiceSpeed"] as? Double, 0.85)
+        XCTAssertTrue((body?["voiceInstructions"] as? String)?.contains("crisp classroom style") ?? false)
+    }
+
     func testCompleteSessionPostsLearningSessionContract() async throws {
         StubURLProtocol.handler = { request, body in
             XCTAssertEqual(request.url?.path, "/api/session/complete")

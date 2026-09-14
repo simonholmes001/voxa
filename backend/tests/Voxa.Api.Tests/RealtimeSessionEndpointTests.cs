@@ -47,6 +47,32 @@ public sealed class RealtimeSessionEndpointTests
     }
 
     [Fact]
+    public async Task PostAcceptsAiTutorVoicePreferences()
+    {
+        var service = new StubRealtimeSessionService();
+        var endpoint = new RealtimeSessionEndpoint(service);
+
+        var response = await endpoint.PostAsync(
+            new AppSessionPrincipal(TenantId.Create("tenant-default"), UserId.Create("user-a")),
+            new RealtimeSessionHttpRequest(
+                "tutor",
+                "B1-B2",
+                "fr-FR",
+                Voice: "cedar",
+                VoiceSpeed: 0.8,
+                VoiceInstructions: "Sound clear and direct."),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("cedar", service.Command?.Voice);
+        Assert.Equal(0.8, service.Command?.VoiceSpeed);
+        Assert.Equal("Sound clear and direct.", service.Command?.VoiceInstructions);
+        Assert.Equal("cedar", response.Body?.Settings.Voice);
+        Assert.Equal(0.8, response.Body?.Settings.VoiceSpeed);
+    }
+
+    [Fact]
     public async Task PostReturnsBadRequestForInvalidSessionSettings()
     {
         var endpoint = new RealtimeSessionEndpoint(new StubRealtimeSessionService());
@@ -83,7 +109,10 @@ public sealed class RealtimeSessionEndpointTests
                     command.SessionIntent,
                     command.FocusTitle,
                     command.DueReviewCount,
-                    command.NativeLanguage)));
+                    command.NativeLanguage,
+                    command.Voice ?? RealtimeSessionCommand.DefaultVoice,
+                    command.VoiceSpeed ?? 1.0,
+                    command.VoiceInstructions)));
         }
     }
 }

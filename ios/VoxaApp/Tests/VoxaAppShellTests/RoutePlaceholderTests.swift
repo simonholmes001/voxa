@@ -16,6 +16,13 @@ final class RoutePlaceholderTests: XCTestCase {
         XCTAssertEqual(content.actionTitle, "Review with Tutor")
     }
 
+    func testTutorPlaceholderContent() {
+        let content = AppRoute.tutor.placeholderContent()
+        XCTAssertEqual(content.headline, "Tutor")
+        XCTAssertTrue(content.subheadline.contains("voice"))
+        XCTAssertNil(content.actionTitle)
+    }
+
     func testSettingsPlaceholderContentIsMore() {
         let content = AppRoute.settings.placeholderContent()
         XCTAssertEqual(content.headline, "Settings")

@@ -3,6 +3,8 @@ import XCTest
 import VoxaAuth
 import VoxaHome
 import VoxaOnboarding
+import VoxaProfiles
+import VoxaRealtime
 
 private final class StubAuthenticationService: AuthenticationService, @unchecked Sendable {
     let session: AuthSession
@@ -77,10 +79,14 @@ final class AppCompositionTests: XCTestCase {
         )
     }
 
-    func testDefaultBuildHasNoBackendBaseURLConfigured() {
-        // The default (unconfigured) build must resolve to nil so network calls
-        // fail clearly rather than hitting an unintended host.
-        XCTAssertNil(AppComposition.backendBaseURL())
+    func testBuildBackendBaseURLIsEitherUnsetOrAValidURL() {
+        // Feature-branch/device testing can inject Debug.local.xcconfig, while
+        // a plain checkout leaves the value unset. Either state is valid; a
+        // malformed URL is not.
+        if let url = AppComposition.backendBaseURL() {
+            XCTAssertNotNil(url.scheme)
+            XCTAssertNotNil(url.host)
+        }
     }
 
     @MainActor
@@ -99,6 +105,30 @@ final class AppCompositionTests: XCTestCase {
 
         XCTAssertEqual(settings.targetLanguage, "es-ES")
         XCTAssertEqual(settings.proficiencyBand, "C1-C2")
+    }
+
+    @MainActor
+    func testRealtimeSettingsIncludeAiTutorPreferencesForSelectedLanguage() {
+        let onboardingModel = OnboardingViewModel(store: InMemoryOnboardingDraftStore())
+        onboardingModel.hydrate(
+            from: OnboardingProfile(
+                targetLanguage: "fr-FR",
+                nativeLanguage: "en-US",
+                goals: ["travel"],
+                minutesPerDay: 15,
+                placementLevel: .a2),
+            completed: true)
+        let store = InMemoryAiTutorPreferencesStore(values: [
+            "fr-FR": AiTutorPreferences(voice: .cedar, tone: .direct, speed: 0.8)
+        ])
+
+        let settings = AppComposition.realtimeSettings(
+            from: onboardingModel,
+            aiTutorPreferencesStore: store)
+
+        XCTAssertEqual(settings.aiTutorPreferences.voice, .cedar)
+        XCTAssertEqual(settings.aiTutorPreferences.tone, .direct)
+        XCTAssertEqual(settings.aiTutorPreferences.speed, 0.8)
     }
 
     func testLearnerSummaryPreservesResumeCheckpointContext() {

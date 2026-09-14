@@ -129,6 +129,64 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         try await sendJSON(["type": "response.create"], on: socket)
     }
 
+    public func playPreview(
+        using credential: RealtimeSessionCredential,
+        text: String
+    ) async throws {
+        guard !credential.isExpired() else {
+            throw RealtimeTransportError.connectionFailed("Session credential has expired")
+        }
+
+        transcriptLock.lock()
+        transcriptTurns = []
+        lastCapturedRole = nil
+        transcriptLock.unlock()
+
+        var components = URLComponents()
+        components.scheme = "wss"
+        components.host = "api.openai.com"
+        components.path = "/v1/realtime"
+        components.queryItems = [URLQueryItem(name: "model", value: credential.model)]
+        guard let url = components.url else {
+            throw RealtimeTransportError.connectionFailed("Invalid Realtime WebSocket URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(credential.clientSecret)", forHTTPHeaderField: "Authorization")
+        let socket = session.webSocketTask(with: request)
+        self.socket = socket
+        socket.resume()
+
+        do {
+            #if os(iOS)
+            try configureAudio()
+            try startPlaybackEngineIfNeeded()
+            #endif
+            receiveLoop(socket)
+            try await waitForHandshakeEvent("session.created")
+            try await sendSessionUpdate(on: socket)
+            try await waitForHandshakeEvent("session.updated")
+
+            registerRequestedResponse()
+            try await sendJSON([
+                "type": "response.create",
+                "response": [
+                    "conversation": "none",
+                    "output_modalities": ["audio"],
+                    "max_output_tokens": 80,
+                    "metadata": ["response_purpose": "ai_tutor_voice_preview"],
+                    "instructions": "Speak exactly this one short tutor preview and then stop: \"\(text)\""
+                ]
+            ], on: socket)
+            try await waitForHandshakeEvent("response.done", timeoutSeconds: 12)
+            await waitForPlaybackToDrain(maxSeconds: previewPlaybackTimeout(for: credential))
+            await disconnect()
+        } catch {
+            await disconnect()
+            throw error
+        }
+    }
+
     private func sendSessionUpdate(on socket: URLSessionWebSocketTask) async throws {
         // Instructions are intentionally NOT set here — they came from the
         // backend at client_secret mint time and we don't overwrite them.
@@ -456,6 +514,34 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         return Date().timeIntervalSince1970 < end + Self.micGateTailSeconds
     }
 
+    private func playbackSecondsRemaining() -> TimeInterval {
+        assistantStateLock.lock()
+        let end = pendingPlaybackEnd
+        assistantStateLock.unlock()
+        return max(0, end - Date().timeIntervalSince1970)
+    }
+
+    private func waitForPlaybackToDrain(maxSeconds: TimeInterval) async {
+        let deadline = Date().timeIntervalSince1970 + maxSeconds
+        while Date().timeIntervalSince1970 < deadline {
+            if Task.isCancelled {
+                return
+            }
+            let remaining = playbackSecondsRemaining()
+            if remaining <= 0 {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                return
+            }
+            let sleepSeconds = min(0.2, remaining)
+            try? await Task.sleep(nanoseconds: UInt64(sleepSeconds * 1_000_000_000))
+        }
+    }
+
+    private func previewPlaybackTimeout(for credential: RealtimeSessionCredential) -> TimeInterval {
+        let speed = max(credential.settings.aiTutorPreferences.speed, AiTutorPreferences.minimumSpeed)
+        return max(12, 8 / speed)
+    }
+
     /// Appends one turn to the accumulating session transcript. Consecutive
     /// same-role events are collapsed into a single turn — that matches how
     /// the debrief prompt formats "N. [role] text" (one line per turn).
@@ -527,6 +613,12 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         try audio.setActive(true)
         try audio.overrideOutputAudioPort(.speaker)
         configureAudioPipelineIfNeeded()
+    }
+
+    private func startPlaybackEngineIfNeeded() throws {
+        if !engine.isRunning {
+            try engine.start()
+        }
     }
 
     private func startMicrophone(on input: AVAudioInputNode) throws {

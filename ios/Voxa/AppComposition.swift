@@ -22,6 +22,7 @@ enum AppComposition {
         let onboardingService = makeOnboardingService(authModel: authModel)
         let onboardingModel = makeOnboardingModel(service: onboardingService)
         let languageSettingsService = makeLanguageSettingsService(authModel: authModel)
+        let aiTutorPreferencesStore = UserDefaultsAiTutorPreferencesStore()
         let homeModel = makeHomeModel(
             authModel: authModel,
             onboardingService: onboardingService,
@@ -37,6 +38,7 @@ enum AppComposition {
             talkModel: makeTalkModel(
                 authModel: authModel,
                 onboardingModel: onboardingModel,
+                aiTutorPreferencesStore: aiTutorPreferencesStore,
                 onSessionCompleted: { [weak learnerPlanModel, weak learnerCourseModel] in
                     await homeModel.resumeIfAvailable()
                     await profileModel.refresh()
@@ -53,9 +55,32 @@ enum AppComposition {
             learnerCourseModel: learnerCourseModel,
             profileModel: profileModel,
             makeLanguageSettingsModel: { profile in
-                LanguageSettingsViewModel(profile: profile, service: languageSettingsService)
+                LanguageSettingsViewModel(
+                    profile: profile,
+                    service: languageSettingsService,
+                    aiTutorPreferencesStore: aiTutorPreferencesStore,
+                    previewer: makeAiTutorPreviewer(authModel: authModel))
             }
         )
+    }
+
+    @MainActor
+    static func makeAiTutorPreviewer(
+        authModel: AuthViewModel
+    ) -> @MainActor (RealtimeCoachingSettings) async throws -> Void {
+        return { [weak authModel] settings in
+            guard let token = authModel?.state.session?.accessToken, !token.isEmpty else {
+                throw RealtimeSessionError.appSessionRequired
+            }
+            let credential = try await makeRealtimeSessionService().createSession(
+                settings.applying(.voicePreview),
+                accessToken: token
+            )
+            try await makeRealtimeTransport().playPreview(
+                using: credential,
+                text: AiTutorPreferences.previewText
+            )
+        }
     }
 
     @MainActor
@@ -325,11 +350,13 @@ enum AppComposition {
     static func makeTalkModel(
         authModel: AuthViewModel,
         onboardingModel: OnboardingViewModel,
+        aiTutorPreferencesStore: (any AiTutorPreferencesStore)? = nil,
         onSessionCompleted: @escaping @MainActor @Sendable () async -> Void = {}
     ) -> TalkSessionViewModel {
-        TalkSessionViewModel(
+        let preferencesStore = aiTutorPreferencesStore ?? InMemoryAiTutorPreferencesStore()
+        return TalkSessionViewModel(
             settingsProvider: { [weak onboardingModel] in
-                realtimeSettings(from: onboardingModel)
+                realtimeSettings(from: onboardingModel, aiTutorPreferencesStore: preferencesStore)
             },
             permission: SystemMicrophonePermission(),
             service: makeRealtimeSessionService(),
@@ -369,13 +396,18 @@ enum AppComposition {
     /// scaffold beginner lessons in L1 (see prompts/realtime-tutor/
     /// guided-lesson.v2.yaml).
     @MainActor
-    static func realtimeSettings(from onboardingModel: OnboardingViewModel?) -> RealtimeCoachingSettings {
+    static func realtimeSettings(
+        from onboardingModel: OnboardingViewModel?,
+        aiTutorPreferencesStore: (any AiTutorPreferencesStore)? = nil
+    ) -> RealtimeCoachingSettings {
         let nativeLanguageKey = onboardingModel?.draft.nativeLanguage
         let nativeDisplayName = nativeLanguageKey.map(OnboardingLanguages.displayName(forKey:))
+        let targetLanguage = canonicalLanguageKey(for: onboardingModel?.draft.targetLanguage)
         return RealtimeCoachingSettings(
             proficiencyBand: proficiencyBand(for: onboardingModel?.placementEstimate),
-            targetLanguage: canonicalLanguageKey(for: onboardingModel?.draft.targetLanguage),
-            nativeLanguage: nativeDisplayName?.asLanguageDisplayName
+            targetLanguage: targetLanguage,
+            nativeLanguage: nativeDisplayName?.asLanguageDisplayName,
+            aiTutorPreferences: aiTutorPreferencesStore?.preferences(for: targetLanguage) ?? .default
         )
     }
 

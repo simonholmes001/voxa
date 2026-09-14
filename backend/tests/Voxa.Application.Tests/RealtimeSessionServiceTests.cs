@@ -86,10 +86,13 @@ public sealed class RealtimeSessionServiceTests
             "B1-B2",
             "fr-FR",
             nativeLanguage: "English",
-            sessionIntent,
-            focusTitle,
-            dueReviewCount,
-            CorrelationId.Create("corr-123"));
+            sessionIntent: sessionIntent,
+            focusTitle: focusTitle,
+            dueReviewCount: dueReviewCount,
+            voice: null,
+            voiceSpeed: null,
+            voiceInstructions: null,
+            correlationId: CorrelationId.Create("corr-123"));
     }
 
     private sealed class StubRealtimeClientSecretIssuer : IRealtimeClientSecretIssuer

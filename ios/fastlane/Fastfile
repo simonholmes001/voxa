@@ -30,6 +30,7 @@ platform :ios do
     # which is monotonic and guarantees a unique build number per upload.
     build_number = ENV.fetch("VOXA_BUILD_NUMBER")
     marketing_version = ENV["VOXA_MARKETING_VERSION"]
+    backend_base_url = ENV.fetch("VOXA_API_BASE_URL")
 
     # Force manual signing with the match-installed profile. project.yml
     # ships CODE_SIGN_STYLE=Automatic (fine for local Xcode work), but
@@ -41,6 +42,7 @@ platform :ios do
     team_id = ENV.fetch("VOXA_TEAM_ID")
     xcargs_parts = ["CURRENT_PROJECT_VERSION=#{build_number}"]
     xcargs_parts << "MARKETING_VERSION=#{marketing_version}" if marketing_version && !marketing_version.empty?
+    xcargs_parts << "VOXA_API_BASE_URL=#{backend_base_url}"
     xcargs_parts << "CODE_SIGN_STYLE=Manual"
     xcargs_parts << "DEVELOPMENT_TEAM=#{team_id}"
     xcargs_parts << "CODE_SIGN_IDENTITY=\"Apple Distribution\""

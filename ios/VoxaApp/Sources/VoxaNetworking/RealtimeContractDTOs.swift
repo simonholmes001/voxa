@@ -12,6 +12,9 @@ struct RealtimeSessionRequestDTO: Encodable {
     let focusTitle: String?
     let dueReviewCount: Int?
     let nativeLanguage: String?
+    let voice: String?
+    let voiceSpeed: Double?
+    let voiceInstructions: String?
 }
 
 struct RealtimeSessionCompletionRequestDTO: Encodable {
@@ -30,6 +33,9 @@ struct RealtimeSessionSettingsDTO: Codable {
     let focusTitle: String?
     let dueReviewCount: Int?
     let nativeLanguage: String?
+    let voice: String?
+    let voiceSpeed: Double?
+    let voiceInstructions: String?
 }
 
 struct RealtimeSessionResponseDTO: Decodable {
@@ -54,7 +60,13 @@ struct RealtimeSessionResponseDTO: Decodable {
                 sessionIntent: settings.sessionIntent,
                 focusTitle: settings.focusTitle,
                 dueReviewCount: settings.dueReviewCount,
-                nativeLanguage: settings.nativeLanguage
+                nativeLanguage: settings.nativeLanguage,
+                aiTutorPreferences: AiTutorPreferences(
+                    voice: settings.voice.flatMap(AiTutorVoice.init(rawValue:)) ?? AiTutorPreferences.default.voice,
+                    tone: AiTutorPreferences.default.tone,
+                    speed: settings.voiceSpeed ?? AiTutorPreferences.default.speed,
+                    customInstructions: settings.voiceInstructions ?? ""
+                )
             )
         )
     }

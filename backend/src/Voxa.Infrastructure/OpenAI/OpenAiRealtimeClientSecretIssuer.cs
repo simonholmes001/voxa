@@ -63,7 +63,9 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
                                 CreateResponse: false,
                                 InterruptResponse: true)),
                         new OpenAiRealtimeAudioOutput(
-                            new OpenAiRealtimeAudioFormat("audio/pcm", 24_000))),
+                            new OpenAiRealtimeAudioFormat("audio/pcm", 24_000),
+                            request.Settings.Voice,
+                            request.Settings.VoiceSpeed)),
                     BuildInstructions(request.Settings, promptRegistry, logger))))
         };
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
@@ -119,6 +121,13 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
         IPromptRegistry promptRegistry,
         ILogger logger)
     {
+        if (string.Equals(settings.SessionIntent?.Trim(), "voice_preview", StringComparison.OrdinalIgnoreCase))
+        {
+            return AppendVoiceInstructions(
+                "You are Voxa's AI language tutor. This is a one-shot voice preview, not a lesson. When asked for a preview, speak exactly one short friendly sample line and then stop.",
+                settings);
+        }
+
         var promptRef = ResolvePromptRef(settings);
         var variables = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -141,7 +150,7 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
         try
         {
             var rendered = promptRegistry.Render(promptRef, variables);
-            return rendered.System ?? "";
+            return AppendVoiceInstructions(rendered.System ?? "", settings);
         }
         catch (PromptRegistryException exception)
         {
@@ -153,6 +162,19 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
             throw new RealtimeSessionIssueException(
                 $"Realtime tutor prompt '{promptRef.Id}' v{promptRef.Version} could not be rendered.");
         }
+    }
+
+    private static string AppendVoiceInstructions(string instructions, RealtimeSessionSettingsContract settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.VoiceInstructions))
+        {
+            return instructions;
+        }
+
+        return string.Concat(
+            instructions,
+            "\n\nTutor voice preferences:\n",
+            settings.VoiceInstructions.Trim());
     }
 
     /// <summary>
@@ -225,7 +247,9 @@ internal sealed record OpenAiRealtimeAudioInput(
     [property: JsonPropertyName("turn_detection")] OpenAiRealtimeTurnDetection TurnDetection);
 
 internal sealed record OpenAiRealtimeAudioOutput(
-    [property: JsonPropertyName("format")] OpenAiRealtimeAudioFormat Format);
+    [property: JsonPropertyName("format")] OpenAiRealtimeAudioFormat Format,
+    [property: JsonPropertyName("voice")] string Voice,
+    [property: JsonPropertyName("speed")] double Speed);
 
 internal sealed record OpenAiRealtimeAudioFormat(
     [property: JsonPropertyName("type")] string Type,

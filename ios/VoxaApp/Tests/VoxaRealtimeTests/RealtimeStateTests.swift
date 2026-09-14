@@ -30,6 +30,8 @@ final class RealtimeStateTests: XCTestCase {
         XCTAssertEqual(RealtimeTutorIntent.review(dueCount: 3).prompt, "Ready to review 3 due items?")
         XCTAssertEqual(RealtimeTutorIntent.review(dueCount: 3).startButtonTitle, "Start review")
         XCTAssertEqual(RealtimeTutorIntent.review(dueCount: 0).prompt, "Ready to review with your tutor?")
+        XCTAssertEqual(RealtimeTutorIntent.voicePreview.prompt, "Preview your tutor voice?")
+        XCTAssertEqual(RealtimeTutorIntent.voicePreview.startButtonTitle, "Preview voice")
     }
 
     func testFocusedReviewIntentShapesPromptAndSettings() {
@@ -61,6 +63,7 @@ final class RealtimeStateTests: XCTestCase {
         XCTAssertEqual(base.applying(.vocabularyDrill()).sessionIntent, "vocabulary_drill")
         XCTAssertEqual(base.applying(.listeningPractice()).sessionIntent, "listening_practice")
         XCTAssertEqual(base.applying(.keyLanguage(topic: "Past tense")).sessionIntent, "key_language")
+        XCTAssertEqual(base.applying(.voicePreview).sessionIntent, "voice_preview")
     }
 
     func testActivitiesThatCarryATitleForwardItAsFocusTitle() {

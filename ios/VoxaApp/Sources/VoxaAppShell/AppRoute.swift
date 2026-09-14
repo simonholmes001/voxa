@@ -6,6 +6,7 @@
 public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
     case home
     case talk
+    case tutor
     case practice
     case review
     case progress
@@ -18,6 +19,7 @@ public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
         switch self {
         case .home: return "Home"
         case .talk: return "Talk"
+        case .tutor: return "Tutor"
         case .practice: return "Practice"
         case .review: return "Review"
         case .progress: return "Progress"
@@ -30,6 +32,7 @@ public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
         switch self {
         case .home: return "house"
         case .talk: return "waveform"
+        case .tutor: return "person.wave.2"
         case .practice: return "square.grid.2x2"
         case .review: return "arrow.triangle.2.circlepath"
         case .progress: return "chart.bar"
@@ -57,6 +60,12 @@ public extension AppRoute {
     /// Returns purposeful fallback content for device testing and demos.
     func placeholderContent() -> RoutePlaceholderContent {
         switch self {
+        case .tutor:
+            return RoutePlaceholderContent(
+                headline: "Tutor",
+                subheadline: "Customize your AI tutor's voice, tone, speed, and speaking style.",
+                actionTitle: nil
+            )
         case .practice:
             return RoutePlaceholderContent(
                 headline: "Practice",
