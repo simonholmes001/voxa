@@ -1,6 +1,13 @@
 import Foundation
 import Observation
 
+@MainActor
+public protocol SpeechQuestionCapture: AnyObject {
+    func start(localeIdentifier: String, onPartialTranscript: @escaping @MainActor (String) -> Void) async throws
+    func stop() async throws -> String
+    func cancel()
+}
+
 public protocol PracticeLanguageToolService: Sendable {
     func askAnything(
         question: String,
@@ -123,6 +130,20 @@ public enum PracticeLanguageToolError: Error, Equatable {
     case server(code: Int, message: String)
 }
 
+public enum SpeechQuestionCaptureError: Error, Equatable {
+    case unavailable
+    case permissionDenied
+    case recognitionFailed
+}
+
+public enum SpeechQuestionCaptureState: Sendable, Equatable {
+    case idle
+    case requestingPermission
+    case recording
+    case transcribing
+    case failed(String)
+}
+
 public struct NotConfiguredPracticeLanguageToolService: PracticeLanguageToolService {
     private let reason: String
 
@@ -177,18 +198,27 @@ public final class PracticeLanguageToolViewModel {
     public private(set) var imageTranslationResult: ImageTranslationResult?
     public private(set) var vocabularyQuiz: VocabularyQuizResult?
     public private(set) var selectedAnswers: [String: Int] = [:]
+    public private(set) var spokenQuestionDraft = ""
+    public private(set) var speechQuestionState: SpeechQuestionCaptureState = .idle
     public private(set) var isLoading = false
     public private(set) var errorMessage: String?
 
     private let service: any PracticeLanguageToolService
+    private let speechCapture: (any SpeechQuestionCapture)?
     private let accessTokenProvider: @MainActor @Sendable () -> String?
 
     public init(
         service: any PracticeLanguageToolService,
+        speechCapture: (any SpeechQuestionCapture)? = nil,
         accessTokenProvider: @escaping @MainActor @Sendable () -> String?
     ) {
         self.service = service
+        self.speechCapture = speechCapture
         self.accessTokenProvider = accessTokenProvider
+    }
+
+    public var isRecordingQuestion: Bool {
+        speechQuestionState == .recording
     }
 
     public func askAnything(question: String, targetLanguage: String, nativeLanguage: String?) async {
@@ -199,6 +229,49 @@ public final class PracticeLanguageToolViewModel {
                 nativeLanguage: nativeLanguage,
                 accessToken: try self.accessToken())
         }
+    }
+
+    public func startVoiceQuestionInput(localeIdentifier: String) async {
+        guard let speechCapture else {
+            speechQuestionState = .failed("Voice input is not available for this build.")
+            return
+        }
+
+        spokenQuestionDraft = ""
+        speechQuestionState = .requestingPermission
+        do {
+            try await speechCapture.start(localeIdentifier: localeIdentifier) { [weak self] transcript in
+                self?.spokenQuestionDraft = transcript
+            }
+            speechQuestionState = .recording
+        } catch {
+            speechQuestionState = .failed(Self.speechMessage(for: error))
+        }
+    }
+
+    @discardableResult
+    public func stopVoiceQuestionInput() async -> String? {
+        guard let speechCapture else {
+            speechQuestionState = .failed("Voice input is not available for this build.")
+            return nil
+        }
+
+        speechQuestionState = .transcribing
+        do {
+            let transcript = try await speechCapture.stop().trimmingCharacters(in: .whitespacesAndNewlines)
+            spokenQuestionDraft = transcript
+            speechQuestionState = .idle
+            return transcript.isEmpty ? nil : transcript
+        } catch {
+            speechQuestionState = .failed(Self.speechMessage(for: error))
+            return nil
+        }
+    }
+
+    public func cancelVoiceQuestionInput() {
+        speechCapture?.cancel()
+        spokenQuestionDraft = ""
+        speechQuestionState = .idle
     }
 
     public func translate(text: String, sourceLanguage: String?, targetLanguage: String) async {
@@ -280,6 +353,19 @@ public final class PracticeLanguageToolViewModel {
             return message
         default:
             return "The practice tool could not finish. Please try again."
+        }
+    }
+
+    private static func speechMessage(for error: Error) -> String {
+        switch error {
+        case SpeechQuestionCaptureError.unavailable:
+            return "Voice input is not available on this device."
+        case SpeechQuestionCaptureError.permissionDenied:
+            return "Microphone and speech recognition access are required to ask by voice."
+        case SpeechQuestionCaptureError.recognitionFailed:
+            return "We couldn't understand that question. Please try again."
+        default:
+            return "Voice input could not start. Please try again."
         }
     }
 }

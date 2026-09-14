@@ -27,9 +27,9 @@
 	<key>NSCameraUsageDescription</key>
 	<string>voxa uses the camera when you choose to translate text from a photo.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>voxa uses the microphone so you can speak with your AI language tutor.</string>
+	<string>voxa uses the microphone so you can speak with your AI language tutor and ask or translate by voice.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>voxa uses speech recognition to understand and give feedback on what you say in your target language.</string>
+	<string>voxa uses speech recognition to turn spoken questions and translation requests into text.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>VOXA_API_BASE_URL</key>

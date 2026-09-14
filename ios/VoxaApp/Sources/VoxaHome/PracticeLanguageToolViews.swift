@@ -143,6 +143,17 @@ struct AskAnythingView: View {
                     Label("Ask Voxa", systemImage: "questionmark.bubble")
                 }
                 .disabled(model.isLoading || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button {
+                    Task { await toggleVoiceQuestion() }
+                } label: {
+                    Label(voiceQuestionButtonTitle, systemImage: voiceQuestionButtonSymbol)
+                }
+                .disabled(model.isLoading || model.speechQuestionState == .requestingPermission || model.speechQuestionState == .transcribing)
+                if !model.spokenQuestionDraft.isEmpty {
+                    Text(model.spokenQuestionDraft)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             if let result = model.askResult {
                 Section("Answer") {
@@ -163,6 +174,11 @@ struct AskAnythingView: View {
             statusSection
         }
         .navigationTitle("Ask anything")
+        .onChange(of: model.spokenQuestionDraft) { _, transcript in
+            if model.isRecordingQuestion {
+                question = transcript
+            }
+        }
     }
 
     @ViewBuilder
@@ -171,6 +187,34 @@ struct AskAnythingView: View {
             Section { ProgressView("Working...") }
         } else if let error = model.errorMessage {
             Section { Text(error).foregroundStyle(.red) }
+        } else if case let .failed(message) = model.speechQuestionState {
+            Section { Text(message).foregroundStyle(.red) }
+        } else if model.speechQuestionState == .requestingPermission {
+            Section { ProgressView("Preparing microphone...") }
+        } else if model.speechQuestionState == .transcribing {
+            Section { ProgressView("Transcribing...") }
+        }
+    }
+
+    private var voiceQuestionButtonTitle: String {
+        model.isRecordingQuestion ? "Stop and ask" : "Ask by voice"
+    }
+
+    private var voiceQuestionButtonSymbol: String {
+        model.isRecordingQuestion ? "stop.circle.fill" : "mic.circle"
+    }
+
+    private func toggleVoiceQuestion() async {
+        if model.isRecordingQuestion {
+            guard let transcript = await model.stopVoiceQuestionInput() else { return }
+            question = transcript
+            await model.askAnything(
+                question: transcript,
+                targetLanguage: targetLanguage,
+                nativeLanguage: nativeLanguage)
+        } else {
+            await model.startVoiceQuestionInput(
+                localeIdentifier: speechLocaleIdentifier(for: nativeLanguage ?? Locale.current.localizedString(forIdentifier: Locale.current.identifier)))
         }
     }
 }
@@ -199,6 +243,17 @@ struct TranslationToolView: View {
                     Label("Translate", systemImage: "character.bubble")
                 }
                 .disabled(model.isLoading || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button {
+                    Task { await toggleVoiceTranslation() }
+                } label: {
+                    Label(voiceTranslationButtonTitle, systemImage: voiceTranslationButtonSymbol)
+                }
+                .disabled(model.isLoading || model.speechQuestionState == .requestingPermission || model.speechQuestionState == .transcribing)
+                if !model.spokenQuestionDraft.isEmpty {
+                    Text(model.spokenQuestionDraft)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             if let result = model.translationResult {
                 Section("Translation") {
@@ -217,6 +272,11 @@ struct TranslationToolView: View {
             statusSection
         }
         .navigationTitle("Translate")
+        .onChange(of: model.spokenQuestionDraft) { _, transcript in
+            if model.isRecordingQuestion {
+                text = transcript
+            }
+        }
     }
 
     @ViewBuilder
@@ -225,6 +285,33 @@ struct TranslationToolView: View {
             Section { ProgressView("Working...") }
         } else if let error = model.errorMessage {
             Section { Text(error).foregroundStyle(.red) }
+        } else if case let .failed(message) = model.speechQuestionState {
+            Section { Text(message).foregroundStyle(.red) }
+        } else if model.speechQuestionState == .requestingPermission {
+            Section { ProgressView("Preparing microphone...") }
+        } else if model.speechQuestionState == .transcribing {
+            Section { ProgressView("Transcribing...") }
+        }
+    }
+
+    private var voiceTranslationButtonTitle: String {
+        model.isRecordingQuestion ? "Stop and translate" : "Translate by voice"
+    }
+
+    private var voiceTranslationButtonSymbol: String {
+        model.isRecordingQuestion ? "stop.circle.fill" : "mic.circle"
+    }
+
+    private func toggleVoiceTranslation() async {
+        if model.isRecordingQuestion {
+            guard let transcript = await model.stopVoiceQuestionInput() else { return }
+            text = transcript
+            await model.translate(
+                text: transcript,
+                sourceLanguage: trimmed(sourceLanguage),
+                targetLanguage: targetLanguage)
+        } else {
+            await model.startVoiceQuestionInput(localeIdentifier: speechLocaleIdentifier(for: trimmed(sourceLanguage)))
         }
     }
 }
@@ -336,6 +423,24 @@ struct ImageTranslationToolView: View {
 private func trimmed(_ value: String) -> String? {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
+}
+
+private func speechLocaleIdentifier(for language: String?) -> String {
+    guard let language else { return Locale.current.identifier }
+    switch language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+    case "arabic": return "ar-SA"
+    case "chinese", "mandarin": return "zh-Hans"
+    case "dutch": return "nl-NL"
+    case "english": return "en-US"
+    case "french": return "fr-FR"
+    case "german": return "de-DE"
+    case "italian": return "it-IT"
+    case "japanese": return "ja-JP"
+    case "korean": return "ko-KR"
+    case "portuguese": return "pt-PT"
+    case "spanish": return "es-ES"
+    default: return Locale.current.identifier
+    }
 }
 
 #if os(iOS) && canImport(UIKit)

@@ -70,7 +70,17 @@ enum AppComposition {
     static func makePracticeLanguageToolModel(authModel: AuthViewModel) -> PracticeLanguageToolViewModel {
         PracticeLanguageToolViewModel(
             service: makePracticeLanguageToolService(),
+            speechCapture: makeSpeechQuestionCapture(),
             accessTokenProvider: accessTokenProvider(for: authModel))
+    }
+
+    @MainActor
+    static func makeSpeechQuestionCapture() -> (any SpeechQuestionCapture)? {
+        #if os(iOS)
+        return SystemSpeechQuestionCapture()
+        #else
+        return nil
+        #endif
     }
 
     static func makePracticeLanguageToolService() -> any PracticeLanguageToolService {

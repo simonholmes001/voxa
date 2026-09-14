@@ -26,6 +26,36 @@ final class PracticeLanguageToolViewModelTests: XCTestCase {
         XCTAssertEqual(model.errorMessage, "Please sign in again to use practice tools.")
     }
 
+    func testVoiceQuestionInputStoresPartialAndFinalTranscript() async {
+        let speechCapture = StubSpeechQuestionCapture(finalTranscript: "How do I order coffee?")
+        let model = PracticeLanguageToolViewModel(
+            service: StubPracticeLanguageToolService(),
+            speechCapture: speechCapture,
+            accessTokenProvider: { "access-token" })
+
+        await model.startVoiceQuestionInput(localeIdentifier: "en-US")
+
+        XCTAssertEqual(speechCapture.startedLocaleIdentifier, "en-US")
+        XCTAssertEqual(model.speechQuestionState, .recording)
+        XCTAssertEqual(model.spokenQuestionDraft, "How do I")
+
+        let transcript = await model.stopVoiceQuestionInput()
+
+        XCTAssertEqual(transcript, "How do I order coffee?")
+        XCTAssertEqual(model.spokenQuestionDraft, "How do I order coffee?")
+        XCTAssertEqual(model.speechQuestionState, .idle)
+    }
+
+    func testVoiceQuestionInputUnavailableShowsMessage() async {
+        let model = PracticeLanguageToolViewModel(
+            service: StubPracticeLanguageToolService(),
+            accessTokenProvider: { "access-token" })
+
+        await model.startVoiceQuestionInput(localeIdentifier: "en-US")
+
+        XCTAssertEqual(model.speechQuestionState, .failed("Voice input is not available for this build."))
+    }
+
     private struct StubPracticeLanguageToolService: PracticeLanguageToolService {
         func askAnything(
             question: String,
@@ -75,5 +105,28 @@ final class PracticeLanguageToolViewModelTests: XCTestCase {
                     explanation: "Pain means bread."),
             ])
         }
+    }
+
+    private final class StubSpeechQuestionCapture: SpeechQuestionCapture {
+        private let finalTranscript: String
+        private(set) var startedLocaleIdentifier: String?
+
+        init(finalTranscript: String) {
+            self.finalTranscript = finalTranscript
+        }
+
+        func start(
+            localeIdentifier: String,
+            onPartialTranscript: @escaping @MainActor (String) -> Void
+        ) async throws {
+            startedLocaleIdentifier = localeIdentifier
+            onPartialTranscript("How do I")
+        }
+
+        func stop() async throws -> String {
+            finalTranscript
+        }
+
+        func cancel() {}
     }
 }
