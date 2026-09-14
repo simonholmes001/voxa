@@ -134,6 +134,7 @@ public enum SpeechQuestionCaptureError: Error, Equatable {
     case unavailable
     case permissionDenied
     case recognitionFailed
+    case startFailed(String)
 }
 
 public enum SpeechQuestionCaptureState: Sendable, Equatable {
@@ -364,6 +365,8 @@ public final class PracticeLanguageToolViewModel {
             return "Microphone and speech recognition access are required to ask by voice."
         case SpeechQuestionCaptureError.recognitionFailed:
             return "We couldn't understand that question. Please try again."
+        case let SpeechQuestionCaptureError.startFailed(message):
+            return message.isEmpty ? "Voice input could not start. Please try again." : message
         default:
             return "Voice input could not start. Please try again."
         }

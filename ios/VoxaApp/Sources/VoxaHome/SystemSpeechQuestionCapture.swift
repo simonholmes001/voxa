@@ -10,6 +10,7 @@ public final class SystemSpeechQuestionCapture: SpeechQuestionCapture {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var latestTranscript = ""
+    private var hasInstalledTap = false
 
     public init() {}
 
@@ -30,37 +31,52 @@ public final class SystemSpeechQuestionCapture: SpeechQuestionCapture {
             throw SpeechQuestionCaptureError.unavailable
         }
 
-        let request = SFSpeechAudioBufferRecognitionRequest()
-        request.shouldReportPartialResults = true
-        latestTranscript = ""
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.record, mode: .measurement, options: [.duckOthers])
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
 
-        let engine = AVAudioEngine()
-        let input = engine.inputNode
-        let format = input.outputFormat(forBus: 0)
-        input.installTap(onBus: 0, bufferSize: 1_024, format: format) { buffer, _ in
-            request.append(buffer)
-        }
+            let request = SFSpeechAudioBufferRecognitionRequest()
+            request.shouldReportPartialResults = true
+            latestTranscript = ""
 
-        recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
-            guard error == nil, let text = result?.bestTranscription.formattedString else { return }
-            Task { @MainActor in
-                self?.latestTranscript = text
-                onPartialTranscript(text)
+            let engine = AVAudioEngine()
+            let input = engine.inputNode
+            let format = input.outputFormat(forBus: 0)
+            guard format.sampleRate > 0, format.channelCount > 0 else {
+                throw SpeechQuestionCaptureError.startFailed("Voice input could not start because no microphone input was available.")
             }
+
+            input.installTap(onBus: 0, bufferSize: 1_024, format: format) { buffer, _ in
+                request.append(buffer)
+            }
+            hasInstalledTap = true
+
+            recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
+                guard error == nil, let text = result?.bestTranscription.formattedString else { return }
+                Task { @MainActor in
+                    self?.latestTranscript = text
+                    onPartialTranscript(text)
+                }
+            }
+
+            engine.prepare()
+            try engine.start()
+
+            audioEngine = engine
+            recognitionRequest = request
+        } catch let error as SpeechQuestionCaptureError {
+            cancel()
+            throw error
+        } catch {
+            cancel()
+            throw SpeechQuestionCaptureError.startFailed(Self.startFailureMessage(for: error))
         }
-
-        try AVAudioSession.sharedInstance().setCategory(.record, mode: .spokenAudio, options: [.duckOthers])
-        try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
-        engine.prepare()
-        try engine.start()
-
-        audioEngine = engine
-        recognitionRequest = request
     }
 
     public func stop() async throws -> String {
         audioEngine?.stop()
-        audioEngine?.inputNode.removeTap(onBus: 0)
+        removeTapIfNeeded()
         recognitionRequest?.endAudio()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
 
@@ -79,7 +95,7 @@ public final class SystemSpeechQuestionCapture: SpeechQuestionCapture {
 
     public func cancel() {
         audioEngine?.stop()
-        audioEngine?.inputNode.removeTap(onBus: 0)
+        removeTapIfNeeded()
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
         recognitionTask = nil
@@ -87,6 +103,12 @@ public final class SystemSpeechQuestionCapture: SpeechQuestionCapture {
         audioEngine = nil
         latestTranscript = ""
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    private func removeTapIfNeeded() {
+        guard hasInstalledTap else { return }
+        audioEngine?.inputNode.removeTap(onBus: 0)
+        hasInstalledTap = false
     }
 
     private func requestSpeechRecognitionPermission() async -> Bool {
@@ -99,6 +121,14 @@ public final class SystemSpeechQuestionCapture: SpeechQuestionCapture {
 
     private func requestMicrophonePermission() async -> Bool {
         await AVAudioApplication.requestRecordPermission()
+    }
+
+    private static func startFailureMessage(for error: Error) -> String {
+        let description = (error as NSError).localizedDescription
+        guard !description.isEmpty else {
+            return "Voice input could not start. Please try again."
+        }
+        return "Voice input could not start: \(description)"
     }
 }
 #endif
