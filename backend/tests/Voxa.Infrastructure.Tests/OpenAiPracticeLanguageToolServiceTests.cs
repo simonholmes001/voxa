@@ -49,6 +49,16 @@ public sealed class OpenAiPracticeLanguageToolServiceTests
     }
 
     [Fact]
+    public async Task AskAnythingWrapsUnsupportedOpenAiEnvelopeContentAsPracticeLanguageToolException()
+    {
+        var service = CreateService(new RecordingHttpContentMessageHandler(
+            new UnsupportedJsonHttpContent()));
+
+        await Assert.ThrowsAsync<PracticeLanguageToolException>(
+            () => service.AskAnythingAsync(SampleAskCommand(), CancellationToken.None));
+    }
+
+    [Fact]
     public async Task UpstreamFailureLogsStatusAndCorrelationIdWithoutRawBody()
     {
         var logger = new CapturingLogger<OpenAiPracticeLanguageToolService>();
@@ -120,6 +130,37 @@ public sealed class OpenAiPracticeLanguageToolServiceTests
             {
                 Content = new StringContent(responseBody, Encoding.UTF8, "application/json"),
             });
+        }
+    }
+
+    private sealed class RecordingHttpContentMessageHandler(
+        HttpContent content,
+        HttpStatusCode statusCode = HttpStatusCode.OK) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(statusCode)
+            {
+                Content = content,
+            });
+        }
+    }
+
+    private sealed class UnsupportedJsonHttpContent : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(
+            Stream stream,
+            TransportContext? context)
+        {
+            throw new NotSupportedException("unsupported response content");
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
         }
     }
 

@@ -165,6 +165,15 @@ public sealed class OpenAiPracticeLanguageToolService(
                 correlationId);
             throw new PracticeLanguageToolException("Language tool upstream transport failed.");
         }
+        catch (NotSupportedException exception)
+        {
+            logger.LogError(
+                exception,
+                "Practice language tool upstream transport returned unsupported content. model={Model} correlationId={CorrelationId}",
+                route.Model,
+                correlationId);
+            throw new PracticeLanguageToolException("Language tool upstream transport returned unsupported content.");
+        }
 
         using (response)
         {
@@ -206,6 +215,15 @@ public sealed class OpenAiPracticeLanguageToolService(
                     route.Model,
                     correlationId);
                 throw new PracticeLanguageToolException("Language tool upstream response envelope was not valid JSON.");
+            }
+            catch (NotSupportedException exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Practice language tool upstream response envelope used an unsupported content type. model={Model} correlationId={CorrelationId}",
+                    route.Model,
+                    correlationId);
+                throw new PracticeLanguageToolException("Language tool upstream response envelope used an unsupported content type.");
             }
 
             var text = responseBody?.OutputText ?? ExtractOutputText(responseBody);
