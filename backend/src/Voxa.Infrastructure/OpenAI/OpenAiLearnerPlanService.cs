@@ -100,13 +100,10 @@ public sealed class OpenAiLearnerPlanService(
         using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            var truncated = errorBody.Length > 500 ? errorBody[..500] : errorBody;
             logger.LogError(
-                "Learner plan upstream call failed. status={Status} model={Model} body={Body}",
+                "Learner plan upstream call failed. status={Status} model={Model}",
                 (int)response.StatusCode,
-                route.Model,
-                truncated);
+                route.Model);
             throw new LearnerPlanException(
                 $"Learner plan upstream call failed with status {(int)response.StatusCode}.");
         }
@@ -130,9 +127,8 @@ public sealed class OpenAiLearnerPlanService(
         {
             logger.LogError(
                 exception,
-                "Learner plan output was not valid JSON. model={Model} body={Body}",
-                route.Model,
-                text.Length > 500 ? text[..500] : text);
+                "Learner plan output was not valid JSON. model={Model}",
+                route.Model);
             throw new LearnerPlanException("Learner plan output was not valid JSON.");
         }
 

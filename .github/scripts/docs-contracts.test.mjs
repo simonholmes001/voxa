@@ -146,3 +146,58 @@ test('eval examples use only documented assertion predicates', () => {
     }
   }
 });
+
+test('privacy assurance docs cover App Store and GDPR release gates', () => {
+  const assurance = fs.readFileSync(path.join(repoRoot, 'docs', 'privacy-security-assurance.md'), 'utf8');
+  const appStore = fs.readFileSync(path.join(repoRoot, 'docs', 'app-store-privacy-checklist.md'), 'utf8');
+
+  for (const phrase of [
+    'Data Inventory',
+    'App Store Privacy Baseline',
+    'GDPR Engineering Mapping',
+    'Logging and Telemetry Rules',
+    'Release Gate',
+    'Account deletion',
+    'PrivacyInfo.xcprivacy',
+    'OpenAI',
+    'Azure',
+    'Apple',
+  ]) {
+    assert.match(assurance, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+
+  for (const phrase of [
+    'App Store Connect App Privacy Answers',
+    'Privacy Policy Must Cover',
+    'Required Reason API Audit',
+    'Reviewer Notes Before Submission',
+    'Do not submit to App Review',
+  ]) {
+    assert.match(appStore, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
+
+test('iOS privacy manifest declares current learner data and UserDefaults reason', () => {
+  const manifest = fs.readFileSync(
+    path.join(repoRoot, 'ios', 'VoxaApp', 'PrivacyInfo.xcprivacy'),
+    'utf8',
+  );
+
+  assert.match(manifest, /<key>NSPrivacyTracking<\/key>\s*<false\/>/);
+  assert.match(manifest, /NSPrivacyAccessedAPICategoryUserDefaults/);
+  assert.match(manifest, /<string>CA92\.1<\/string>/);
+
+  for (const dataType of [
+    'NSPrivacyCollectedDataTypeUserID',
+    'NSPrivacyCollectedDataTypeOtherUserContent',
+    'NSPrivacyCollectedDataTypeAudioData',
+    'NSPrivacyCollectedDataTypePhotosorVideos',
+    'NSPrivacyCollectedDataTypeProductInteraction',
+    'NSPrivacyCollectedDataTypeOtherDiagnosticData',
+  ]) {
+    assert.match(manifest, new RegExp(`<string>${dataType}</string>`));
+  }
+
+  assert.doesNotMatch(manifest, /NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising/);
+  assert.doesNotMatch(manifest, /NSPrivacyCollectedDataTypePurposeDeveloperAdvertising/);
+});

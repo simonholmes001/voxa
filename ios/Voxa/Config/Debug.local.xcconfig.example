@@ -3,3 +3,4 @@
 //
 // Example:
 VOXA_API_BASE_URL = https://your-voxa-function-app.azurewebsites.net
+VOXA_PRIVACY_POLICY_URL = https://example.com/privacy

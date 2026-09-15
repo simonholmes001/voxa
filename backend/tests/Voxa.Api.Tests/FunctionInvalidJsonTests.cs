@@ -256,6 +256,7 @@ public sealed class FunctionInvalidJsonTests
             new SignInWithAppleEndpoint(new StubAppSessionService(), NullLogger<SignInWithAppleEndpoint>.Instance),
             new RefreshAppSessionEndpoint(new StubAppSessionService()),
             new LogoutAppSessionEndpoint(new StubAppSessionService()),
+            new AccountDataEndpoint(new StubAccountDataService()),
             new RealtimeSessionEndpoint(new StubRealtimeSessionService()),
             new RealtimeDebriefEndpoint(new StubDebriefService(), new StubLearnerEvidenceService(), NullLogger<RealtimeDebriefEndpoint>.Instance),
             new LearnerPlanEndpoint(new StubLearnerPlanService()),
@@ -370,6 +371,25 @@ public sealed class FunctionInvalidJsonTests
 
         public Task RevokeRefreshTokenAsync(
             LogoutAppSessionCommand command,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class StubAccountDataService : IAccountDataService
+    {
+        public Task<AccountDataExport> ExportAsync(
+            AppSessionPrincipal principal,
+            CorrelationId correlationId,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<AccountDeletionResult> DeleteAsync(
+            AppSessionPrincipal principal,
+            CorrelationId correlationId,
             CancellationToken cancellationToken)
         {
             throw new NotSupportedException();

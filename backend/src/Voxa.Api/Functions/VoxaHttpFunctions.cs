@@ -16,6 +16,7 @@ public sealed class VoxaHttpFunctions(
     SignInWithAppleEndpoint signInWithApple,
     RefreshAppSessionEndpoint refreshSession,
     LogoutAppSessionEndpoint logout,
+    AccountDataEndpoint accountData,
     RealtimeSessionEndpoint realtimeSession,
     RealtimeDebriefEndpoint realtimeDebrief,
     LearnerPlanEndpoint learnerPlan,
@@ -87,6 +88,34 @@ public sealed class VoxaHttpFunctions(
             request,
             await logout.PostAsync(
                 body.Value ?? new LogoutAppSessionHttpRequest(null),
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("account-export")]
+    public async Task<HttpResponseData> ExportAccountDataAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "account/export")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        return await WriteAsync(
+            request,
+            await accountData.ExportAsync(
+                Principal(request),
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("account-delete")]
+    public async Task<HttpResponseData> DeleteAccountAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "account")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        return await WriteAsync(
+            request,
+            await accountData.DeleteAsync(
+                Principal(request),
                 CorrelationId(request),
                 cancellationToken),
             cancellationToken);

@@ -73,16 +73,10 @@ public sealed class OpenAiRealtimeClientSecretIssuer(
         using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            var truncated = errorBody.Length > 500 ? errorBody[..500] : errorBody;
-            // The error body is OpenAI's error JSON (code/message), not a secret;
-            // the API key is only ever sent in the request header, never logged.
             logger.LogError(
-                "OpenAI realtime client_secret request failed. status={Status} model={Model} keyLength={KeyLength} body={Body}",
+                "OpenAI realtime client_secret request failed. status={Status} model={Model}",
                 (int)response.StatusCode,
-                route.Model,
-                options.ApiKey.Length,
-                truncated);
+                route.Model);
             throw new RealtimeSessionIssueException(
                 $"OpenAI Realtime client secret request failed with status {(int)response.StatusCode}.");
         }

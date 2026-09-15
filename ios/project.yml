@@ -19,10 +19,11 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
-    # Backend base URL is injected into Info.plist from the VOXA_API_BASE_URL
-    # build setting. It is unset by default (Release), and configurable for
-    # Debug via ios/Voxa/Config/Debug.xcconfig (+ an optional, git-ignored
-    # Debug.local.xcconfig). The app fails clearly on network calls when blank.
+    # Backend and privacy-policy URLs are injected into Info.plist from build
+    # settings. They are unset by default (Release), and configurable for Debug
+    # via ios/Voxa/Config/Debug.xcconfig (+ an optional, git-ignored
+    # Debug.local.xcconfig). The app fails clearly on network calls when the
+    # backend URL is blank; the privacy link is disabled when its URL is blank.
     # Device/Release signing is left to Xcode automatic signing driven by
     # DEVELOPMENT_TEAM (supplied via CI/Fastlane match), so the project does not
     # permanently disable signing. Simulator/CI builds pass by overriding

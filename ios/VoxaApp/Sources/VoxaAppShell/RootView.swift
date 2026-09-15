@@ -24,6 +24,7 @@ public struct RootView: View {
     private let practiceLanguageToolModel: PracticeLanguageToolViewModel?
     private let profileModel: ProfileSelectionViewModel?
     private let makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)?
+    private let privacyPolicyURL: URL?
     @State private var isAddingLanguage = false
     @State private var didChooseLanguage = false
     @State private var addLanguageActivationError: String?
@@ -39,7 +40,8 @@ public struct RootView: View {
         learnerCourseModel: LearnerCourseViewModel? = nil,
         practiceLanguageToolModel: PracticeLanguageToolViewModel? = nil,
         profileModel: ProfileSelectionViewModel? = nil,
-        makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)? = nil
+        makeLanguageSettingsModel: (@MainActor (LanguageProfile) -> LanguageSettingsViewModel)? = nil,
+        privacyPolicyURL: URL? = nil
     ) {
         _navigationModel = State(initialValue: navigationModel)
         _authModel = State(initialValue: authModel ?? AuthViewModel())
@@ -51,6 +53,7 @@ public struct RootView: View {
         self.practiceLanguageToolModel = practiceLanguageToolModel
         self.profileModel = profileModel
         self.makeLanguageSettingsModel = makeLanguageSettingsModel
+        self.privacyPolicyURL = privacyPolicyURL
     }
 
     public var body: some View {
@@ -261,6 +264,9 @@ public struct RootView: View {
             onDelete: { profile in
                 await profileModel.deleteLanguage(profile.languageKey)
             },
+            privacyPolicyURL: privacyPolicyURL,
+            onExportAccountData: { try await exportAccountData() },
+            onDeleteAccount: { try await deleteAccount() },
             onSignOut: { Task { await signOut() } }
         )
     }
@@ -268,6 +274,22 @@ public struct RootView: View {
     @MainActor
     private func signOut() async {
         await authModel.signOut()
+        didChooseLanguage = false
+        isAddingLanguage = false
+        navigationModel.selectedRoute = .home
+    }
+
+    @MainActor
+    private func exportAccountData() async throws -> URL {
+        let export = try await authModel.exportAccountData()
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(export.filename)
+        try export.data.write(to: url, options: [.atomic])
+        return url
+    }
+
+    @MainActor
+    private func deleteAccount() async throws {
+        _ = try await authModel.deleteAccount()
         didChooseLanguage = false
         isAddingLanguage = false
         navigationModel.selectedRoute = .home
@@ -283,6 +305,9 @@ struct LanguageManagerContext {
     let onSwitch: (LanguageProfile) -> Void
     let onAddLanguage: () -> Void
     let onDelete: (LanguageProfile) async -> Bool
+    let privacyPolicyURL: URL?
+    let onExportAccountData: () async throws -> URL
+    let onDeleteAccount: () async throws -> Void
     let onSignOut: () -> Void
 }
 

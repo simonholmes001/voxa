@@ -22,12 +22,22 @@ public interface IRealtimeSessionRateLimiter
         TenantId tenantId,
         UserId userId,
         CancellationToken cancellationToken);
+
+    Task DeleteForSubjectAsync(
+        TenantId tenantId,
+        UserId userId,
+        CancellationToken cancellationToken);
 }
 
 public interface IRealtimeSessionAuditLog
 {
     Task RecordAsync(
         RealtimeSessionAuditEvent auditEvent,
+        CancellationToken cancellationToken);
+
+    Task DeleteForSubjectAsync(
+        TenantId tenantId,
+        UserId userId,
         CancellationToken cancellationToken);
 }
 

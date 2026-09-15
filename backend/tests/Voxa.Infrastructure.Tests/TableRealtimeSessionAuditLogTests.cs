@@ -1,4 +1,5 @@
 using Voxa.Application.Realtime;
+using Voxa.Domain.Learners;
 using Voxa.Infrastructure.Authentication;
 using Voxa.Infrastructure.Persistence;
 using Voxa.Infrastructure.Realtime;
@@ -35,6 +36,22 @@ public sealed class TableRealtimeSessionAuditLogTests
         Assert.Equal(DateTimeOffset.Parse("2026-08-30T10:00:00Z"), entity.RecordedAt);
     }
 
+    [Fact]
+    public async Task DeleteForSubjectRemovesPartition()
+    {
+        var table = new RecordingRealtimeSessionAuditTable();
+        var audit = new TableRealtimeSessionAuditLog(
+            table,
+            new FixedClock(DateTimeOffset.Parse("2026-08-30T10:00:00Z")));
+
+        await audit.DeleteForSubjectAsync(
+            TenantId.Create("tenant-default"),
+            UserId.Create("user-a"),
+            CancellationToken.None);
+
+        Assert.Equal("tenant-default:user-a", table.DeletedPartitionKey);
+    }
+
     private sealed class RecordingRealtimeSessionAuditTable : IRealtimeSessionAuditTable
     {
         public List<RealtimeSessionAuditTableEntity> Entities { get; } = [];
@@ -44,6 +61,16 @@ public sealed class TableRealtimeSessionAuditLogTests
             CancellationToken cancellationToken)
         {
             Entities.Add(entity);
+            return Task.CompletedTask;
+        }
+
+        public string? DeletedPartitionKey { get; private set; }
+
+        public Task DeletePartitionAsync(
+            string partitionKey,
+            CancellationToken cancellationToken)
+        {
+            DeletedPartitionKey = partitionKey;
             return Task.CompletedTask;
         }
     }

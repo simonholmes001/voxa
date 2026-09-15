@@ -53,6 +53,10 @@ public interface IRefreshSessionStore
     Task RevokeAsync(
         string refreshToken,
         CancellationToken cancellationToken);
+
+    Task RevokeAllAsync(
+        VerifiedAppSessionSubject subject,
+        CancellationToken cancellationToken);
 }
 
 public sealed record SignInWithAppleCommand(

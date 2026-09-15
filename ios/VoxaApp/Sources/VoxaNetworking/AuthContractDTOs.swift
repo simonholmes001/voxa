@@ -51,6 +51,12 @@ struct DevResetResponseDTO: Decodable {
     let deleted: Bool
 }
 
+struct AccountDeletionResponseDTO: Decodable {
+    let correlationId: String
+    let deleted: Bool
+    let deletedLanguageProfileCount: Int
+}
+
 struct ApiErrorDTO: Decodable {
     let code: String
     let message: String
