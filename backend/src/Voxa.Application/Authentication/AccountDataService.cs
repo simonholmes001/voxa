@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Voxa.Application.Learners;
 using Voxa.Application.Realtime;
 using Voxa.Domain.Learners;
@@ -8,8 +10,11 @@ public sealed class AccountDataService(
     ILearnerStateRepository learnerStates,
     IRefreshSessionStore refreshSessions,
     IRealtimeSessionAuditLog realtimeAuditLog,
-    IRealtimeSessionRateLimiter realtimeRateLimiter) : IAccountDataService
+    IRealtimeSessionRateLimiter realtimeRateLimiter,
+    ILogger<AccountDataService>? logger = null) : IAccountDataService
 {
+    private readonly ILogger<AccountDataService> logger = logger ?? NullLogger<AccountDataService>.Instance;
+
     public async Task<AccountDataExport> ExportAsync(
         AppSessionPrincipal principal,
         CorrelationId correlationId,
@@ -39,12 +44,23 @@ public sealed class AccountDataService(
             principal.UserId,
             cancellationToken);
 
-        await learnerStates.DeleteAsync(principal.TenantId, principal.UserId, cancellationToken);
-        await refreshSessions.RevokeAllAsync(
-            new VerifiedAppSessionSubject(principal.TenantId, principal.UserId),
-            cancellationToken);
-        await realtimeAuditLog.DeleteForSubjectAsync(principal.TenantId, principal.UserId, cancellationToken);
-        await realtimeRateLimiter.DeleteForSubjectAsync(principal.TenantId, principal.UserId, cancellationToken);
+        try
+        {
+            await refreshSessions.RevokeAllAsync(
+                new VerifiedAppSessionSubject(principal.TenantId, principal.UserId),
+                cancellationToken);
+            await realtimeAuditLog.DeleteForSubjectAsync(principal.TenantId, principal.UserId, cancellationToken);
+            await realtimeRateLimiter.DeleteForSubjectAsync(principal.TenantId, principal.UserId, cancellationToken);
+            await learnerStates.DeleteAsync(principal.TenantId, principal.UserId, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(
+                exception,
+                "Account deletion cleanup failed. correlationId={CorrelationId}",
+                correlationId.Value);
+            throw;
+        }
 
         return new AccountDeletionResult(
             correlationId.Value,

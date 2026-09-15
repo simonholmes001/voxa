@@ -39,12 +39,14 @@ public sealed class AccountDataServiceTests
     {
         var tenant = TenantId.Create("tenant-default");
         var user = UserId.Create("user-a");
-        var learnerStates = new RecordingLearnerStateRepository();
+        var calls = new List<string>();
+        var learnerStates = new RecordingLearnerStateRepository(calls);
         await learnerStates.SaveAsync(CreateState(tenant, user, "fr-FR"), null, CancellationToken.None);
         await learnerStates.SaveAsync(CreateState(tenant, user, "es-ES"), null, CancellationToken.None);
-        var refreshSessions = new RecordingRefreshSessionStore();
-        var auditLog = new RecordingRealtimeSessionAuditLog();
-        var rateLimiter = new RecordingRealtimeSessionRateLimiter();
+        calls.Clear();
+        var refreshSessions = new RecordingRefreshSessionStore(calls);
+        var auditLog = new RecordingRealtimeSessionAuditLog(calls);
+        var rateLimiter = new RecordingRealtimeSessionRateLimiter(calls);
         var service = new AccountDataService(learnerStates, refreshSessions, auditLog, rateLimiter);
 
         var result = await service.DeleteAsync(
@@ -54,10 +56,38 @@ public sealed class AccountDataServiceTests
 
         Assert.True(result.Deleted);
         Assert.Equal(2, result.DeletedLanguageProfileCount);
-        Assert.Empty(await learnerStates.ListAsync(tenant, user, CancellationToken.None));
         Assert.Equal(new VerifiedAppSessionSubject(tenant, user), refreshSessions.RevokedSubject);
         Assert.Equal((tenant, user), auditLog.DeletedSubject);
         Assert.Equal((tenant, user), rateLimiter.DeletedSubject);
+        Assert.Equal(
+            ["learner.list", "refresh.revokeAll", "realtime.audit.delete", "realtime.rateLimit.delete", "learner.delete"],
+            calls);
+        Assert.Empty(await learnerStates.ListAsync(tenant, user, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DeleteAsyncRevokesRefreshSessionsBeforeDestructiveLearnerDeletion()
+    {
+        var tenant = TenantId.Create("tenant-default");
+        var user = UserId.Create("user-a");
+        var calls = new List<string>();
+        var learnerStates = new RecordingLearnerStateRepository(calls);
+        await learnerStates.SaveAsync(CreateState(tenant, user, "fr-FR"), null, CancellationToken.None);
+        calls.Clear();
+        var service = new AccountDataService(
+            learnerStates,
+            new RecordingRefreshSessionStore(calls),
+            new RecordingRealtimeSessionAuditLog(calls, failDelete: true),
+            new RecordingRealtimeSessionRateLimiter(calls));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.DeleteAsync(
+                new AppSessionPrincipal(tenant, user),
+                CorrelationId.Create("corr-delete"),
+                CancellationToken.None));
+
+        Assert.Equal(["learner.list", "refresh.revokeAll", "realtime.audit.delete"], calls);
+        Assert.NotEmpty(await learnerStates.ListAsync(tenant, user, CancellationToken.None));
     }
 
     private static LearnerState CreateState(TenantId tenantId, UserId userId, string targetLanguage)
@@ -76,7 +106,7 @@ public sealed class AccountDataServiceTests
             RecentSessionSummaries.Empty);
     }
 
-    private sealed class RecordingRefreshSessionStore : IRefreshSessionStore
+    private sealed class RecordingRefreshSessionStore(List<string>? calls = null) : IRefreshSessionStore
     {
         public VerifiedAppSessionSubject? RevokedSubject { get; private set; }
 
@@ -96,12 +126,13 @@ public sealed class AccountDataServiceTests
             VerifiedAppSessionSubject subject,
             CancellationToken cancellationToken)
         {
+            calls?.Add("refresh.revokeAll");
             RevokedSubject = subject;
             return Task.CompletedTask;
         }
     }
 
-    private sealed class RecordingLearnerStateRepository : ILearnerStateRepository
+    private sealed class RecordingLearnerStateRepository(List<string>? calls = null) : ILearnerStateRepository
     {
         private readonly List<LearnerState> states = [];
 
@@ -119,6 +150,7 @@ public sealed class AccountDataServiceTests
             UserId userId,
             CancellationToken cancellationToken)
         {
+            calls?.Add("learner.list");
             IReadOnlyList<LearnerState> result = states
                 .Where(state => state.TenantId == tenantId && state.UserId == userId)
                 .OrderBy(state => state.Profile.TargetLanguage, StringComparer.OrdinalIgnoreCase)
@@ -147,12 +179,15 @@ public sealed class AccountDataServiceTests
             UserId userId,
             CancellationToken cancellationToken)
         {
+            calls?.Add("learner.delete");
             states.RemoveAll(state => state.TenantId == tenantId && state.UserId == userId);
             return Task.CompletedTask;
         }
     }
 
-    private sealed class RecordingRealtimeSessionAuditLog : IRealtimeSessionAuditLog
+    private sealed class RecordingRealtimeSessionAuditLog(
+        List<string>? calls = null,
+        bool failDelete = false) : IRealtimeSessionAuditLog
     {
         public (TenantId TenantId, UserId UserId)? DeletedSubject { get; private set; }
 
@@ -165,12 +200,18 @@ public sealed class AccountDataServiceTests
             UserId userId,
             CancellationToken cancellationToken)
         {
+            calls?.Add("realtime.audit.delete");
+            if (failDelete)
+            {
+                throw new InvalidOperationException("Audit cleanup failed.");
+            }
+
             DeletedSubject = (tenantId, userId);
             return Task.CompletedTask;
         }
     }
 
-    private sealed class RecordingRealtimeSessionRateLimiter : IRealtimeSessionRateLimiter
+    private sealed class RecordingRealtimeSessionRateLimiter(List<string>? calls = null) : IRealtimeSessionRateLimiter
     {
         public (TenantId TenantId, UserId UserId)? DeletedSubject { get; private set; }
 
@@ -184,6 +225,7 @@ public sealed class AccountDataServiceTests
             UserId userId,
             CancellationToken cancellationToken)
         {
+            calls?.Add("realtime.rateLimit.delete");
             DeletedSubject = (tenantId, userId);
             return Task.CompletedTask;
         }
