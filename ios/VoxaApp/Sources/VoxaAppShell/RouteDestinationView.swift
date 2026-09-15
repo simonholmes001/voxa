@@ -86,6 +86,9 @@ struct RouteDestinationView: View {
                 onAddLanguage: languageManager!.onAddLanguage,
                 onSaved: { await languageManager!.profileModel.refresh() },
                 onDelete: languageManager!.onDelete,
+                privacyPolicyURL: languageManager!.privacyPolicyURL,
+                onExportAccountData: languageManager!.onExportAccountData,
+                onDeleteAccount: languageManager!.onDeleteAccount,
                 onSignOut: languageManager!.onSignOut
             )
         case .settings:

@@ -171,6 +171,21 @@ public sealed class AppSessionServiceTests
             return Task.CompletedTask;
         }
 
+        public Task RevokeAllAsync(
+            VerifiedAppSessionSubject subject,
+            CancellationToken cancellationToken)
+        {
+            foreach (var refreshToken in sessions
+                         .Where(session => session.Value.Subject == subject)
+                         .Select(session => session.Key)
+                         .ToArray())
+            {
+                sessions.Remove(refreshToken);
+            }
+
+            return Task.CompletedTask;
+        }
+
         public bool Contains(string refreshToken) => sessions.ContainsKey(refreshToken);
 
         public DateTimeOffset? ExpiresAt(string refreshToken)

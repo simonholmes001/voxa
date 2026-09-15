@@ -133,6 +133,11 @@ public sealed class RealtimeSessionServiceTests
 
             return Task.CompletedTask;
         }
+
+        public Task DeleteForSubjectAsync(
+            TenantId tenantId,
+            UserId userId,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class RecordingRealtimeSessionAuditLog : IRealtimeSessionAuditLog
@@ -144,5 +149,10 @@ public sealed class RealtimeSessionServiceTests
             Events.Add(auditEvent);
             return Task.CompletedTask;
         }
+
+        public Task DeleteForSubjectAsync(
+            TenantId tenantId,
+            UserId userId,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

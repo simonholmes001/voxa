@@ -71,6 +71,71 @@ Revokes the supplied refresh token. Access tokens naturally expire; clients must
 }
 ```
 
+## Account Data
+
+`GET /api/account/export`
+
+Returns a portable JSON export of the authenticated learner's stored Voxa data.
+The response is scoped entirely from the access token; clients never send
+tenant or user identifiers.
+
+Response `200`:
+
+```json
+{
+  "correlationId": "corr-123",
+  "tenantId": "tenant-default",
+  "userId": "user-apple-subject",
+  "exportedAt": "2026-09-15T08:00:00Z",
+  "schemaVersion": "2026-09-15",
+  "languageProfiles": [
+    {
+      "languageKey": "fr-FR",
+      "version": 3,
+      "profile": {
+        "targetLanguage": "fr-FR",
+        "nativeLanguage": "en-US",
+        "proficiencyLevel": "A1",
+        "goals": ["travel"],
+        "dailyMinutes": 15
+      },
+      "activePlan": {
+        "planId": "plan-1",
+        "title": "Survival French",
+        "knowledgeUnitIds": ["greetings"],
+        "lessons": []
+      },
+      "currentLesson": {
+        "lessonId": "lesson-1",
+        "knowledgeUnitId": "greetings",
+        "stepIndex": 0,
+        "updatedAt": "2026-09-15T08:00:00Z"
+      },
+      "reviewQueue": [],
+      "recentSessions": [],
+      "tutorEvidence": []
+    }
+  ]
+}
+```
+
+`DELETE /api/account`
+
+Deletes the authenticated learner's Voxa account data and revokes refresh
+sessions for that account. Clients must discard local session state after a
+successful response. Realtime audit and rate-limit records tied to the account
+are deleted as part of the same account-deletion operation.
+
+Response `200`:
+
+```json
+{
+  "correlationId": "corr-123",
+  "deleted": true,
+  "deletedLanguageProfileCount": 2
+}
+```
+
 ## Onboarding
 
 `POST /api/onboarding`

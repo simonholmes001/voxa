@@ -63,7 +63,8 @@ enum AppComposition {
                     service: languageSettingsService,
                     aiTutorPreferencesStore: aiTutorPreferencesStore,
                     previewer: makeAiTutorPreviewer(authModel: authModel))
-            }
+            },
+            privacyPolicyURL: privacyPolicyURL()
         )
     }
 
@@ -183,7 +184,10 @@ enum AppComposition {
 
     @MainActor
     static func makeAuthModel() -> AuthViewModel {
-        AuthViewModel(store: KeychainSessionStore(), service: makeAuthService())
+        AuthViewModel(
+            store: KeychainSessionStore(),
+            service: makeAuthService(),
+            accountDataService: makeAccountDataService())
     }
 
     @MainActor
@@ -448,6 +452,13 @@ enum AppComposition {
         return VoxaBackendAuthenticationService(baseURL: baseURL)
     }
 
+    static func makeAccountDataService() -> any AccountDataService {
+        guard let baseURL = backendBaseURL() else {
+            return NotConfiguredAccountDataService()
+        }
+        return VoxaBackendAccountDataService(baseURL: baseURL)
+    }
+
     /// Builds the Realtime session service, or a clearly-failing fallback when
     /// the base URL is missing.
     static func makeRealtimeSessionService() -> any RealtimeSessionService {
@@ -475,6 +486,10 @@ enum AppComposition {
     /// (`VOXA_API_BASE_URL`). Returns `nil` when unset or blank.
     static func backendBaseURL(bundle: Bundle = .main) -> URL? {
         resolveBaseURL(bundle.object(forInfoDictionaryKey: "VOXA_API_BASE_URL") as? String)
+    }
+
+    static func privacyPolicyURL(bundle: Bundle = .main) -> URL? {
+        resolveBaseURL(bundle.object(forInfoDictionaryKey: "VOXA_PRIVACY_POLICY_URL") as? String)
     }
 
     /// Pure helper: trims and validates a base-URL string, returning `nil` for

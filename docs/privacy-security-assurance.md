@@ -90,9 +90,10 @@ Not yet fully evidenced:
 
 - Runtime Azure configuration after deployment matches Bicep defaults.
 - All OpenAI paths avoid logging raw upstream bodies or generated learner
-  content.
-- Account deletion removes every relevant learner, refresh-session, audit,
-  evidence, and diagnostic record.
+  content; this branch redacts the older course-author, learner-plan, debrief,
+  and realtime client-secret failure paths.
+- Account deletion removes learner state, refresh sessions, realtime audit
+  rows, and realtime rate-limit rows for the authenticated subject.
 - App Store Connect App Privacy answers match actual app behavior.
 - Processor/subprocessor and international-transfer records exist.
 
@@ -126,15 +127,15 @@ Required App Store work before submission:
 
 | Principle / Right | Current Position | Evidence | Gap |
 | --- | --- | --- | --- |
-| Transparency | No user-facing privacy policy in repo | issue #85 | Add policy URL and in-app link |
+| Transparency | In-app Privacy & data surface can open configured privacy policy URL | `LanguageManagementView`, `VOXA_PRIVACY_POLICY_URL` | Publish final policy URL |
 | Purpose limitation | Main purposes are learning, auth, operations, cost control | docs/api-contracts.md, backend services | Formal purpose table needed |
 | Data minimisation | Image payloads are normalized and capped; practice text capped | practice endpoint tests | Retention and transcript minimisation not complete |
-| Storage limitation | Logs configured for 30 days | Bicep Log Analytics/App Insights | Learner/evidence/audit retention not defined |
-| Security | Strong baseline for tokens, Key Vault, managed identity, storage | Bicep, Keychain, token tests | Runtime evidence and full logging pass needed |
-| Access/export | No user-facing export path | none found | Build export endpoint/UI or document MVP deferral |
-| Erasure | Dev reset and per-language deletion exist | API/iOS code | Account deletion path missing |
+| Storage limitation | Logs configured for 30 days | Bicep Log Analytics/App Insights | Learner/evidence/audit retention not fully defined |
+| Security | Strong baseline for tokens, Key Vault, managed identity, storage | Bicep, Keychain, token tests | Runtime evidence needed |
+| Access/export | Authenticated account export endpoint and in-app export action exist | `AccountDataService`, `VoxaBackendAccountDataService`, `LanguageManagementView` | Final policy must explain export behavior |
+| Erasure | Authenticated account deletion endpoint and in-app deletion initiation exist | `AccountDataService`, `LanguageManagementView` | Verify deletion against deployed storage |
 | Correction | Per-language settings can be edited | iOS settings/backend onboarding update | Full account/profile correction flow needs policy |
-| Portability | No export format defined | none found | Define JSON export schema |
+| Portability | JSON export schema exists in `AccountDataExport` | backend contract tests | Keep schema versioned as data model changes |
 | Processor accountability | OpenAI/Azure/Apple usage visible | code and IaC | DPA/subprocessor records missing |
 
 ## Logging and Telemetry Rules
@@ -161,18 +162,13 @@ disabled in production, time-limited, and redacted.
 
 These are implementation issues, not documentation nice-to-haves:
 
-1. Add in-app privacy policy link and account deletion initiation flow.
-2. Add account deletion backend endpoint that deletes or anonymizes learner
-   state, refresh sessions, active-language markers, debrief evidence, and
-   associated operational records where legally permissible.
-3. Add learner data export endpoint and in-app export request surface.
-4. Add retention controls for learner state, debrief evidence, realtime audit,
+1. Publish the final privacy policy URL and configure
+   `VOXA_PRIVACY_POLICY_URL` for TestFlight/App Store builds.
+2. Add retention controls for learner state, debrief evidence, realtime audit,
    rate-limit rows, and generated course content.
-5. Redact older OpenAI service logging so no raw upstream body/model output is
-   logged outside the already-hardened practice tool path.
-6. Add App Store Connect privacy-answer checklist and reviewer notes before
+3. Add App Store Connect privacy-answer checklist and reviewer notes before
    first external submission.
-7. Validate deployed Azure resources against Bicep security expectations.
+4. Validate deployed Azure resources against Bicep security expectations.
 
 ## Release Gate
 
@@ -181,7 +177,7 @@ Before external TestFlight expansion or App Store submission:
 - Privacy policy URL exists and matches this inventory.
 - App Store Connect App Privacy answers are completed from this inventory.
 - `PrivacyInfo.xcprivacy` is reviewed against Xcode's generated privacy report.
-- Account deletion is implemented or App Store submission is blocked.
+- Account deletion is implemented and verified against deployed storage.
 - Raw learner-content logging is removed or proven absent across AI paths.
 - Retention/export/deletion follow-up issues are either complete or accepted as
   a documented MVP residual risk by the owner.

@@ -23,6 +23,10 @@ public interface IRefreshSessionTable
         string partitionKey,
         string rowKey,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<RefreshSessionTableEntity>> ListAsync(
+        string partitionKey,
+        CancellationToken cancellationToken);
 }
 
 public sealed record RefreshSessionTableEntity(
@@ -75,6 +79,27 @@ public sealed class TableRefreshSessionStore(IRefreshSessionTable table) : IRefr
     public Task RevokeAsync(string refreshToken, CancellationToken cancellationToken)
     {
         return table.DeleteAsync(PartitionKey, TokenRowKey(refreshToken), cancellationToken);
+    }
+
+    public async Task RevokeAllAsync(
+        VerifiedAppSessionSubject subject,
+        CancellationToken cancellationToken)
+    {
+        var entities = await table.ListAsync(PartitionKey, cancellationToken);
+        foreach (var entity in entities)
+        {
+            var document = JsonSerializer.Deserialize<RefreshSessionDocument>(entity.PayloadJson, JsonOptions);
+            if (document is null)
+            {
+                continue;
+            }
+
+            if (string.Equals(document.TenantId, subject.TenantId.Value, StringComparison.Ordinal)
+                && string.Equals(document.UserId, subject.UserId.Value, StringComparison.Ordinal))
+            {
+                await table.DeleteAsync(entity.PartitionKey, entity.RowKey, cancellationToken);
+            }
+        }
     }
 
     private static string TokenRowKey(string refreshToken)
@@ -130,6 +155,21 @@ public sealed class InMemoryRefreshSessionTable(
         {
             entities.Remove(Key(partitionKey, rowKey));
             return Task.CompletedTask;
+        }
+    }
+
+    public Task<IReadOnlyList<RefreshSessionTableEntity>> ListAsync(
+        string partitionKey,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (gate)
+        {
+            IReadOnlyList<RefreshSessionTableEntity> result = entities.Values
+                .Where(entity => entity.PartitionKey == partitionKey)
+                .ToArray();
+            return Task.FromResult(result);
         }
     }
 

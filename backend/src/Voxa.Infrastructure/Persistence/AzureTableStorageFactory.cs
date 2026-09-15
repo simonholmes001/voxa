@@ -192,12 +192,37 @@ public sealed class AzureRefreshSessionTable(TableClient tableClient) : IRefresh
         {
         }
     }
+
+    public async Task<IReadOnlyList<RefreshSessionTableEntity>> ListAsync(
+        string partitionKey,
+        CancellationToken cancellationToken)
+    {
+        var results = new List<RefreshSessionTableEntity>();
+        await foreach (var entity in tableClient.QueryAsync<TableEntity>(
+                           table => table.PartitionKey == partitionKey,
+                           cancellationToken: cancellationToken))
+        {
+            results.Add(new RefreshSessionTableEntity(
+                entity.PartitionKey,
+                entity.RowKey,
+                entity.GetDateTimeOffset("ExpiresAt")
+                    ?? throw new InvalidOperationException("Refresh session table entity is missing ExpiresAt."),
+                entity.GetString("PayloadJson")
+                    ?? throw new InvalidOperationException("Refresh session table entity is missing PayloadJson.")));
+        }
+
+        return results;
+    }
 }
 
 public interface IRealtimeSessionAuditTable
 {
     Task AddAsync(
         RealtimeSessionAuditTableEntity entity,
+        CancellationToken cancellationToken);
+
+    Task DeletePartitionAsync(
+        string partitionKey,
         CancellationToken cancellationToken);
 }
 
@@ -231,6 +256,22 @@ public sealed class AzureRealtimeSessionAuditTable(TableClient tableClient) : IR
 
         return tableClient.AddEntityAsync(tableEntity, cancellationToken);
     }
+
+    public async Task DeletePartitionAsync(
+        string partitionKey,
+        CancellationToken cancellationToken)
+    {
+        await foreach (var entity in tableClient.QueryAsync<TableEntity>(
+                           table => table.PartitionKey == partitionKey,
+                           cancellationToken: cancellationToken))
+        {
+            await tableClient.DeleteEntityAsync(
+                entity.PartitionKey,
+                entity.RowKey,
+                entity.ETag,
+                cancellationToken);
+        }
+    }
 }
 
 public interface IRealtimeSessionRateLimitTable
@@ -240,6 +281,10 @@ public interface IRealtimeSessionRateLimitTable
         DateTimeOffset windowStart,
         int maxRequests,
         DateTimeOffset requestedAt,
+        CancellationToken cancellationToken);
+
+    Task DeletePartitionAsync(
+        string partitionKey,
         CancellationToken cancellationToken);
 }
 
@@ -315,5 +360,21 @@ public sealed class AzureRealtimeSessionRateLimitTable(TableClient tableClient) 
         }
 
         throw new RealtimeSessionRateLimitException("Realtime session issue limit could not be reserved.");
+    }
+
+    public async Task DeletePartitionAsync(
+        string partitionKey,
+        CancellationToken cancellationToken)
+    {
+        await foreach (var entity in tableClient.QueryAsync<TableEntity>(
+                           table => table.PartitionKey == partitionKey,
+                           cancellationToken: cancellationToken))
+        {
+            await tableClient.DeleteEntityAsync(
+                entity.PartitionKey,
+                entity.RowKey,
+                entity.ETag,
+                cancellationToken);
+        }
     }
 }

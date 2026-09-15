@@ -15,6 +15,15 @@ public sealed class InMemoryRealtimeSessionRateLimiter : IRealtimeSessionRateLim
         cancellationToken.ThrowIfCancellationRequested();
         return Task.CompletedTask;
     }
+
+    public Task DeleteForSubjectAsync(
+        TenantId tenantId,
+        UserId userId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
 }
 
 public sealed record RealtimeSessionRateLimitOptions(
@@ -46,6 +55,16 @@ public sealed class TableRealtimeSessionRateLimiter(
         }
     }
 
+    public Task DeleteForSubjectAsync(
+        TenantId tenantId,
+        UserId userId,
+        CancellationToken cancellationToken)
+    {
+        return rateLimitTable.DeletePartitionAsync(
+            $"{tenantId.Value}:{userId.Value}",
+            cancellationToken);
+    }
+
     private static DateTimeOffset WindowStart(DateTimeOffset now, TimeSpan window)
     {
         var ticks = now.UtcTicks - (now.UtcTicks % window.Ticks);
@@ -63,6 +82,18 @@ public sealed class InMemoryRealtimeSessionAuditLog : IRealtimeSessionAuditLog
     {
         cancellationToken.ThrowIfCancellationRequested();
         Events.Add(auditEvent);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteForSubjectAsync(
+        TenantId tenantId,
+        UserId userId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Events.RemoveAll(auditEvent =>
+            string.Equals(auditEvent.TenantId, tenantId.Value, StringComparison.Ordinal)
+            && string.Equals(auditEvent.UserId, userId.Value, StringComparison.Ordinal));
         return Task.CompletedTask;
     }
 }
@@ -90,6 +121,16 @@ public sealed class TableRealtimeSessionAuditLog(
                 auditEvent.CoachingMode,
                 auditEvent.TargetLanguage,
                 recordedAt),
+            cancellationToken);
+    }
+
+    public Task DeleteForSubjectAsync(
+        TenantId tenantId,
+        UserId userId,
+        CancellationToken cancellationToken)
+    {
+        return auditTable.DeletePartitionAsync(
+            $"{tenantId.Value}:{userId.Value}",
             cancellationToken);
     }
 }

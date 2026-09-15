@@ -89,13 +89,10 @@ public sealed class OpenAiDebriefService(
         using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            var truncated = errorBody.Length > 500 ? errorBody[..500] : errorBody;
             logger.LogError(
-                "Debrief upstream call failed. status={Status} model={Model} body={Body}",
+                "Debrief upstream call failed. status={Status} model={Model}",
                 (int)response.StatusCode,
-                route.Model,
-                truncated);
+                route.Model);
             throw new SessionDebriefException(
                 $"Debrief upstream call failed with status {(int)response.StatusCode}.");
         }
@@ -119,9 +116,8 @@ public sealed class OpenAiDebriefService(
         {
             logger.LogError(
                 exception,
-                "Debrief output was not valid JSON. model={Model} body={Body}",
-                route.Model,
-                text.Length > 500 ? text[..500] : text);
+                "Debrief output was not valid JSON. model={Model}",
+                route.Model);
             throw new SessionDebriefException("Debrief output was not valid JSON.");
         }
 

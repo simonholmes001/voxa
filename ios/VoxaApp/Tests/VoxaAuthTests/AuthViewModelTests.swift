@@ -27,6 +27,31 @@ private final class FakeAuthenticationService: AuthenticationService, @unchecked
     }
 }
 
+private final class FakeAccountDataService: AccountDataService, @unchecked Sendable {
+    var exportResult: Result<AccountDataExportFile, Error>
+    var deleteResult: Result<AccountDeletionResult, Error>
+    private(set) var exportedSession: AuthSession?
+    private(set) var deletedSession: AuthSession?
+
+    init(
+        export: Result<AccountDataExportFile, Error> = .failure(AccountDataServiceError.unavailable),
+        delete: Result<AccountDeletionResult, Error> = .failure(AccountDataServiceError.unavailable)
+    ) {
+        self.exportResult = export
+        self.deleteResult = delete
+    }
+
+    func exportAccountData(_ session: AuthSession) async throws -> AccountDataExportFile {
+        exportedSession = session
+        return try exportResult.get()
+    }
+
+    func deleteAccount(_ session: AuthSession) async throws -> AccountDeletionResult {
+        deletedSession = session
+        return try deleteResult.get()
+    }
+}
+
 @MainActor
 final class AuthViewModelTests: XCTestCase {
     private func session(
@@ -143,5 +168,44 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertEqual(model.state, .signedOut)
         XCTAssertNil(try store.load())
         XCTAssertEqual(service.invalidateCount, 1)
+    }
+
+    func testExportAccountDataUsesCurrentSignedInSession() async throws {
+        let stored = session(expiresAt: 10_000)
+        let export = AccountDataExportFile(filename: "voxa-account-data.json", data: Data("{}".utf8))
+        let accountData = FakeAccountDataService(export: .success(export))
+        let model = AuthViewModel(
+            store: EphemeralSessionStore(session: stored),
+            service: FakeAuthenticationService(),
+            accountDataService: accountData,
+            now: { Date(timeIntervalSince1970: 0) })
+        await model.restore()
+
+        let result = try await model.exportAccountData()
+
+        XCTAssertEqual(result, export)
+        XCTAssertEqual(accountData.exportedSession, stored)
+        XCTAssertEqual(model.state, .signedIn(stored))
+    }
+
+    func testDeleteAccountClearsLocalSessionAfterBackendDeletion() async throws {
+        let stored = session(expiresAt: 10_000)
+        let store = EphemeralSessionStore(session: stored)
+        let accountData = FakeAccountDataService(
+            delete: .success(AccountDeletionResult(deleted: true, deletedLanguageProfileCount: 2)))
+        let model = AuthViewModel(
+            store: store,
+            service: FakeAuthenticationService(),
+            accountDataService: accountData,
+            now: { Date(timeIntervalSince1970: 0) })
+        await model.restore()
+
+        let result = try await model.deleteAccount()
+
+        XCTAssertTrue(result.deleted)
+        XCTAssertEqual(result.deletedLanguageProfileCount, 2)
+        XCTAssertEqual(accountData.deletedSession, stored)
+        XCTAssertEqual(model.state, .signedOut)
+        XCTAssertNil(try store.load())
     }
 }

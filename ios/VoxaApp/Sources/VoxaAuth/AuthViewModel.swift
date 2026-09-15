@@ -15,15 +15,18 @@ public final class AuthViewModel {
 
     private let store: any SessionStore
     private let service: any AuthenticationService
+    private let accountDataService: any AccountDataService
     private let now: () -> Date
 
     public init(
         store: any SessionStore = KeychainSessionStore(),
         service: any AuthenticationService = UnavailableAuthenticationService(),
+        accountDataService: any AccountDataService = UnavailableAccountDataService(),
         now: @escaping () -> Date = Date.init
     ) {
         self.store = store
         self.service = service
+        self.accountDataService = accountDataService
         self.now = now
     }
 
@@ -72,6 +75,25 @@ public final class AuthViewModel {
         }
         try? store.clear()
         state = .signedOut
+    }
+
+    public func exportAccountData() async throws -> AccountDataExportFile {
+        guard let session = state.session else {
+            throw AccountDataServiceError.authenticationRequired
+        }
+
+        return try await accountDataService.exportAccountData(session)
+    }
+
+    public func deleteAccount() async throws -> AccountDeletionResult {
+        guard let session = state.session else {
+            throw AccountDataServiceError.authenticationRequired
+        }
+
+        let result = try await accountDataService.deleteAccount(session)
+        try? store.clear()
+        state = .signedOut
+        return result
     }
 
     private func refresh(_ session: AuthSession) async throws {

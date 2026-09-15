@@ -6,6 +6,7 @@
 
 // Default: unset, so the app clearly reports "not configured" on network calls.
 VOXA_API_BASE_URL =
+VOXA_PRIVACY_POLICY_URL =
 
 // Optional local override (git-ignored). Included last so it wins.
 #include? "Debug.local.xcconfig"

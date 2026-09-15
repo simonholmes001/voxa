@@ -131,13 +131,10 @@ public sealed class OpenAiCourseAuthorService(
         using var _ = response;
         if (!response.IsSuccessStatusCode)
         {
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            var truncated = errorBody.Length > 500 ? errorBody[..500] : errorBody;
             logger.LogError(
-                "Course author upstream call failed. status={Status} model={Model} body={Body}",
+                "Course author upstream call failed. status={Status} model={Model}",
                 (int)response.StatusCode,
-                route.Model,
-                truncated);
+                route.Model);
             throw new CourseAuthorException(
                 $"Course author upstream call failed with status {(int)response.StatusCode}.");
         }
@@ -178,9 +175,8 @@ public sealed class OpenAiCourseAuthorService(
         {
             logger.LogError(
                 exception,
-                "Course author output was not valid JSON. model={Model} body={Body}",
-                route.Model,
-                text.Length > 500 ? text[..500] : text);
+                "Course author output was not valid JSON. model={Model}",
+                route.Model);
             throw new CourseAuthorException("Course author output was not valid JSON.");
         }
 

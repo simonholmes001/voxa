@@ -71,6 +71,23 @@ public sealed class TableRealtimeSessionRateLimiterTests
         Assert.Equal(2, table.ReservedCount);
     }
 
+    [Fact]
+    public async Task DeleteForSubjectRemovesPartition()
+    {
+        var table = new RecordingRealtimeSessionRateLimitTable();
+        var limiter = new TableRealtimeSessionRateLimiter(
+            table,
+            new FixedClock(DateTimeOffset.Parse("2026-08-30T10:00:00Z")),
+            new RealtimeSessionRateLimitOptions(2, TimeSpan.FromMinutes(1)));
+
+        await limiter.DeleteForSubjectAsync(
+            TenantId.Create("tenant-default"),
+            UserId.Create("user-a"),
+            CancellationToken.None);
+
+        Assert.Equal("tenant-default:user-a", table.DeletedPartitionKey);
+    }
+
     private static async Task<bool> TryEnsureAllowedAsync(TableRealtimeSessionRateLimiter limiter)
     {
         try
@@ -100,6 +117,16 @@ public sealed class TableRealtimeSessionRateLimiterTests
         {
             Reservations.Add(new Reservation(partitionKey, windowStart, maxRequests, requestedAt));
             return Task.FromResult(allowReservation);
+        }
+
+        public string? DeletedPartitionKey { get; private set; }
+
+        public Task DeletePartitionAsync(
+            string partitionKey,
+            CancellationToken cancellationToken)
+        {
+            DeletedPartitionKey = partitionKey;
+            return Task.CompletedTask;
         }
     }
 
@@ -137,6 +164,10 @@ public sealed class TableRealtimeSessionRateLimiterTests
                 return Task.FromResult(true);
             }
         }
+
+        public Task DeletePartitionAsync(
+            string partitionKey,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed record Reservation(

@@ -79,6 +79,15 @@ final class AppCompositionTests: XCTestCase {
         )
     }
 
+    func testPrivacyPolicyURLUsesSameBlankAndURLRulesAsBackendURL() {
+        XCTAssertNil(AppComposition.resolveBaseURL(nil))
+        XCTAssertNil(AppComposition.resolveBaseURL("   "))
+        XCTAssertEqual(
+            AppComposition.resolveBaseURL(" https://example.com/privacy "),
+            URL(string: "https://example.com/privacy")
+        )
+    }
+
     func testBuildBackendBaseURLIsEitherUnsetOrAValidURL() {
         // Feature-branch/device testing can inject Debug.local.xcconfig, while
         // a plain checkout leaves the value unset. Either state is valid; a

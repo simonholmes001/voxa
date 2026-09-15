@@ -200,6 +200,56 @@ final class VoxaBackendAuthenticationServiceTests: XCTestCase {
         }
     }
 
+    func testExportAccountDataGetsPortableJsonWithBearerToken() async throws {
+        let account = VoxaBackendAccountDataService(
+            baseURL: URL(string: "https://api.voxa.test")!,
+            session: URLSession(configuration: sessionConfiguration()),
+            correlationIDProvider: { "corr-test" }
+        )
+        let json = #"{"correlationId":"corr-test","tenantId":"tenant","userId":"user","languageProfiles":[]}"#
+        StubURLProtocol.handler = ok(json)
+
+        let file = try await account.exportAccountData(existingSession())
+
+        XCTAssertEqual(file.data, Data(json.utf8))
+        XCTAssertTrue(file.filename.hasPrefix("voxa-account-data-"))
+        let request = try XCTUnwrap(StubURLProtocol.lastRequest)
+        XCTAssertEqual(request.url?.path, "/api/account/export")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Correlation-Id"), "corr-test")
+    }
+
+    func testDeleteAccountSendsDeleteAndDecodesResult() async throws {
+        let account = VoxaBackendAccountDataService(
+            baseURL: URL(string: "https://api.voxa.test")!,
+            session: URLSession(configuration: sessionConfiguration()),
+            correlationIDProvider: { "corr-test" }
+        )
+        StubURLProtocol.handler = ok(#"{"correlationId":"corr-test","deleted":true,"deletedLanguageProfileCount":2}"#)
+
+        let result = try await account.deleteAccount(existingSession())
+
+        XCTAssertEqual(result, AccountDeletionResult(deleted: true, deletedLanguageProfileCount: 2))
+        let request = try XCTUnwrap(StubURLProtocol.lastRequest)
+        XCTAssertEqual(request.url?.path, "/api/account")
+        XCTAssertEqual(request.httpMethod, "DELETE")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
+    }
+
+    func testAccountDataUnauthorizedMapsAuthenticationRequired() async {
+        let account = VoxaBackendAccountDataService(
+            baseURL: URL(string: "https://api.voxa.test")!,
+            session: URLSession(configuration: sessionConfiguration()),
+            correlationIDProvider: { "corr-test" }
+        )
+        StubURLProtocol.handler = error(status: 401, code: "app_session_required")
+
+        await assertThrows(AccountDataServiceError.authenticationRequired) {
+            _ = try await account.exportAccountData(existingSession())
+        }
+    }
+
     func testInvalidAppleIdentityMapsError() async {
         StubURLProtocol.handler = error(status: 401, code: "apple_identity_invalid")
         await assertThrows(AuthenticationServiceError.invalidAppleIdentity) {
@@ -277,5 +327,32 @@ final class VoxaBackendAuthenticationServiceTests: XCTestCase {
         } catch {
             XCTFail("unexpected error \(error)", file: file, line: line)
         }
+    }
+
+    private func assertThrows(
+        _ expected: AccountDataServiceError,
+        _ operation: () async throws -> Void,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        do {
+            try await operation()
+            XCTFail("expected \(expected)", file: file, line: line)
+        } catch let error as AccountDataServiceError {
+            XCTAssertEqual(error, expected, file: file, line: line)
+        } catch {
+            XCTFail("unexpected error \(error)", file: file, line: line)
+        }
+    }
+
+    private func existingSession() -> AuthSession {
+        AuthSession(
+            accessToken: "access-token",
+            refreshToken: "refresh-token",
+            expiresAt: .distantFuture,
+            refreshTokenExpiresAt: .distantFuture,
+            userId: "user",
+            tenantId: "tenant"
+        )
     }
 }
