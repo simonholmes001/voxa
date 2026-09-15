@@ -48,7 +48,7 @@ test('iOS CI workflow uses a required sentinel and still covers Swift plus iPhon
   assert.match(workflow, /iOS tests are not required for this change set\./);
   assert.match(workflow, /if: needs\.ios-ci-required\.outputs\.run-tests == 'true'/);
   assert.match(workflow, /swift test --package-path ios\/VoxaApp/);
-  assert.match(workflow, /timeout-minutes: 15/);
+  assert.match(workflow, /timeout-minutes: 30/);
   assert.match(workflow, /timeout-minutes: 25/);
   assert.doesNotMatch(workflow, /matrix:/);
   assert.match(workflow, /Pick an iPhone simulator device/);
