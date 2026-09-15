@@ -22,6 +22,10 @@ public sealed class FunctionRouteContractTests
     [InlineData(nameof(VoxaHttpFunctions.ListLanguageProfilesAsync), "language-profiles", "get")]
     [InlineData(nameof(VoxaHttpFunctions.SelectLanguageProfileAsync), "language-profiles/{languageKey}/select", "post")]
     [InlineData(nameof(VoxaHttpFunctions.DeleteLanguageProfileAsync), "language-profiles/{languageKey}", "delete")]
+    [InlineData(nameof(VoxaHttpFunctions.CreateVocabularyQuizAsync), "practice/vocabulary-quiz", "post")]
+    [InlineData(nameof(VoxaHttpFunctions.AskLanguageToolAsync), "language-tools/ask", "post")]
+    [InlineData(nameof(VoxaHttpFunctions.TranslateLanguageToolAsync), "language-tools/translate", "post")]
+    [InlineData(nameof(VoxaHttpFunctions.TranslateImageLanguageToolAsync), "language-tools/translate-image", "post")]
     [InlineData(nameof(VoxaHttpFunctions.DeploymentHealthAsync), "health/deployment", "get")]
     [InlineData(nameof(VoxaHttpFunctions.ResetLearnerStateAsync), "dev/learner-state", "delete")]
     public void FunctionRoutesMatchMobileApiContract(string methodName, string route, string method)

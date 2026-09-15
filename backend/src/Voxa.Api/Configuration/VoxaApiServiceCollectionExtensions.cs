@@ -4,6 +4,7 @@ using Voxa.Application.Ai;
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
 using Voxa.Application.Onboarding;
+using Voxa.Application.Practice;
 using Voxa.Application.Realtime;
 using Voxa.Infrastructure.Authentication;
 using Voxa.Infrastructure.OpenAI;
@@ -96,6 +97,10 @@ public static class VoxaApiServiceCollectionExtensions
         {
             client.BaseAddress = new Uri("https://api.openai.com/");
         });
+        services.AddHttpClient<IPracticeLanguageToolService, OpenAiPracticeLanguageToolService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.openai.com/");
+        });
         services.AddSingleton<ICourseReassessmentService, CourseReassessmentService>();
         services.AddSingleton(new OpenAiRealtimeOptions(openAiApiKey));
         services.AddSingleton<SignInWithAppleEndpoint>();
@@ -109,6 +114,7 @@ public static class VoxaApiServiceCollectionExtensions
         services.AddSingleton<LearningSessionCompletionEndpoint>();
         services.AddSingleton<ResumeSessionEndpoint>();
         services.AddSingleton<LanguageProfilesEndpoint>();
+        services.AddSingleton<PracticeLanguageToolEndpoint>();
         services.AddSingleton<OnboardingService>();
         services.AddSingleton<OnboardingSubmitEndpoint>();
         services.AddSingleton(provider => new DevResetEndpoint(

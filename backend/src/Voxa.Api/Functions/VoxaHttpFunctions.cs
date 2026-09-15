@@ -24,6 +24,7 @@ public sealed class VoxaHttpFunctions(
     LearningSessionCompletionEndpoint learningSessionCompletion,
     ResumeSessionEndpoint resumeSession,
     LanguageProfilesEndpoint languageProfiles,
+    PracticeLanguageToolEndpoint practiceLanguageTools,
     OnboardingSubmitEndpoint onboardingSubmit,
     DevResetEndpoint devReset,
     IAppSessionTokenValidator tokenValidator,
@@ -341,6 +342,90 @@ public sealed class VoxaHttpFunctions(
                 languageKey,
                 principal.TenantId,
                 principal.UserId,
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("practice-vocabulary-quiz")]
+    public async Task<HttpResponseData> CreateVocabularyQuizAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "practice/vocabulary-quiz")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadJsonAsync<VocabularyQuizHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
+        return await WriteAsync(
+            request,
+            await practiceLanguageTools.VocabularyQuizAsync(
+                Principal(request),
+                body.Value ?? new VocabularyQuizHttpRequest(null, null, null, null),
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("language-tools-ask")]
+    public async Task<HttpResponseData> AskLanguageToolAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "language-tools/ask")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadJsonAsync<AskAnythingHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
+        return await WriteAsync(
+            request,
+            await practiceLanguageTools.AskAsync(
+                Principal(request),
+                body.Value ?? new AskAnythingHttpRequest(null, null, null),
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("language-tools-translate")]
+    public async Task<HttpResponseData> TranslateLanguageToolAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "language-tools/translate")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadJsonAsync<TranslationHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
+        return await WriteAsync(
+            request,
+            await practiceLanguageTools.TranslateAsync(
+                Principal(request),
+                body.Value ?? new TranslationHttpRequest(null, null, null),
+                CorrelationId(request),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    [Function("language-tools-translate-image")]
+    public async Task<HttpResponseData> TranslateImageLanguageToolAsync(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "language-tools/translate-image")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        var body = await ReadJsonAsync<ImageTranslationHttpRequest>(request, cancellationToken);
+        if (body.Malformed)
+        {
+            return await WriteInvalidJsonAsync(request, cancellationToken);
+        }
+
+        return await WriteAsync(
+            request,
+            await practiceLanguageTools.TranslateImageAsync(
+                Principal(request),
+                body.Value ?? new ImageTranslationHttpRequest(null, null, null, null),
                 CorrelationId(request),
                 cancellationToken),
             cancellationToken);

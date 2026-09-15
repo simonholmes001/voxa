@@ -16,6 +16,7 @@ struct RouteDestinationView: View {
     var talkModel: TalkSessionViewModel?
     var learnerPlanModel: LearnerPlanViewModel?
     var learnerCourseModel: LearnerCourseViewModel?
+    var practiceLanguageToolModel: PracticeLanguageToolViewModel?
     var languageManager: LanguageManagerContext?
     var onContinueLearning: () -> Void = {}
     var onStartTalk: (RealtimeTutorIntent) -> Void = { _ in }
@@ -55,6 +56,7 @@ struct RouteDestinationView: View {
                 summary: practiceSummary,
                 planState: learnerPlanModel?.state ?? .idle,
                 courseState: learnerCourseModel?.state ?? .idle,
+                languageToolModel: practiceLanguageToolModel,
                 onStartTalk: onStartTalk
             )
             .task { await learnerPlanModel?.load() }

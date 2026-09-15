@@ -16,7 +16,9 @@
 		53EC3352C6F51B85062077E1 /* VoxaNetworking in Frameworks */ = {isa = PBXBuildFile; productRef = EBF5BFC12BD3B9391534476E /* VoxaNetworking */; };
 		59F5F52AA86A3D297D949065 /* VoxaAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 99E9556609810287793F6F44 /* VoxaAuth */; };
 		7E0313AE3DFD63B8A32DC5FF /* VoxaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E8F971582777A3E0EADED22 /* VoxaApp.swift */; };
-		8BCF7B4C185B7AA9CF3F79CC /* VoxaProfiles in Frameworks */ = {isa = PBXBuildFile; productRef = 99EB21345C1A9E8706C3C5D2 /* VoxaProfiles */; };
+		7F1F4AB3FF23DF9C3F6B00FE /* VoxaProfiles in Frameworks */ = {isa = PBXBuildFile; productRef = 99EB21345C1A9E8706C3C5D2 /* VoxaProfiles */; };
+		896C3BE140D9536EF70FE978 /* VoxaPractice in Frameworks */ = {isa = PBXBuildFile; productRef = 4C19E20A5F3484BB62CA1DCA /* VoxaPractice */; };
+		8BCF7B4C185B7AA9CF3F79CC /* VoxaPractice in Frameworks */ = {isa = PBXBuildFile; productRef = D390EED2734C43CFB6554D73 /* VoxaPractice */; };
 		8DC055754B2F3B4ABB6F5AC7 /* HomeProfileMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D64FF160DD6BCD5F65F27C6 /* HomeProfileMappingTests.swift */; };
 		B9F7A8AC082C7109A89564D6 /* VoxaOnboarding in Frameworks */ = {isa = PBXBuildFile; productRef = 737743FD285FE9CDB5765342 /* VoxaOnboarding */; };
 		BA87795CD4D2A2CFC93E5D09 /* Debug.local.xcconfig.example in Resources */ = {isa = PBXBuildFile; fileRef = A84342D47C001C539D577F0B /* Debug.local.xcconfig.example */; };
@@ -24,6 +26,7 @@
 		C0FBFF9FB00D764D693257CD /* VoxaAppShell in Frameworks */ = {isa = PBXBuildFile; productRef = 0A8786B30163D7CAC5F871C7 /* VoxaAppShell */; };
 		CDC58657A520D163C915DD93 /* VoxaHome in Frameworks */ = {isa = PBXBuildFile; productRef = 5F0432BF6BDE9A8DCBC0C85E /* VoxaHome */; };
 		D79EA145BD6230D344B59301 /* VoxaHome in Frameworks */ = {isa = PBXBuildFile; productRef = 16FA577B6B64382B92E00620 /* VoxaHome */; };
+		DCB0705D448CB2A5CC9857C4 /* ImageTranslationPayloadPreparerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C841BDC914BE27A33F8373 /* ImageTranslationPayloadPreparerTests.swift */; };
 		DDFF784F5C425EC84A136170 /* VoxaRealtimeWebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = 0F8552691CF58B2C069AA76C /* VoxaRealtimeWebRTC */; };
 		E6B9EE845402DE06675ECFBA /* AppComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = B51017412D55A184C39B1444 /* AppComposition.swift */; };
 /* End PBXBuildFile section */
@@ -39,19 +42,20 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		02101B695C2D9996A1930DC7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		02101B695C2D9996A1930DC7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		06C841BDC914BE27A33F8373 /* ImageTranslationPayloadPreparerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageTranslationPayloadPreparerTests.swift; sourceTree = "<group>"; };
 		0D64FF160DD6BCD5F65F27C6 /* HomeProfileMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeProfileMappingTests.swift; sourceTree = "<group>"; };
 		1921741EEB8549757C85F0F1 /* RealtimeSettingsMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeSettingsMappingTests.swift; sourceTree = "<group>"; };
-		36DF9CAB0B3F9064BD39886D /* VoxaApp */ = {isa = PBXFileReference; lastKnownFileType = folder; path = VoxaApp; sourceTree = SOURCE_ROOT; };
+		36DF9CAB0B3F9064BD39886D /* VoxaApp */ = {isa = PBXFileReference; lastKnownFileType = folder; name = VoxaApp; path = VoxaApp; sourceTree = SOURCE_ROOT; };
 		5A5E00DCF6BB580377C78446 /* VoxaTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = VoxaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		86A6BC1ADF1977399FE94B33 /* Debug.local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.local.xcconfig; sourceTree = "<group>"; };
 		9E8F971582777A3E0EADED22 /* VoxaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoxaApp.swift; sourceTree = "<group>"; };
-		A84342D47C001C539D577F0B /* Debug.local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text; path = Debug.local.xcconfig.example; sourceTree = "<group>"; };
+		A84342D47C001C539D577F0B /* Debug.local.xcconfig.example */ = {isa = PBXFileReference; path = Debug.local.xcconfig.example; sourceTree = "<group>"; };
 		ABCEF065F0D8F8BD03C32E27 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		B28A7372282125867EC6D720 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B51017412D55A184C39B1444 /* AppComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppComposition.swift; sourceTree = "<group>"; };
 		B99402AD2F3FBC19978C0D27 /* Voxa.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Voxa.entitlements; sourceTree = "<group>"; };
-		C19EC1FC8BBC2C5090B92A07 /* Voxa.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Voxa.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C19EC1FC8BBC2C5090B92A07 /* Voxa.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Voxa.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C4F2A05CCFE2E2214A4310FC /* AppCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCompositionTests.swift; sourceTree = "<group>"; };
 		F7E03D448A9C933FF8129D7B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -68,7 +72,8 @@
 				41B75AA47BC36DEEECD0D29F /* VoxaRealtime in Frameworks */,
 				DDFF784F5C425EC84A136170 /* VoxaRealtimeWebRTC in Frameworks */,
 				D79EA145BD6230D344B59301 /* VoxaHome in Frameworks */,
-				8BCF7B4C185B7AA9CF3F79CC /* VoxaProfiles in Frameworks */,
+				8BCF7B4C185B7AA9CF3F79CC /* VoxaPractice in Frameworks */,
+				7F1F4AB3FF23DF9C3F6B00FE /* VoxaProfiles in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -79,6 +84,7 @@
 				4194509F9468290D7EE78917 /* VoxaOnboarding in Frameworks */,
 				0A3628BF030B4929F7280BF7 /* VoxaRealtime in Frameworks */,
 				CDC58657A520D163C915DD93 /* VoxaHome in Frameworks */,
+				896C3BE140D9536EF70FE978 /* VoxaPractice in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -107,6 +113,7 @@
 			children = (
 				C4F2A05CCFE2E2214A4310FC /* AppCompositionTests.swift */,
 				0D64FF160DD6BCD5F65F27C6 /* HomeProfileMappingTests.swift */,
+				06C841BDC914BE27A33F8373 /* ImageTranslationPayloadPreparerTests.swift */,
 				1921741EEB8549757C85F0F1 /* RealtimeSettingsMappingTests.swift */,
 			);
 			path = VoxaTests;
@@ -174,6 +181,7 @@
 				F8E77CE9994AEFF6CEE09AF7 /* VoxaOnboarding */,
 				1F6FEFE0EF7A3C28D1AD3125 /* VoxaRealtime */,
 				5F0432BF6BDE9A8DCBC0C85E /* VoxaHome */,
+				4C19E20A5F3484BB62CA1DCA /* VoxaPractice */,
 			);
 			productName = VoxaTests;
 			productReference = 5A5E00DCF6BB580377C78446 /* VoxaTests.xctest */;
@@ -200,6 +208,7 @@
 				B7642F2D9B58B87218A6FB4D /* VoxaRealtime */,
 				0F8552691CF58B2C069AA76C /* VoxaRealtimeWebRTC */,
 				16FA577B6B64382B92E00620 /* VoxaHome */,
+				D390EED2734C43CFB6554D73 /* VoxaPractice */,
 				99EB21345C1A9E8706C3C5D2 /* VoxaProfiles */,
 			);
 			productName = Voxa;
@@ -266,6 +275,7 @@
 			files = (
 				C01B32B85F5C36582E9B2247 /* AppCompositionTests.swift in Sources */,
 				8DC055754B2F3B4ABB6F5AC7 /* HomeProfileMappingTests.swift in Sources */,
+				DCB0705D448CB2A5CC9857C4 /* ImageTranslationPayloadPreparerTests.swift in Sources */,
 				2B99B38030F531710C934BAB /* RealtimeSettingsMappingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -363,7 +373,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Voxa/Voxa.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 2PA85SU4UQ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Voxa/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -476,7 +485,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Voxa/Voxa.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 2PA85SU4UQ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Voxa/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -546,6 +554,10 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = VoxaRealtime;
 		};
+		4C19E20A5F3484BB62CA1DCA /* VoxaPractice */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoxaPractice;
+		};
 		5F0432BF6BDE9A8DCBC0C85E /* VoxaHome */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = VoxaHome;
@@ -565,6 +577,10 @@
 		B7642F2D9B58B87218A6FB4D /* VoxaRealtime */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = VoxaRealtime;
+		};
+		D390EED2734C43CFB6554D73 /* VoxaPractice */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoxaPractice;
 		};
 		EBF5BFC12BD3B9391534476E /* VoxaNetworking */ = {
 			isa = XCSwiftPackageProductDependency;

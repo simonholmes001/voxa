@@ -5,6 +5,7 @@ using Voxa.Api.Http;
 using Voxa.Application.Ai;
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
+using Voxa.Application.Practice;
 using Voxa.Application.Realtime;
 
 namespace Voxa.Api.Tests;
@@ -31,10 +32,12 @@ public sealed class VoxaApiServiceCollectionTests
         Assert.NotNull(provider.GetRequiredService<IModelRouter>());
         Assert.NotNull(provider.GetRequiredService<IPromptRegistry>());
         Assert.NotNull(provider.GetRequiredService<IRealtimeSessionService>());
+        Assert.NotNull(provider.GetRequiredService<IPracticeLanguageToolService>());
         Assert.NotNull(provider.GetRequiredService<SignInWithAppleEndpoint>());
         Assert.NotNull(provider.GetRequiredService<RefreshAppSessionEndpoint>());
         Assert.NotNull(provider.GetRequiredService<LogoutAppSessionEndpoint>());
         Assert.NotNull(provider.GetRequiredService<RealtimeSessionEndpoint>());
+        Assert.NotNull(provider.GetRequiredService<PracticeLanguageToolEndpoint>());
         Assert.NotNull(provider.GetRequiredService<LearningSessionCompletionEndpoint>());
         Assert.NotNull(provider.GetRequiredService<ResumeSessionEndpoint>());
         Assert.NotNull(ActivatorUtilities.CreateInstance<VoxaHttpFunctions>(provider));
