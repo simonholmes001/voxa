@@ -4,3 +4,7 @@
 // Example:
 VOXA_API_BASE_URL = https://your-voxa-function-app.azurewebsites.net
 VOXA_PRIVACY_POLICY_URL = https://example.com/privacy
+
+// Optional, but required when building to a physical iPhone from Xcode.
+// Keep the real value in Debug.local.xcconfig only.
+DEVELOPMENT_TEAM = YOUR_TEAM_ID

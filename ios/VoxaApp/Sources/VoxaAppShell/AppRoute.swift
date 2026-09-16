@@ -1,7 +1,6 @@
 /// The primary top-level destinations of the Voxa app.
 ///
-/// These map directly to the navigation surfaces required by the MVP:
-/// Home, Talk, Learn, Review, Progress, and Settings. The order is the
+/// These map directly to the main navigation surfaces. The order is the
 /// canonical order used by both the iPhone tab bar and the iPad sidebar.
 public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
     case home
@@ -11,6 +10,8 @@ public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
     case review
     case progress
     case settings
+
+    public static let allCases: [AppRoute] = [.home, .talk, .practice, .review, .settings]
 
     public var id: String { rawValue }
 
@@ -23,7 +24,7 @@ public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
         case .practice: return "Practice"
         case .review: return "Review"
         case .progress: return "Progress"
-        case .settings: return "Settings"
+        case .settings: return "More"
         }
     }
 
@@ -36,7 +37,7 @@ public enum AppRoute: String, CaseIterable, Identifiable, Hashable, Sendable {
         case .practice: return "square.grid.2x2"
         case .review: return "arrow.triangle.2.circlepath"
         case .progress: return "chart.bar"
-        case .settings: return "gearshape"
+        case .settings: return "ellipsis"
         }
     }
 }
@@ -80,7 +81,7 @@ public extension AppRoute {
             )
         case .settings:
             return RoutePlaceholderContent(
-                headline: "Settings",
+                headline: "More",
                 subheadline: "Manage language profiles, goals, daily time, and tutor preferences.",
                 actionTitle: "Add a Language"
             )

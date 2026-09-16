@@ -25,7 +25,7 @@ final class RoutePlaceholderTests: XCTestCase {
 
     func testSettingsPlaceholderContentIsMore() {
         let content = AppRoute.settings.placeholderContent()
-        XCTAssertEqual(content.headline, "Settings")
+        XCTAssertEqual(content.headline, "More")
         XCTAssertTrue(content.subheadline.contains("language profiles"))
         XCTAssertEqual(content.actionTitle, "Add a Language")
     }

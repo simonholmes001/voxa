@@ -57,6 +57,7 @@ struct RouteDestinationView: View {
                 planState: learnerPlanModel?.state ?? .idle,
                 courseState: learnerCourseModel?.state ?? .idle,
                 languageToolModel: practiceLanguageToolModel,
+                nativeLanguage: activeLanguageProfile?.profile.nativeLanguage,
                 onStartTalk: onStartTalk
             )
             .task { await learnerPlanModel?.load() }

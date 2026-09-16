@@ -23,6 +23,19 @@ else
   exit 1
 fi
 
+if ! grep -Eq '^[[:space:]]*DEVELOPMENT_TEAM[[:space:]]*=' "$TARGET_CONFIG"; then
+  XCODE_TEAM_ID="$(defaults read com.apple.dt.Xcode IDEProvisioningTeamByIdentifier 2>/dev/null \
+    | awk '/teamID =/ { gsub(/[;"]/, "", $3); print $3; exit }' || true)"
+  if [[ -n "$XCODE_TEAM_ID" ]]; then
+    {
+      echo
+      echo "// Local physical-device signing team detected from Xcode preferences."
+      echo "DEVELOPMENT_TEAM = $XCODE_TEAM_ID"
+    } >> "$TARGET_CONFIG"
+    echo "Added local Xcode development team to this worktree's iOS config."
+  fi
+fi
+
 export GITHUB_REF="refs/heads/$BRANCH"
 export GITHUB_FEDERATED_CREDENTIAL_NAME="github-${BRANCH//\//-}"
 
