@@ -11,6 +11,7 @@ public struct PracticeHubView: View {
     private let planState: LearnerPlanState
     private let courseState: LearnerCourseState
     private let languageToolModel: PracticeLanguageToolViewModel?
+    private let nativeLanguage: String?
     private let onStartTalk: (RealtimeTutorIntent) -> Void
 
     public init(
@@ -18,12 +19,14 @@ public struct PracticeHubView: View {
         planState: LearnerPlanState = .idle,
         courseState: LearnerCourseState = .idle,
         languageToolModel: PracticeLanguageToolViewModel? = nil,
+        nativeLanguage: String? = nil,
         onStartTalk: @escaping (RealtimeTutorIntent) -> Void
     ) {
         self.summary = summary
         self.planState = planState
         self.courseState = courseState
         self.languageToolModel = languageToolModel
+        self.nativeLanguage = nativeLanguage
         self.onStartTalk = onStartTalk
     }
 
@@ -154,7 +157,8 @@ public struct PracticeHubView: View {
                     NavigationLink {
                         TranslationToolView(
                             model: languageToolModel,
-                            targetLanguage: targetLanguage)
+                            targetLanguage: targetLanguage,
+                            nativeLanguage: nativeLanguage)
                     } label: {
                         toolCard("Translate", "character.bubble", "Text translation.")
                     }

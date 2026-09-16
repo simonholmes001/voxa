@@ -26,7 +26,6 @@ public final class SystemSpeechQuestionCapture: SpeechQuestionCapture {
         }
 
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
-            ?? SFSpeechRecognizer(locale: Locale.current)
         guard let recognizer, recognizer.isAvailable else {
             throw SpeechQuestionCaptureError.unavailable
         }

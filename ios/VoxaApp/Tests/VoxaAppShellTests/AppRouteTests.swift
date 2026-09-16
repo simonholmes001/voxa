@@ -5,7 +5,7 @@ final class AppRouteTests: XCTestCase {
     func testPrimaryRoutesExistInExpectedOrder() {
         XCTAssertEqual(
             AppRoute.allCases,
-            [.home, .talk, .tutor, .practice, .review, .progress, .settings]
+            [.home, .talk, .practice, .review, .settings]
         )
     }
 
@@ -22,5 +22,6 @@ final class AppRouteTests: XCTestCase {
     func testRouteIdentifierMatchesRawValue() {
         XCTAssertEqual(AppRoute.talk.id, AppRoute.talk.rawValue)
         XCTAssertEqual(AppRoute.progress.id, "progress")
+        XCTAssertEqual(AppRoute.settings.title, "More")
     }
 }

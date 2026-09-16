@@ -44,6 +44,7 @@ public struct LanguageChoiceView: View {
                                     .accessibilityLabel("Active")
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

@@ -173,12 +173,12 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
                 "response": [
                     "conversation": "none",
                     "output_modalities": ["audio"],
-                    "max_output_tokens": 80,
+                    "max_output_tokens": 160,
                     "metadata": ["response_purpose": "ai_tutor_voice_preview"],
                     "instructions": "Speak exactly this one short tutor preview and then stop: \"\(text)\""
                 ]
             ], on: socket)
-            try await waitForHandshakeEvent("response.done", timeoutSeconds: 12)
+            try await waitForHandshakeEvent("response.done", timeoutSeconds: 20)
             await waitForPlaybackToDrain(maxSeconds: previewPlaybackTimeout(for: credential))
             await disconnect()
         } catch {
@@ -523,15 +523,24 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
 
     private func waitForPlaybackToDrain(maxSeconds: TimeInterval) async {
         let deadline = Date().timeIntervalSince1970 + maxSeconds
+        var quietSince: TimeInterval?
         while Date().timeIntervalSince1970 < deadline {
             if Task.isCancelled {
                 return
             }
             let remaining = playbackSecondsRemaining()
             if remaining <= 0 {
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                return
+                let now = Date().timeIntervalSince1970
+                if quietSince == nil {
+                    quietSince = now
+                }
+                if now - (quietSince ?? now) >= Self.previewDrainQuietSeconds {
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                continue
             }
+            quietSince = nil
             let sleepSeconds = min(0.2, remaining)
             try? await Task.sleep(nanoseconds: UInt64(sleepSeconds * 1_000_000_000))
         }
@@ -539,8 +548,10 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
 
     private func previewPlaybackTimeout(for credential: RealtimeSessionCredential) -> TimeInterval {
         let speed = max(credential.settings.aiTutorPreferences.speed, AiTutorPreferences.minimumSpeed)
-        return max(12, 8 / speed)
+        return max(20, 14 / speed)
     }
+
+    private static let previewDrainQuietSeconds: TimeInterval = 1.25
 
     /// Appends one turn to the accumulating session transcript. Consecutive
     /// same-role events are collapsed into a single turn — that matches how

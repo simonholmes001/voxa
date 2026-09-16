@@ -1,5 +1,9 @@
 #if canImport(SwiftUI)
 import SwiftUI
+#if os(iOS)
+import UIKit
+import UserNotifications
+#endif
 
 /// In-app language manager hosted by the More surface.
 ///
@@ -64,14 +68,19 @@ public struct LanguageManagementView: View {
     public var body: some View {
         List {
             Section {
-                VStack(alignment: .leading, spacing: 8) {
+                NavigationLink {
+                    TutorSetupView(
+                        profiles: profiles,
+                        activeKey: activeKey,
+                        makeSettingsModel: makeSettingsModel,
+                        onSaved: onSaved
+                    )
+                } label: {
                     Label("Tutor setup", systemImage: "person.wave.2")
-                        .font(.headline)
-                    Text("Languages, goals, daily time, and correction style shape how voxa teaches you.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 4)
+                .accessibilityIdentifier("language-manager-tutor-setup")
+            } footer: {
+                Text("Languages, goals, daily time, and correction style shape how voxa teaches you.")
             }
 
             Section("Your languages") {
@@ -105,6 +114,10 @@ public struct LanguageManagementView: View {
             } footer: {
                 Text("Start another course. Your other languages keep their own progress.")
             }
+
+            #if os(iOS)
+            DailyLearningReminderSection()
+            #endif
 
             Section {
                 if let accountDataMessage {
@@ -255,6 +268,181 @@ public enum AccountDataActionError: Error, Equatable {
     case unavailable
 }
 
+#if os(iOS)
+private struct DailyLearningReminderSection: View {
+    @Environment(\.openURL) private var openURL
+    @AppStorage("voxa.learningNotifications.prompted") private var hasPromptedForLearningNotifications = false
+    @State private var status: ReminderStatus = .checking
+    @State private var message: String?
+    @State private var isWorking = false
+
+    var body: some View {
+        Section {
+            if let message {
+                Text(message)
+                    .foregroundStyle(status == .unavailable ? .red : .secondary)
+            }
+
+            Button {
+                Task { await enableReminders() }
+            } label: {
+                if isWorking {
+                    ProgressView()
+                } else {
+                    Label(actionTitle, systemImage: actionSymbol)
+                }
+            }
+            .disabled(isWorking || status == .authorized)
+            .accessibilityIdentifier("language-manager-daily-reminders")
+        } header: {
+            Text("Learning reminders")
+        } footer: {
+            Text("Voxa sends at most one daily reminder to continue learning.")
+        }
+        .task { await refreshStatus() }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            Task { await refreshStatus() }
+        }
+    }
+
+    private var actionTitle: String {
+        switch status {
+        case .checking:
+            return "Checking reminders"
+        case .authorized:
+            return "Daily reminders on"
+        case .notDetermined:
+            return "Turn on daily reminders"
+        case .denied:
+            return "Open iOS Settings"
+        case .unavailable:
+            return "Try again"
+        }
+    }
+
+    private var actionSymbol: String {
+        switch status {
+        case .authorized:
+            return "bell.fill"
+        case .denied:
+            return "gear"
+        default:
+            return "bell"
+        }
+    }
+
+    @MainActor
+    private func refreshStatus() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        status = ReminderStatus(settings.authorizationStatus)
+        message = message(for: status)
+        if status == .authorized {
+            scheduleDailyLearningReminder()
+        }
+    }
+
+    @MainActor
+    private func enableReminders() async {
+        isWorking = true
+        defer { isWorking = false }
+
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            hasPromptedForLearningNotifications = true
+            scheduleDailyLearningReminder()
+            status = .authorized
+            message = message(for: .authorized)
+        case .notDetermined:
+            hasPromptedForLearningNotifications = true
+            do {
+                let granted = try await center.requestAuthorization(options: [.alert, .sound])
+                if granted {
+                    scheduleDailyLearningReminder()
+                    status = .authorized
+                    message = message(for: .authorized)
+                } else {
+                    status = .denied
+                    message = message(for: .denied)
+                }
+            } catch {
+                status = .unavailable
+                message = message(for: .unavailable)
+            }
+        case .denied:
+            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                openURL(settingsURL)
+            }
+            status = .denied
+            message = message(for: .denied)
+        @unknown default:
+            status = .unavailable
+            message = message(for: .unavailable)
+        }
+    }
+
+    private func scheduleDailyLearningReminder() {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [Self.dailyLearningReminderIdentifier])
+
+        let content = UNMutableNotificationContent()
+        content.title = "Keep your language progress moving"
+        content.body = "A short Voxa session today helps your new language stick."
+        content.sound = .default
+
+        var date = DateComponents()
+        date.hour = 18
+        date.minute = 0
+        let trigger = UNCalendarNotificationTrigger(dateMatching: date, repeats: true)
+        let request = UNNotificationRequest(
+            identifier: Self.dailyLearningReminderIdentifier,
+            content: content,
+            trigger: trigger
+        )
+        center.add(request)
+    }
+
+    private func message(for status: ReminderStatus) -> String {
+        switch status {
+        case .checking:
+            return "Checking notification settings..."
+        case .authorized:
+            return "Daily reminders are enabled."
+        case .notDetermined:
+            return "Turn on reminders to get a daily nudge to keep your progress moving."
+        case .denied:
+            return "Notifications are off for Voxa. Open iOS Settings to allow reminders."
+        case .unavailable:
+            return "Voxa could not check notification settings. Please try again."
+        }
+    }
+
+    private static let dailyLearningReminderIdentifier = "voxa.daily-learning-reminder"
+}
+
+private enum ReminderStatus {
+    case checking
+    case authorized
+    case notDetermined
+    case denied
+    case unavailable
+
+    init(_ authorizationStatus: UNAuthorizationStatus) {
+        switch authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            self = .authorized
+        case .notDetermined:
+            self = .notDetermined
+        case .denied:
+            self = .denied
+        @unknown default:
+            self = .unavailable
+        }
+    }
+}
+#endif
+
 /// A single language row: name, a short summary, and an active marker.
 private struct LanguageRow: View {
     let profile: LanguageProfile
@@ -277,6 +465,8 @@ private struct LanguageRow: View {
                     .accessibilityLabel("Active language")
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     private var summary: String {

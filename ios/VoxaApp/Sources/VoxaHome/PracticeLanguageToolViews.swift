@@ -6,6 +6,10 @@ import VoxaPractice
 import PhotosUI
 #endif
 
+#if canImport(AVFoundation)
+import AVFoundation
+#endif
+
 #if os(iOS) && canImport(UIKit)
 import UIKit
 #endif
@@ -222,28 +226,86 @@ struct AskAnythingView: View {
 
 struct TranslationToolView: View {
     let model: PracticeLanguageToolViewModel
-    let targetLanguage: String
-    @State private var sourceLanguage = ""
+    @State private var sourceLanguageOption: TranslationLanguageOption
+    @State private var sourceCustomLanguage = ""
+    @State private var targetLanguageOption: TranslationLanguageOption
+    @State private var targetCustomLanguage = ""
     @State private var text = ""
+    @State private var speechAlertMessage: String?
+    @FocusState private var focusedField: TranslationInputField?
+
+    #if canImport(AVFoundation)
+    @State private var speechPlayer = TranslationSpeechPlayer()
+    #endif
+
+    init(model: PracticeLanguageToolViewModel, targetLanguage: String, nativeLanguage: String? = nil) {
+        self.model = model
+        let source = TranslationLanguageOption.option(for: nativeLanguage, allowsAutomatic: true)
+        let target = TranslationLanguageOption.option(for: targetLanguage, allowsAutomatic: false)
+        _sourceLanguageOption = State(initialValue: source.option)
+        _sourceCustomLanguage = State(initialValue: source.customLanguage)
+        _targetLanguageOption = State(initialValue: target.option)
+        _targetCustomLanguage = State(initialValue: target.customLanguage)
+    }
 
     var body: some View {
         Form {
+            Section("Languages") {
+                Picker("From", selection: $sourceLanguageOption) {
+                    Text("Detect automatically").tag(TranslationLanguageOption.automatic)
+                    ForEach(TranslationLanguageOption.commonLanguages) { language in
+                        Text(language.name).tag(TranslationLanguageOption.language(language.name))
+                    }
+                    Text("Other...").tag(TranslationLanguageOption.custom)
+                }
+                if sourceLanguageOption == .custom {
+                    TextField("Source language", text: $sourceCustomLanguage)
+                        .focused($focusedField, equals: .sourceLanguage)
+                        .submitLabel(.done)
+                        .onSubmit { dismissInputs() }
+                        .accessibilityIdentifier("translation-source-custom-language")
+                }
+                Picker("To", selection: $targetLanguageOption) {
+                    ForEach(TranslationLanguageOption.commonLanguages) { language in
+                        Text(language.name).tag(TranslationLanguageOption.language(language.name))
+                    }
+                    Text("Other...").tag(TranslationLanguageOption.custom)
+                }
+                if targetLanguageOption == .custom {
+                    TextField("Target language", text: $targetCustomLanguage)
+                        .focused($focusedField, equals: .targetLanguage)
+                        .submitLabel(.done)
+                        .onSubmit { dismissInputs() }
+                        .accessibilityIdentifier("translation-target-custom-language")
+                }
+            }
+
             Section {
-                TextField("Source language", text: $sourceLanguage, prompt: Text("Detect automatically"))
                 TextEditor(text: $text)
                     .frame(minHeight: 140)
+                    .focused($focusedField, equals: .text)
                     .accessibilityIdentifier("translation-text")
                 Button {
+                    dismissInputs()
                     Task {
                         await model.translate(
                             text: text,
-                            sourceLanguage: trimmed(sourceLanguage),
-                            targetLanguage: targetLanguage)
+                            sourceLanguage: resolvedSourceLanguage,
+                            targetLanguage: resolvedTargetLanguage)
                     }
                 } label: {
-                    Label("Translate", systemImage: "character.bubble")
+                    if model.isLoading {
+                        Label {
+                            Text("Translating...")
+                        } icon: {
+                            ProgressView()
+                        }
+                    } else {
+                        Label("Translate", systemImage: "character.bubble")
+                    }
                 }
-                .disabled(model.isLoading || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(model.isLoading || !canTranslate)
+                .buttonStyle(.borderedProminent)
                 Button {
                     Task { await toggleVoiceTranslation() }
                 } label: {
@@ -260,6 +322,14 @@ struct TranslationToolView: View {
                 Section("Translation") {
                     Text(result.translatedText)
                         .font(.title3)
+                    #if canImport(AVFoundation)
+                    Button {
+                        speak(result.translatedText, language: result.targetLanguage)
+                    } label: {
+                        Label("Play translation", systemImage: "speaker.wave.2")
+                    }
+                    .accessibilityIdentifier("translation-play-audio")
+                    #endif
                     Text("\(result.sourceLanguage) -> \(result.targetLanguage)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -273,6 +343,27 @@ struct TranslationToolView: View {
             statusSection
         }
         .navigationTitle("Translate")
+        #if os(iOS)
+        .scrollDismissesKeyboard(.interactively)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { dismissInputs() }
+                    .fontWeight(.semibold)
+            }
+        }
+        #endif
+        .alert(
+            "Voice playback unavailable",
+            isPresented: Binding(
+                get: { speechAlertMessage != nil },
+                set: { if !$0 { speechAlertMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(speechAlertMessage ?? "")
+        }
         .onChange(of: model.spokenQuestionDraft) { _, transcript in
             if model.isRecordingQuestion {
                 text = transcript
@@ -283,7 +374,12 @@ struct TranslationToolView: View {
     @ViewBuilder
     private var statusSection: some View {
         if model.isLoading {
-            Section { ProgressView("Working...") }
+            Section {
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Translating...")
+                }
+            }
         } else if let error = model.errorMessage {
             Section { Text(error).foregroundStyle(.red) }
         } else if case let .failed(message) = model.speechQuestionState {
@@ -307,13 +403,157 @@ struct TranslationToolView: View {
         if model.isRecordingQuestion {
             guard let transcript = await model.stopVoiceQuestionInput() else { return }
             text = transcript
+            dismissInputs()
             await model.translate(
                 text: transcript,
-                sourceLanguage: trimmed(sourceLanguage),
-                targetLanguage: targetLanguage)
+                sourceLanguage: resolvedSourceLanguage,
+                targetLanguage: resolvedTargetLanguage)
         } else {
-            await model.startVoiceQuestionInput(localeIdentifier: speechLocaleIdentifier(for: trimmed(sourceLanguage)))
+            dismissInputs()
+            await model.startVoiceQuestionInput(localeIdentifier: speechLocaleIdentifier(for: resolvedSourceLanguage))
         }
+    }
+
+    private func dismissInputs() {
+        focusedField = nil
+        #if os(iOS)
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        #endif
+    }
+
+    private var resolvedSourceLanguage: String? {
+        switch sourceLanguageOption {
+        case .automatic:
+            return nil
+        case let .language(name):
+            return name
+        case .custom:
+            return trimmed(sourceCustomLanguage)
+        }
+    }
+
+    private var resolvedTargetLanguage: String {
+        switch targetLanguageOption {
+        case .automatic:
+            return "English"
+        case let .language(name):
+            return name
+        case .custom:
+            return trimmed(targetCustomLanguage) ?? ""
+        }
+    }
+
+    private var canTranslate: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !resolvedTargetLanguage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    #if canImport(AVFoundation)
+    private func speak(_ text: String, language: String) {
+        do {
+            try speechPlayer.speak(text, languageIdentifier: speechLocaleIdentifier(for: language), languageName: language)
+        } catch {
+            speechAlertMessage = TranslationSpeechPlayer.message(for: error, languageName: language)
+        }
+    }
+    #endif
+}
+
+private enum TranslationInputField: Hashable {
+    case sourceLanguage
+    case targetLanguage
+    case text
+}
+
+#if canImport(AVFoundation)
+@MainActor
+private final class TranslationSpeechPlayer {
+    private let synthesizer = AVSpeechSynthesizer()
+
+    enum SpeechError: Error {
+        case unsupportedLanguage
+    }
+
+    func speak(_ text: String, languageIdentifier: String, languageName: String) throws {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard let voice = AVSpeechSynthesisVoice(language: languageIdentifier) else {
+            throw SpeechError.unsupportedLanguage
+        }
+
+        #if os(iOS)
+        let audio = AVAudioSession.sharedInstance()
+        try? audio.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+        try? audio.setActive(true)
+        #endif
+
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+
+        let utterance = AVSpeechUtterance(string: trimmed)
+        utterance.voice = voice
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        synthesizer.speak(utterance)
+    }
+
+    static func message(for error: Error, languageName: String) -> String {
+        switch error {
+        case SpeechError.unsupportedLanguage:
+            return "This device does not have a voice installed for \(languageName). Voxa can still show the translation as text."
+        default:
+            return "Voxa could not play this translation aloud. Please try again."
+        }
+    }
+}
+#endif
+
+private enum TranslationLanguageOption: Hashable {
+    case automatic
+    case language(String)
+    case custom
+
+    struct CommonLanguage: Identifiable {
+        let name: String
+        var id: String { name }
+    }
+
+    static let commonLanguages: [CommonLanguage] = [
+        "Arabic",
+        "Chinese",
+        "Dutch",
+        "English",
+        "French",
+        "German",
+        "Hindi",
+        "Greek",
+        "Italian",
+        "Japanese",
+        "Korean",
+        "Portuguese",
+        "Spanish"
+    ].map(CommonLanguage.init(name:))
+
+    static func option(
+        for language: String?,
+        allowsAutomatic: Bool
+    ) -> (option: TranslationLanguageOption, customLanguage: String) {
+        let displayName = displayName(for: language)
+        guard !displayName.isEmpty else {
+            return (allowsAutomatic ? .automatic : .language("English"), "")
+        }
+        if commonLanguages.contains(where: { $0.name.caseInsensitiveCompare(displayName) == .orderedSame }) {
+            return (.language(displayName), "")
+        }
+        return (.custom, displayName)
+    }
+
+    private static func displayName(for language: String?) -> String {
+        guard let language else { return "" }
+        let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return Locale.current.localizedString(forIdentifier: trimmed)?.localizedCapitalized
+            ?? trimmed.localizedCapitalized
     }
 }
 
@@ -461,6 +701,7 @@ private func speechLocaleIdentifier(for language: String?) -> String {
     case "english": return "en-US"
     case "french": return "fr-FR"
     case "german": return "de-DE"
+    case "hindi": return "hi-IN"
     case "italian": return "it-IT"
     case "japanese": return "ja-JP"
     case "korean": return "ko-KR"
