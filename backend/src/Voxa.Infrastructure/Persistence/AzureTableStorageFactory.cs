@@ -276,16 +276,35 @@ public sealed class AzureRealtimeSessionAuditTable(TableClient tableClient) : IR
 
 public interface IRealtimeSessionRateLimitTable
 {
-    Task<bool> TryReserveAsync(
+    Task<RealtimeSessionRateLimitReservationResult> TryReserveAsync(
         string partitionKey,
-        DateTimeOffset windowStart,
-        int maxRequests,
-        DateTimeOffset requestedAt,
+        RealtimeSessionRateLimitReservation reservation,
         CancellationToken cancellationToken);
 
-    Task DeletePartitionAsync(
+    Task ReleaseAsync(
         string partitionKey,
+        string rowKey,
         CancellationToken cancellationToken);
+
+    Task DeleteRowsWithPrefixAsync(
+        string partitionKey,
+        string rowKeyPrefix,
+        CancellationToken cancellationToken);
+}
+
+public sealed record RealtimeSessionRateLimitReservation(
+    string RowKey,
+    DateTimeOffset WindowStart,
+    int MaxRequests,
+    DateTimeOffset RequestedAt);
+
+public sealed record RealtimeSessionRateLimitReservationResult(
+    bool Succeeded,
+    string? RejectedRowKey)
+{
+    public static RealtimeSessionRateLimitReservationResult Success { get; } = new(true, null);
+
+    public static RealtimeSessionRateLimitReservationResult Rejected(string rowKey) => new(false, rowKey);
 }
 
 public sealed record RealtimeSessionRateLimitTableEntity(
@@ -298,34 +317,33 @@ public sealed record RealtimeSessionRateLimitTableEntity(
 
 public sealed class AzureRealtimeSessionRateLimitTable(TableClient tableClient) : IRealtimeSessionRateLimitTable
 {
-    public async Task<bool> TryReserveAsync(
+    private const int MaxReservationAttempts = 12;
+
+    public async Task<RealtimeSessionRateLimitReservationResult> TryReserveAsync(
         string partitionKey,
-        DateTimeOffset windowStart,
-        int maxRequests,
-        DateTimeOffset requestedAt,
+        RealtimeSessionRateLimitReservation reservation,
         CancellationToken cancellationToken)
     {
-        var rowKey = $"{windowStart.UtcTicks:D19}";
-        for (var attempt = 0; attempt < 3; attempt++)
+        for (var attempt = 0; attempt < MaxReservationAttempts; attempt++)
         {
             var response = await tableClient.GetEntityIfExistsAsync<TableEntity>(
                 partitionKey,
-                rowKey,
+                reservation.RowKey,
                 cancellationToken: cancellationToken);
 
             if (!response.HasValue)
             {
-                var newEntity = new TableEntity(partitionKey, rowKey)
-                {
-                    ["WindowStart"] = windowStart,
-                    ["LastRequestedAt"] = requestedAt,
-                    ["Count"] = 1
-                };
-
                 try
                 {
-                    await tableClient.AddEntityAsync(newEntity, cancellationToken);
-                    return true;
+                    await tableClient.AddEntityAsync(
+                        new TableEntity(partitionKey, reservation.RowKey)
+                        {
+                            ["WindowStart"] = reservation.WindowStart,
+                            ["LastRequestedAt"] = reservation.RequestedAt,
+                            ["Count"] = 1
+                        },
+                        cancellationToken);
+                    return RealtimeSessionRateLimitReservationResult.Success;
                 }
                 catch (RequestFailedException exception) when (exception.Status == 409)
                 {
@@ -336,14 +354,13 @@ public sealed class AzureRealtimeSessionRateLimitTable(TableClient tableClient) 
             var entity = response.Value!;
             var count = entity.GetInt32("Count")
                 ?? throw new InvalidOperationException("Realtime rate-limit table entity is missing Count.");
-            if (count >= maxRequests)
+            if (count >= reservation.MaxRequests)
             {
-                return false;
+                return RealtimeSessionRateLimitReservationResult.Rejected(reservation.RowKey);
             }
 
             entity["Count"] = count + 1;
-            entity["LastRequestedAt"] = requestedAt;
-
+            entity["LastRequestedAt"] = reservation.RequestedAt;
             try
             {
                 await tableClient.UpdateEntityAsync(
@@ -351,9 +368,9 @@ public sealed class AzureRealtimeSessionRateLimitTable(TableClient tableClient) 
                     entity.ETag,
                     TableUpdateMode.Replace,
                     cancellationToken);
-                return true;
+                return RealtimeSessionRateLimitReservationResult.Success;
             }
-            catch (RequestFailedException exception) when (exception.Status == 412)
+            catch (RequestFailedException exception) when (exception.Status is 404 or 412)
             {
                 continue;
             }
@@ -362,12 +379,82 @@ public sealed class AzureRealtimeSessionRateLimitTable(TableClient tableClient) 
         throw new RealtimeSessionRateLimitException("Realtime session issue limit could not be reserved.");
     }
 
-    public async Task DeletePartitionAsync(
+    public async Task ReleaseAsync(
         string partitionKey,
+        string rowKey,
         CancellationToken cancellationToken)
     {
+        for (var attempt = 0; attempt < MaxReservationAttempts; attempt++)
+        {
+            var response = await tableClient.GetEntityIfExistsAsync<TableEntity>(
+                partitionKey,
+                rowKey,
+                cancellationToken: cancellationToken);
+
+            if (!response.HasValue)
+            {
+                return;
+            }
+
+            var entity = response.Value!;
+            var count = entity.GetInt32("Count")
+                ?? throw new InvalidOperationException("Realtime rate-limit table entity is missing Count.");
+            if (count <= 1)
+            {
+                try
+                {
+                    await tableClient.DeleteEntityAsync(
+                        partitionKey,
+                        rowKey,
+                        entity.ETag,
+                        cancellationToken);
+                    return;
+                }
+                catch (RequestFailedException exception) when (exception.Status is 404 or 412)
+                {
+                    if (exception.Status == 404)
+                    {
+                        return;
+                    }
+
+                    continue;
+                }
+            }
+
+            entity["Count"] = count - 1;
+            try
+            {
+                await tableClient.UpdateEntityAsync(
+                    entity,
+                    entity.ETag,
+                    TableUpdateMode.Replace,
+                    cancellationToken);
+                return;
+            }
+            catch (RequestFailedException exception) when (exception.Status is 404 or 412)
+            {
+                if (exception.Status == 404)
+                {
+                    return;
+                }
+
+                continue;
+            }
+        }
+
+        throw new RealtimeSessionRateLimitException("Realtime session issue limit could not be released.");
+    }
+
+    public async Task DeleteRowsWithPrefixAsync(
+        string partitionKey,
+        string rowKeyPrefix,
+        CancellationToken cancellationToken)
+    {
+        var upperBound = rowKeyPrefix + "\uffff";
+        var filter = TableClient.CreateQueryFilter(
+            $"PartitionKey eq {partitionKey} and RowKey ge {rowKeyPrefix} and RowKey lt {upperBound}");
         await foreach (var entity in tableClient.QueryAsync<TableEntity>(
-                           table => table.PartitionKey == partitionKey,
+                           filter,
                            cancellationToken: cancellationToken))
         {
             await tableClient.DeleteEntityAsync(

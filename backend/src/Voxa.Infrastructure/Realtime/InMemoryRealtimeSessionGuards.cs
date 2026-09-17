@@ -28,7 +28,15 @@ public sealed class InMemoryRealtimeSessionRateLimiter : IRealtimeSessionRateLim
 
 public sealed record RealtimeSessionRateLimitOptions(
     int MaxRequests,
-    TimeSpan Window);
+    TimeSpan Window,
+    int MonthlyUserSessionLimit,
+    int MonthlyTenantSessionLimit)
+{
+    public const int DefaultMaxRequests = 12;
+    public static readonly TimeSpan DefaultWindow = TimeSpan.FromMinutes(1);
+    public const int DefaultMonthlyUserSessionLimit = 600;
+    public const int DefaultMonthlyTenantSessionLimit = 6_000;
+}
 
 public sealed class TableRealtimeSessionRateLimiter(
     IRealtimeSessionRateLimitTable rateLimitTable,
@@ -41,27 +49,104 @@ public sealed class TableRealtimeSessionRateLimiter(
         CancellationToken cancellationToken)
     {
         var now = clock.UtcNow;
-        var partitionKey = $"{tenantId.Value}:{userId.Value}";
-        var reserved = await rateLimitTable.TryReserveAsync(
-            partitionKey,
-            WindowStart(now, options.Window),
-            options.MaxRequests,
-            now,
-            cancellationToken);
+        EnsurePositiveLimit(options.MaxRequests, "Realtime session issue limit exceeded.", "realtime_session_rate_limited");
+        EnsurePositiveLimit(options.MonthlyUserSessionLimit, "Monthly realtime session budget exhausted.", "realtime_session_budget_exhausted");
+        EnsurePositiveLimit(options.MonthlyTenantSessionLimit, "Tenant monthly realtime session budget exhausted.", "realtime_session_budget_exhausted");
 
-        if (!reserved)
+        var monthlyWindowStart = MonthStart(now);
+        var partitionKey = TenantPartitionKey(tenantId);
+        var reservations = new[]
         {
-            throw new RealtimeSessionRateLimitException("Realtime session issue limit exceeded.");
+            new RealtimeSessionRateLimitReservation(
+                BurstRowKey(userId, WindowStart(now, options.Window)),
+                WindowStart(now, options.Window),
+                options.MaxRequests,
+                now),
+            new RealtimeSessionRateLimitReservation(
+                UserMonthRowKey(userId, monthlyWindowStart),
+                monthlyWindowStart,
+                options.MonthlyUserSessionLimit,
+                now),
+            new RealtimeSessionRateLimitReservation(
+                TenantMonthRowKey(monthlyWindowStart),
+                monthlyWindowStart,
+                options.MonthlyTenantSessionLimit,
+                now),
+        };
+        var committed = new List<RealtimeSessionRateLimitReservation>(reservations.Length);
+        try
+        {
+            foreach (var reservation in reservations)
+            {
+                var result = await rateLimitTable.TryReserveAsync(
+                    partitionKey,
+                    reservation,
+                    cancellationToken);
+
+                if (result.Succeeded)
+                {
+                    committed.Add(reservation);
+                    continue;
+                }
+
+                throw RejectionFor(result.RejectedRowKey);
+            }
+        }
+        catch
+        {
+            await ReleaseCommittedAsync(partitionKey, committed, CancellationToken.None);
+            throw;
         }
     }
 
-    public Task DeleteForSubjectAsync(
+    private async Task ReleaseCommittedAsync(
+        string partitionKey,
+        IReadOnlyList<RealtimeSessionRateLimitReservation> committed,
+        CancellationToken cancellationToken)
+    {
+        for (var index = committed.Count - 1; index >= 0; index--)
+        {
+            await rateLimitTable.ReleaseAsync(
+                partitionKey,
+                committed[index].RowKey,
+                cancellationToken);
+        }
+    }
+
+    private static RealtimeSessionRateLimitException RejectionFor(string? rowKey)
+    {
+        if (rowKey?.StartsWith("burst:", StringComparison.Ordinal) == true)
+        {
+            return new RealtimeSessionRateLimitException(
+                "Realtime session issue limit exceeded.",
+                "realtime_session_rate_limited");
+        }
+
+        return new RealtimeSessionRateLimitException(
+            "Monthly realtime session budget exhausted.",
+            "realtime_session_budget_exhausted");
+    }
+
+    private static void EnsurePositiveLimit(int value, string rejectionMessage, string rejectionCode)
+    {
+        if (value <= 0)
+        {
+            throw new RealtimeSessionRateLimitException(rejectionMessage, rejectionCode);
+        }
+    }
+
+    public async Task DeleteForSubjectAsync(
         TenantId tenantId,
         UserId userId,
         CancellationToken cancellationToken)
     {
-        return rateLimitTable.DeletePartitionAsync(
-            $"{tenantId.Value}:{userId.Value}",
+        await rateLimitTable.DeleteRowsWithPrefixAsync(
+            TenantPartitionKey(tenantId),
+            $"user-month:{userId.Value}:",
+            cancellationToken);
+        await rateLimitTable.DeleteRowsWithPrefixAsync(
+            TenantPartitionKey(tenantId),
+            $"burst:{userId.Value}:",
             cancellationToken);
     }
 
@@ -70,6 +155,23 @@ public sealed class TableRealtimeSessionRateLimiter(
         var ticks = now.UtcTicks - (now.UtcTicks % window.Ticks);
         return new DateTimeOffset(ticks, TimeSpan.Zero);
     }
+
+    private static DateTimeOffset MonthStart(DateTimeOffset now)
+    {
+        var utc = now.UtcDateTime;
+        return new DateTimeOffset(utc.Year, utc.Month, 1, 0, 0, 0, TimeSpan.Zero);
+    }
+
+    private static string TenantPartitionKey(TenantId tenantId) => $"tenant:{tenantId.Value}";
+
+    private static string BurstRowKey(UserId userId, DateTimeOffset windowStart) =>
+        $"burst:{userId.Value}:{windowStart.UtcTicks:D19}";
+
+    private static string UserMonthRowKey(UserId userId, DateTimeOffset windowStart) =>
+        $"user-month:{userId.Value}:{windowStart.UtcTicks:D19}";
+
+    private static string TenantMonthRowKey(DateTimeOffset windowStart) =>
+        $"tenant-month:{windowStart.UtcTicks:D19}";
 }
 
 public sealed class InMemoryRealtimeSessionAuditLog : IRealtimeSessionAuditLog

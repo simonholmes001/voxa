@@ -85,3 +85,15 @@ test('local pre-commit hook keeps unit test guardrails enabled', () => {
   assert.match(hook, /swift test --package-path "\$target_dir"/);
   assert.doesNotMatch(hook, /functions\/voxa-api/);
 });
+
+test('TestFlight workflow requires backend and privacy policy release URLs', () => {
+  const workflow = readWorkflow('.github/workflows/ios-testflight.yml');
+  const fastfile = readWorkflow('ios/fastlane/Fastfile');
+
+  assert.match(workflow, /VOXA_API_BASE_URL/);
+  assert.match(workflow, /VOXA_PRIVACY_POLICY_URL/);
+  assert.match(workflow, /Missing required secret: \$key/);
+  assert.match(fastfile, /ENV\.fetch\("VOXA_API_BASE_URL"\)/);
+  assert.match(fastfile, /ENV\.fetch\("VOXA_PRIVACY_POLICY_URL"\)/);
+  assert.match(fastfile, /VOXA_PRIVACY_POLICY_URL=#\{privacy_policy_url\}/);
+});

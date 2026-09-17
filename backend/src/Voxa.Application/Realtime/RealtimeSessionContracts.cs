@@ -59,6 +59,68 @@ public sealed record RealtimeSessionCommand(
     public const double MinimumVoiceSpeed = 0.25;
     public const double MaximumVoiceSpeed = 1.5;
     public const string DefaultVoice = "marin";
+    public const int MaximumLanguageLength = 64;
+    public const int MaximumFocusTitleLength = 120;
+    public const int MaximumVoiceInstructionsLength = 400;
+    private static readonly HashSet<string> SupportedCoachingModes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "tutor"
+    };
+
+    private static readonly HashSet<string> SupportedProficiencyBands = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "A1",
+        "A2",
+        "B1",
+        "B2",
+        "C1",
+        "C2",
+        "A1-A2",
+        "B1-B2",
+        "C1-C2",
+    };
+
+    private static readonly HashSet<string> SupportedTargetLanguages = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "de-DE",
+        "en-US",
+        "es-ES",
+        "fr-FR",
+        "el-GR",
+        "it-IT",
+        "ja-JP",
+        "pt-PT",
+        "sco",
+        "sco-GB",
+        "zh-CN",
+        "English",
+        "French",
+        "German",
+        "Greek",
+        "Doric",
+        "Italian",
+        "Japanese",
+        "Mandarin",
+        "Portuguese",
+        "Spanish",
+    };
+
+    private static readonly HashSet<string> SupportedSessionIntents = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "open_practice",
+        "practice",
+        "guided_lesson",
+        "lesson",
+        "review",
+        "pronunciation_drill",
+        "roleplay",
+        "mistakes_replay",
+        "vocabulary_drill",
+        "listening_practice",
+        "key_language",
+        "voice_preview",
+    };
+
     private static readonly HashSet<string> SupportedVoices = new(StringComparer.Ordinal)
     {
         "alloy",
@@ -115,12 +177,12 @@ public sealed record RealtimeSessionCommand(
         return new RealtimeSessionCommand(
             TenantId.Create(tenantId ?? ""),
             UserId.Create(userId ?? ""),
-            Required(coachingMode, nameof(coachingMode)),
-            Required(proficiencyBand, nameof(proficiencyBand)),
-            Required(targetLanguage, nameof(targetLanguage)),
-            Optional(nativeLanguage),
-            Optional(sessionIntent),
-            Optional(focusTitle),
+            RequireAllowed(coachingMode, nameof(coachingMode), SupportedCoachingModes),
+            RequireAllowed(proficiencyBand, nameof(proficiencyBand), SupportedProficiencyBands),
+            RequireAllowed(targetLanguage, nameof(targetLanguage), SupportedTargetLanguages),
+            OptionalLanguage(nativeLanguage, nameof(nativeLanguage)),
+            OptionalAllowed(sessionIntent, nameof(sessionIntent), SupportedSessionIntents),
+            OptionalFreeText(focusTitle, nameof(focusTitle), MaximumFocusTitleLength),
             dueReviewCount,
             NormalizeVoice(voice),
             NormalizeVoiceSpeed(voiceSpeed),
@@ -128,21 +190,94 @@ public sealed record RealtimeSessionCommand(
             correlationId);
     }
 
-    private static string Required(string? value, string name)
+    private static string Required(string? value, string name, int maxLength)
     {
-        return string.IsNullOrWhiteSpace(value)
+        var trimmed = string.IsNullOrWhiteSpace(value)
             ? throw new ArgumentException($"{name} is required.", name)
             : value.Trim();
+        if (trimmed.Length > maxLength)
+        {
+            throw new ArgumentException($"{name} must be {maxLength} characters or fewer.", name);
+        }
+
+        if (ContainsPromptControlSequence(trimmed))
+        {
+            throw new ArgumentException($"{name} contains unsupported instruction-like content.", name);
+        }
+
+        return trimmed;
     }
 
-    private static string? Optional(string? value)
+    private static string RequireAllowed(
+        string? value,
+        string name,
+        HashSet<string> supportedValues)
     {
-        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        var trimmed = Required(value, name, MaximumLanguageLength);
+        return supportedValues.Contains(trimmed)
+            ? trimmed
+            : throw new ArgumentException($"{name} is not supported.", name);
+    }
+
+    private static string? OptionalAllowed(
+        string? value,
+        string name,
+        HashSet<string> supportedValues)
+    {
+        var trimmed = OptionalFreeText(value, name, MaximumLanguageLength);
+        if (trimmed is null)
+        {
+            return null;
+        }
+
+        return supportedValues.Contains(trimmed)
+            ? trimmed
+            : throw new ArgumentException($"{name} is not supported.", name);
+    }
+
+    private static string? OptionalLanguage(string? value, string name)
+    {
+        var trimmed = OptionalFreeText(value, name, MaximumLanguageLength);
+        if (trimmed is null)
+        {
+            return null;
+        }
+
+        if (!trimmed.All(character =>
+                char.IsLetter(character)
+                || char.IsWhiteSpace(character)
+                || character is '-' or '\'' or '(' or ')'))
+        {
+            throw new ArgumentException($"{name} contains unsupported characters.", name);
+        }
+
+        return trimmed;
+    }
+
+    private static string? OptionalFreeText(string? value, string name, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length > maxLength)
+        {
+            throw new ArgumentException($"{name} must be {maxLength} characters or fewer.", name);
+        }
+
+        if (ContainsPromptControlSequence(trimmed))
+        {
+            throw new ArgumentException($"{name} contains unsupported instruction-like content.", name);
+        }
+
+        return trimmed;
     }
 
     private static string NormalizeVoice(string? value)
     {
-        var voice = Optional(value)?.ToLowerInvariant() ?? DefaultVoice;
+        var voice = OptionalFreeText(value, "voice", MaximumLanguageLength)?.ToLowerInvariant() ?? DefaultVoice;
         return SupportedVoices.Contains(voice)
             ? voice
             : throw new ArgumentException($"{nameof(voice)} is not supported.", nameof(voice));
@@ -155,8 +290,19 @@ public sealed record RealtimeSessionCommand(
 
     private static string? OptionalVoiceInstructions(string? value)
     {
-        var trimmed = Optional(value);
-        return trimmed is null ? null : trimmed[..Math.Min(trimmed.Length, 400)];
+        return OptionalFreeText(value, "voiceInstructions", MaximumVoiceInstructionsLength);
+    }
+
+    private static bool ContainsPromptControlSequence(string value)
+    {
+        return value.Contains("{{", StringComparison.Ordinal)
+            || value.Contains("}}", StringComparison.Ordinal)
+            || value.Contains("<|", StringComparison.Ordinal)
+            || value.Contains("|>", StringComparison.Ordinal)
+            || value.Contains("```", StringComparison.Ordinal)
+            || value.Contains("system:", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("assistant:", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("developer:", StringComparison.OrdinalIgnoreCase);
     }
 }
 
@@ -194,6 +340,22 @@ public sealed record RealtimeSessionSettingsContract(
     double VoiceSpeed = 1.0,
     string? VoiceInstructions = null);
 
-public sealed class RealtimeSessionIssueException(string message) : Exception(message);
+public sealed class RealtimeSessionIssueException(
+    string message,
+    string code = "realtime_session_unavailable",
+    int statusCode = 503,
+    bool retryable = true) : Exception(message)
+{
+    public string Code { get; } = code;
 
-public sealed class RealtimeSessionRateLimitException(string message) : Exception(message);
+    public int StatusCode { get; } = statusCode;
+
+    public bool Retryable { get; } = retryable;
+}
+
+public sealed class RealtimeSessionRateLimitException(
+    string message,
+    string code = "realtime_session_rate_limited") : Exception(message)
+{
+    public string Code { get; } = code;
+}

@@ -3,6 +3,7 @@
 Status: draft checklist for TestFlight expansion and App Store submission.
 Related issue: #85.
 Source baseline: `docs/privacy-security-assurance.md`.
+Submission package: `docs/app-store-submission-package.md`.
 
 ## App Store Connect App Privacy Answers
 
@@ -40,6 +41,8 @@ enabled.
 
 - Configure `VOXA_PRIVACY_POLICY_URL` and verify the Privacy policy row in
   Settings/More opens the published policy.
+- Release/TestFlight uploads require `VOXA_PRIVACY_POLICY_URL`; keep the value
+  in GitHub Actions variables or secrets alongside `VOXA_API_BASE_URL`.
 - Verify the Settings/More Delete account flow deletes account data and signs
   the user out.
 - Verify the Settings/More Export my data flow returns a portable JSON export.

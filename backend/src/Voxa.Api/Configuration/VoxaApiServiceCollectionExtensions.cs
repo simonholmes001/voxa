@@ -75,7 +75,17 @@ public static class VoxaApiServiceCollectionExtensions
         services.AddSingleton<LanguageProfileService>();
         services.AddSingleton<IAppSessionService, AppSessionService>();
         services.AddSingleton<IAccountDataService, AccountDataService>();
-        services.AddSingleton(new RealtimeSessionRateLimitOptions(12, TimeSpan.FromMinutes(1)));
+        services.AddSingleton(new RealtimeSessionRateLimitOptions(
+            ReadPositiveInt(
+                "REALTIME_SESSION_RATE_LIMIT_PER_WINDOW",
+                RealtimeSessionRateLimitOptions.DefaultMaxRequests),
+            RealtimeSessionRateLimitOptions.DefaultWindow,
+            ReadPositiveInt(
+                "REALTIME_SESSION_MONTHLY_USER_LIMIT",
+                RealtimeSessionRateLimitOptions.DefaultMonthlyUserSessionLimit),
+            ReadPositiveInt(
+                "REALTIME_SESSION_MONTHLY_TENANT_LIMIT",
+                RealtimeSessionRateLimitOptions.DefaultMonthlyTenantSessionLimit)));
         services.AddSingleton<IRealtimeSessionRateLimiter, TableRealtimeSessionRateLimiter>();
         services.AddSingleton<IRealtimeSessionAuditLog, TableRealtimeSessionAuditLog>();
         services.AddSingleton<IRealtimeSessionService, RealtimeSessionService>();
@@ -124,5 +134,16 @@ public static class VoxaApiServiceCollectionExtensions
             devResetEnabled));
 
         return services;
+    }
+
+    private static int ReadPositiveInt(string name, int fallback)
+    {
+        var raw = Environment.GetEnvironmentVariable(name);
+        if (int.TryParse(raw, out var value) && value > 0)
+        {
+            return value;
+        }
+
+        return fallback;
     }
 }

@@ -164,11 +164,13 @@ These are implementation issues, not documentation nice-to-haves:
 
 1. Publish the final privacy policy URL and configure
    `VOXA_PRIVACY_POLICY_URL` for TestFlight/App Store builds.
-2. Add retention controls for learner state, debrief evidence, realtime audit,
+2. Complete `docs/app-store-submission-package.md` with the final published
+   URL and App Review notes.
+3. Add retention controls for learner state, debrief evidence, realtime audit,
    rate-limit rows, and generated course content.
-3. Add App Store Connect privacy-answer checklist and reviewer notes before
+4. Add App Store Connect privacy-answer checklist and reviewer notes before
    first external submission.
-4. Validate deployed Azure resources against Bicep security expectations.
+5. Validate deployed Azure resources against Bicep security expectations.
 
 ## Release Gate
 

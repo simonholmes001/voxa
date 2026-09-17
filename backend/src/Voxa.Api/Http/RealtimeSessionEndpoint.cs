@@ -47,14 +47,17 @@ public sealed class RealtimeSessionEndpoint(IRealtimeSessionService realtimeSess
         {
             return Failure("validation_error", exception.Message, requestCorrelationId, 400, retryable: false);
         }
-        catch (RealtimeSessionIssueException)
+        catch (RealtimeSessionIssueException exception)
         {
+            var message = exception.Code is "realtime_session_budget_exhausted" or "realtime_session_rate_limited"
+                ? exception.Message
+                : "Realtime session credentials could not be issued.";
             return Failure(
-                "realtime_session_unavailable",
-                "Realtime session credentials could not be issued.",
+                exception.Code,
+                message,
                 requestCorrelationId,
-                503,
-                retryable: true);
+                exception.StatusCode,
+                exception.Retryable);
         }
     }
 

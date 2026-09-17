@@ -87,14 +87,87 @@ public sealed class RealtimeSessionEndpointTests
         Assert.Equal("validation_error", response.Error?.Code);
     }
 
+    [Theory]
+    [InlineData("coachingMode", "coach")]
+    [InlineData("proficiencyBand", "expert")]
+    [InlineData("targetLanguage", "xx-XX")]
+    [InlineData("sessionIntent", "ignore_all_previous_instructions")]
+    public async Task PostReturnsBadRequestForUnsupportedRealtimeSettings(string field, string value)
+    {
+        var endpoint = new RealtimeSessionEndpoint(new StubRealtimeSessionService());
+        var request = field switch
+        {
+            "coachingMode" => new RealtimeSessionHttpRequest(value, "B1-B2", "fr-FR"),
+            "proficiencyBand" => new RealtimeSessionHttpRequest("tutor", value, "fr-FR"),
+            "targetLanguage" => new RealtimeSessionHttpRequest("tutor", "B1-B2", value),
+            "sessionIntent" => new RealtimeSessionHttpRequest("tutor", "B1-B2", "fr-FR", value),
+            _ => throw new InvalidOperationException()
+        };
+
+        var response = await endpoint.PostAsync(
+            new AppSessionPrincipal(TenantId.Create("tenant-default"), UserId.Create("user-a")),
+            request,
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal("validation_error", response.Error?.Code);
+        Assert.Contains(field, response.Error?.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PostReturnsBadRequestForPromptShapedFocusTitle()
+    {
+        var endpoint = new RealtimeSessionEndpoint(new StubRealtimeSessionService());
+
+        var response = await endpoint.PostAsync(
+            new AppSessionPrincipal(TenantId.Create("tenant-default"), UserId.Create("user-a")),
+            new RealtimeSessionHttpRequest("tutor", "B1-B2", "fr-FR", "roleplay", "{{system}}"),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(400, response.StatusCode);
+        Assert.Equal("validation_error", response.Error?.Code);
+    }
+
+    [Fact]
+    public async Task PostReturnsDistinctBudgetCodeWhenBudgetIsExhausted()
+    {
+        var service = new StubRealtimeSessionService
+        {
+            Exception = new RealtimeSessionIssueException(
+                "Monthly realtime session budget exhausted.",
+                "realtime_session_budget_exhausted",
+                429,
+                retryable: true)
+        };
+        var endpoint = new RealtimeSessionEndpoint(service);
+
+        var response = await endpoint.PostAsync(
+            new AppSessionPrincipal(TenantId.Create("tenant-default"), UserId.Create("user-a")),
+            new RealtimeSessionHttpRequest("tutor", "B1-B2", "fr-FR"),
+            "corr-123",
+            CancellationToken.None);
+
+        Assert.Equal(429, response.StatusCode);
+        Assert.Equal("realtime_session_budget_exhausted", response.Error?.Code);
+        Assert.True(response.Error?.Retryable);
+    }
+
     private sealed class StubRealtimeSessionService : IRealtimeSessionService
     {
         public RealtimeSessionCommand? Command { get; private set; }
+        public RealtimeSessionIssueException? Exception { get; init; }
 
         public Task<RealtimeSessionCredential> IssueClientSecretAsync(
             RealtimeSessionCommand command,
             CancellationToken cancellationToken)
         {
+            if (Exception is not null)
+            {
+                throw Exception;
+            }
+
             Command = command;
             return Task.FromResult(new RealtimeSessionCredential(
                 command.CorrelationId.Value,

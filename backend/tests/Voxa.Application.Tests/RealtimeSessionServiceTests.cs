@@ -70,7 +70,7 @@ public sealed class RealtimeSessionServiceTests
         await Assert.ThrowsAsync<RealtimeSessionIssueException>(() =>
             service.IssueClientSecretAsync(CreateCommand(), CancellationToken.None));
 
-        Assert.Equal("rate_limited", audit.Events.Single().Outcome);
+        Assert.Equal("realtime_session_rate_limited", audit.Events.Single().Outcome);
     }
 
     private static RealtimeSessionCommand CreateCommand(
