@@ -5,20 +5,10 @@ public sealed class RealtimeSessionService(
     IRealtimeSessionRateLimiter rateLimiter,
     IRealtimeSessionAuditLog auditLog) : IRealtimeSessionService
 {
-    private static readonly HashSet<string> SupportedCoachingModes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "tutor"
-    };
-
     public async Task<RealtimeSessionCredential> IssueClientSecretAsync(
         RealtimeSessionCommand command,
         CancellationToken cancellationToken)
     {
-        if (!SupportedCoachingModes.Contains(command.CoachingMode))
-        {
-            throw new ArgumentException("Unsupported coaching mode for Realtime MVP.", nameof(command));
-        }
-
         var settings = new RealtimeSessionSettingsContract(
             command.CoachingMode,
             command.ProficiencyBand,
@@ -37,8 +27,12 @@ public sealed class RealtimeSessionService(
         }
         catch (RealtimeSessionRateLimitException exception)
         {
-            await RecordAsync(command, settings, "rate_limited", cancellationToken);
-            throw new RealtimeSessionIssueException(exception.Message);
+            await RecordAsync(command, settings, exception.Code, cancellationToken);
+            throw new RealtimeSessionIssueException(
+                exception.Message,
+                exception.Code,
+                statusCode: 429,
+                retryable: true);
         }
 
         var credential = await clientSecretIssuer.IssueAsync(

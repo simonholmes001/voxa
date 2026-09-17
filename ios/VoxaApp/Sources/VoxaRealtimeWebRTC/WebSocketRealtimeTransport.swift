@@ -109,12 +109,10 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         // early state events emitted around session setup.
         receiveLoop(socket)
         try await waitForHandshakeEvent("session.created")
-        // Server sets these fields at client_secret mint time too, but observed
-        // behaviour is that OpenAI's /v1/realtime/client_secrets endpoint
-        // silently discards the audio.turn_detection block — the WebSocket
-        // then falls back to defaults (create_response: true) and the tutor
-        // auto-generates forever. session.update DOES land, so we re-send the
-        // authoritative config here. Tampering vector tracked in issue #100.
+        // Backend-created client secrets carry the authoritative tutor
+        // instructions, output voice/speed, audio formats, and turn-taking
+        // settings. The client only enables input transcription so the
+        // post-session debrief has learner turns to summarize.
         try await sendSessionUpdate(on: socket)
         try await waitForHandshakeEvent("session.updated")
         #if os(iOS)
@@ -188,30 +186,18 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     }
 
     private func sendSessionUpdate(on socket: URLSessionWebSocketTask) async throws {
-        // Instructions are intentionally NOT set here — they came from the
-        // backend at client_secret mint time and we don't overwrite them.
-        // Only the strict turn-taking config, which the mint endpoint drops,
-        // and Whisper input transcription so the debrief pass has the
-        // learner's turns to work with.
+        // Instructions, output voice/speed, audio formats, and VAD
+        // turn-taking config are intentionally NOT set here; they came from
+        // the backend at client_secret mint time and this client must not
+        // broaden or replace them. We only enable Whisper input transcription
+        // so the debrief pass has the learner's turns to work with.
         //
         // Built as a JSON literal because Foundation's JSONSerialization
         // renders Doubles with 17+ decimal digits, which OpenAI rejects with
         // "max decimal places exceeded". Writing the literal ourselves gives
         // us exact control over the number formatting.
-        //
-        // threshold=0.85: aggressive enough to survive ambient noise picked
-        //   up by the .measurement-mode mic (no noise suppression).
-        // silence_duration_ms=1500: real thinking time; short mid-answer
-        //   hesitation doesn't end the learner's turn.
-        // create_response=false / interrupt_response=true: the fields that
-        //   make monologue architecturally impossible — the server never
-        //   auto-creates a response, and it does cancel the current one if
-        //   the learner starts speaking.
-        // input.transcription.model=whisper-1: enables per-utterance Whisper
-        //   transcription so the debrief pipeline sees what the learner said.
-        //   Adds one Whisper call per learner turn — cost per session is small.
         let payload = """
-        {"type":"session.update","session":{"type":"realtime","output_modalities":["audio"],"audio":{"input":{"format":{"type":"audio/pcm","rate":24000},"transcription":{"model":"whisper-1"},"turn_detection":{"type":"server_vad","threshold":0.85,"prefix_padding_ms":300,"silence_duration_ms":1500,"create_response":false,"interrupt_response":true}},"output":{"format":{"type":"audio/pcm","rate":24000}}}}}
+        {"type":"session.update","session":{"type":"realtime","audio":{"input":{"transcription":{"model":"whisper-1"}}}}}
         """
         try await socket.send(.string(payload))
     }

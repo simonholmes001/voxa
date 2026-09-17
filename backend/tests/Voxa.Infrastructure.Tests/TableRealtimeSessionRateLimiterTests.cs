@@ -15,15 +15,16 @@ public sealed class TableRealtimeSessionRateLimiterTests
         var limiter = new TableRealtimeSessionRateLimiter(
             table,
             new FixedClock(DateTimeOffset.Parse("2026-08-30T10:00:00Z")),
-            new RealtimeSessionRateLimitOptions(2, TimeSpan.FromMinutes(1)));
+            Options(maxRequests: 2));
 
         await limiter.EnsureAllowedAsync(
             TenantId.Create("tenant-default"),
             UserId.Create("user-a"),
             CancellationToken.None);
 
-        var reservation = Assert.Single(table.Reservations);
-        Assert.Equal("tenant-default:user-a", reservation.PartitionKey);
+        Assert.Equal(3, table.Reservations.Count);
+        var reservation = table.Reservations[0];
+        Assert.Equal("user:tenant-default:user-a:burst", reservation.PartitionKey);
         Assert.Equal(DateTimeOffset.Parse("2026-08-30T10:00:00Z"), reservation.RequestedAt);
         Assert.Equal(DateTimeOffset.Parse("2026-08-30T10:00:00Z"), reservation.WindowStart);
         Assert.Equal(2, reservation.MaxRequests);
@@ -37,7 +38,7 @@ public sealed class TableRealtimeSessionRateLimiterTests
         var limiter = new TableRealtimeSessionRateLimiter(
             table,
             new FixedClock(now),
-            new RealtimeSessionRateLimitOptions(2, TimeSpan.FromMinutes(1)));
+            Options(maxRequests: 2));
 
         await Assert.ThrowsAsync<RealtimeSessionRateLimitException>(() =>
             limiter.EnsureAllowedAsync(
@@ -46,7 +47,7 @@ public sealed class TableRealtimeSessionRateLimiterTests
                 CancellationToken.None));
 
         var reservation = Assert.Single(table.Reservations);
-        Assert.Equal("tenant-default:user-a", reservation.PartitionKey);
+        Assert.Equal("user:tenant-default:user-a:burst", reservation.PartitionKey);
         Assert.Equal(now, reservation.RequestedAt);
         Assert.Equal(now, reservation.WindowStart);
     }
@@ -59,7 +60,7 @@ public sealed class TableRealtimeSessionRateLimiterTests
         var limiter = new TableRealtimeSessionRateLimiter(
             table,
             new FixedClock(now),
-            new RealtimeSessionRateLimitOptions(2, TimeSpan.FromMinutes(1)));
+            Options(maxRequests: 2));
         var requests = Enumerable.Range(0, 10)
             .Select(_ => TryEnsureAllowedAsync(limiter))
             .ToArray();
@@ -78,14 +79,79 @@ public sealed class TableRealtimeSessionRateLimiterTests
         var limiter = new TableRealtimeSessionRateLimiter(
             table,
             new FixedClock(DateTimeOffset.Parse("2026-08-30T10:00:00Z")),
-            new RealtimeSessionRateLimitOptions(2, TimeSpan.FromMinutes(1)));
+            Options(maxRequests: 2));
 
         await limiter.DeleteForSubjectAsync(
             TenantId.Create("tenant-default"),
             UserId.Create("user-a"),
             CancellationToken.None);
 
-        Assert.Equal("tenant-default:user-a", table.DeletedPartitionKey);
+        Assert.Equal(
+            ["user:tenant-default:user-a:month", "user:tenant-default:user-a:burst"],
+            table.DeletedPartitionKeys);
+    }
+
+    [Fact]
+    public async Task EnsureAllowedRejectsWhenMonthlyUserBudgetIsReached()
+    {
+        var now = DateTimeOffset.Parse("2026-08-30T10:00:00Z");
+        var table = new SelectiveRealtimeSessionRateLimitTable("user:tenant-default:user-a:month");
+        var limiter = new TableRealtimeSessionRateLimiter(
+            table,
+            new FixedClock(now),
+            Options(monthlyUserLimit: 1));
+
+        var exception = await Assert.ThrowsAsync<RealtimeSessionRateLimitException>(() =>
+            limiter.EnsureAllowedAsync(
+                TenantId.Create("tenant-default"),
+                UserId.Create("user-a"),
+                CancellationToken.None));
+
+        Assert.Equal("realtime_session_budget_exhausted", exception.Code);
+        Assert.Equal("user:tenant-default:user-a:burst", table.Reservations[0].PartitionKey);
+        Assert.Equal("user:tenant-default:user-a:month", table.Reservations[1].PartitionKey);
+        Assert.Equal(DateTimeOffset.Parse("2026-08-01T00:00:00Z"), table.Reservations[1].WindowStart);
+    }
+
+    [Fact]
+    public async Task EnsureAllowedRejectsWhenMonthlyTenantBudgetIsReached()
+    {
+        var now = DateTimeOffset.Parse("2026-08-30T10:00:00Z");
+        var table = new SelectiveRealtimeSessionRateLimitTable("tenant:tenant-default:month");
+        var limiter = new TableRealtimeSessionRateLimiter(
+            table,
+            new FixedClock(now),
+            Options(monthlyTenantLimit: 1));
+
+        var exception = await Assert.ThrowsAsync<RealtimeSessionRateLimitException>(() =>
+            limiter.EnsureAllowedAsync(
+                TenantId.Create("tenant-default"),
+                UserId.Create("user-a"),
+                CancellationToken.None));
+
+        Assert.Equal("realtime_session_budget_exhausted", exception.Code);
+        Assert.Equal(3, table.Reservations.Count);
+        var reservation = table.Reservations[2];
+        Assert.Equal("tenant:tenant-default:month", reservation.PartitionKey);
+        Assert.Equal(DateTimeOffset.Parse("2026-08-01T00:00:00Z"), reservation.WindowStart);
+    }
+
+    [Fact]
+    public async Task EnsureAllowedStartsNewMonthlyBudgetOnMonthRollover()
+    {
+        var table = new RecordingRealtimeSessionRateLimitTable();
+        var limiter = new TableRealtimeSessionRateLimiter(
+            table,
+            new FixedClock(DateTimeOffset.Parse("2026-09-01T00:00:00Z")),
+            Options());
+
+        await limiter.EnsureAllowedAsync(
+            TenantId.Create("tenant-default"),
+            UserId.Create("user-a"),
+            CancellationToken.None);
+
+        Assert.Equal(DateTimeOffset.Parse("2026-09-01T00:00:00Z"), table.Reservations[1].WindowStart);
+        Assert.Equal(DateTimeOffset.Parse("2026-09-01T00:00:00Z"), table.Reservations[2].WindowStart);
     }
 
     private static async Task<bool> TryEnsureAllowedAsync(TableRealtimeSessionRateLimiter limiter)
@@ -119,21 +185,41 @@ public sealed class TableRealtimeSessionRateLimiterTests
             return Task.FromResult(allowReservation);
         }
 
-        public string? DeletedPartitionKey { get; private set; }
+        public List<string> DeletedPartitionKeys { get; } = [];
 
         public Task DeletePartitionAsync(
             string partitionKey,
             CancellationToken cancellationToken)
         {
-            DeletedPartitionKey = partitionKey;
+            DeletedPartitionKeys.Add(partitionKey);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class SelectiveRealtimeSessionRateLimitTable(string rejectedPartitionKey) : IRealtimeSessionRateLimitTable
+    {
+        public List<Reservation> Reservations { get; } = [];
+
+        public Task<bool> TryReserveAsync(
+            string partitionKey,
+            DateTimeOffset windowStart,
+            int maxRequests,
+            DateTimeOffset requestedAt,
+            CancellationToken cancellationToken)
+        {
+            Reservations.Add(new Reservation(partitionKey, windowStart, maxRequests, requestedAt));
+            return Task.FromResult(!string.Equals(partitionKey, rejectedPartitionKey, StringComparison.Ordinal));
+        }
+
+        public Task DeletePartitionAsync(
+            string partitionKey,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class ConcurrentRealtimeSessionRateLimitTable : IRealtimeSessionRateLimitTable
     {
         private readonly object gate = new();
-        private int reservedCount;
+        private readonly Dictionary<string, int> reservedCounts = new(StringComparer.Ordinal);
 
         public int ReservedCount
         {
@@ -141,7 +227,7 @@ public sealed class TableRealtimeSessionRateLimiterTests
             {
                 lock (gate)
                 {
-                    return reservedCount;
+                    return reservedCounts.GetValueOrDefault("user:tenant-default:user-a:burst");
                 }
             }
         }
@@ -155,12 +241,13 @@ public sealed class TableRealtimeSessionRateLimiterTests
         {
             lock (gate)
             {
-                if (reservedCount >= maxRequests)
+                var count = reservedCounts.GetValueOrDefault(partitionKey);
+                if (count >= maxRequests)
                 {
                     return Task.FromResult(false);
                 }
 
-                reservedCount++;
+                reservedCounts[partitionKey] = count + 1;
                 return Task.FromResult(true);
             }
         }
@@ -175,6 +262,18 @@ public sealed class TableRealtimeSessionRateLimiterTests
         DateTimeOffset WindowStart,
         int MaxRequests,
         DateTimeOffset RequestedAt);
+
+    private static RealtimeSessionRateLimitOptions Options(
+        int maxRequests = 12,
+        int monthlyUserLimit = 600,
+        int monthlyTenantLimit = 6_000)
+    {
+        return new RealtimeSessionRateLimitOptions(
+            maxRequests,
+            TimeSpan.FromMinutes(1),
+            monthlyUserLimit,
+            monthlyTenantLimit);
+    }
 
     private sealed class FixedClock(DateTimeOffset utcNow) : ISystemClock
     {

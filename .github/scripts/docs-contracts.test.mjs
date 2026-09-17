@@ -150,6 +150,7 @@ test('eval examples use only documented assertion predicates', () => {
 test('privacy assurance docs cover App Store and GDPR release gates', () => {
   const assurance = fs.readFileSync(path.join(repoRoot, 'docs', 'privacy-security-assurance.md'), 'utf8');
   const appStore = fs.readFileSync(path.join(repoRoot, 'docs', 'app-store-privacy-checklist.md'), 'utf8');
+  const submission = fs.readFileSync(path.join(repoRoot, 'docs', 'app-store-submission-package.md'), 'utf8');
 
   for (const phrase of [
     'Data Inventory',
@@ -174,6 +175,16 @@ test('privacy assurance docs cover App Store and GDPR release gates', () => {
     'Do not submit to App Review',
   ]) {
     assert.match(appStore, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+
+  for (const phrase of [
+    'Release Configuration Gate',
+    'App Review Notes',
+    'VOXA_PRIVACY_POLICY_URL',
+    'Required Verification Before Submission',
+    'Residual Risks To Accept Or Fix',
+  ]) {
+    assert.match(submission, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 });
 
