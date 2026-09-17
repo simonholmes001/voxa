@@ -49,54 +49,55 @@ public sealed class TableRealtimeSessionRateLimiter(
         CancellationToken cancellationToken)
     {
         var now = clock.UtcNow;
+        EnsurePositiveLimit(options.MaxRequests, "Realtime session issue limit exceeded.", "realtime_session_rate_limited");
+        EnsurePositiveLimit(options.MonthlyUserSessionLimit, "Monthly realtime session budget exhausted.", "realtime_session_budget_exhausted");
+        EnsurePositiveLimit(options.MonthlyTenantSessionLimit, "Tenant monthly realtime session budget exhausted.", "realtime_session_budget_exhausted");
+
         var monthlyWindowStart = MonthStart(now);
-        await ReserveAsync(
-            $"user:{tenantId.Value}:{userId.Value}:burst",
-            WindowStart(now, options.Window),
-            options.MaxRequests,
-            now,
-            "Realtime session issue limit exceeded.",
-            "realtime_session_rate_limited",
+        var reservation = await rateLimitTable.TryReserveAsync(
+            TenantPartitionKey(tenantId),
+            [
+                new RealtimeSessionRateLimitReservation(
+                    BurstRowKey(userId, WindowStart(now, options.Window)),
+                    WindowStart(now, options.Window),
+                    options.MaxRequests,
+                    now),
+                new RealtimeSessionRateLimitReservation(
+                    UserMonthRowKey(userId, monthlyWindowStart),
+                    monthlyWindowStart,
+                    options.MonthlyUserSessionLimit,
+                    now),
+                new RealtimeSessionRateLimitReservation(
+                    TenantMonthRowKey(monthlyWindowStart),
+                    monthlyWindowStart,
+                    options.MonthlyTenantSessionLimit,
+                    now),
+            ],
             cancellationToken);
-        await ReserveAsync(
-            $"user:{tenantId.Value}:{userId.Value}:month",
-            monthlyWindowStart,
-            options.MonthlyUserSessionLimit,
-            now,
-            "Monthly realtime session budget exhausted.",
-            "realtime_session_budget_exhausted",
-            cancellationToken);
-        await ReserveAsync(
-            $"tenant:{tenantId.Value}:month",
-            monthlyWindowStart,
-            options.MonthlyTenantSessionLimit,
-            now,
-            "Tenant monthly realtime session budget exhausted.",
-            "realtime_session_budget_exhausted",
-            cancellationToken);
+
+        if (!reservation.Succeeded)
+        {
+            throw RejectionFor(reservation.RejectedRowKey);
+        }
     }
 
-    private async Task ReserveAsync(
-        string partitionKey,
-        DateTimeOffset windowStart,
-        int maxRequests,
-        DateTimeOffset requestedAt,
-        string rejectionMessage,
-        string rejectionCode,
-        CancellationToken cancellationToken)
+    private static RealtimeSessionRateLimitException RejectionFor(string? rowKey)
     {
-        if (maxRequests <= 0)
+        if (rowKey?.StartsWith("burst:", StringComparison.Ordinal) == true)
         {
-            throw new RealtimeSessionRateLimitException(rejectionMessage, rejectionCode);
+            return new RealtimeSessionRateLimitException(
+                "Realtime session issue limit exceeded.",
+                "realtime_session_rate_limited");
         }
 
-        var reserved = await rateLimitTable.TryReserveAsync(
-            partitionKey,
-            windowStart,
-            maxRequests,
-            requestedAt,
-            cancellationToken);
-        if (!reserved)
+        return new RealtimeSessionRateLimitException(
+            "Monthly realtime session budget exhausted.",
+            "realtime_session_budget_exhausted");
+    }
+
+    private static void EnsurePositiveLimit(int value, string rejectionMessage, string rejectionCode)
+    {
+        if (value <= 0)
         {
             throw new RealtimeSessionRateLimitException(rejectionMessage, rejectionCode);
         }
@@ -107,11 +108,13 @@ public sealed class TableRealtimeSessionRateLimiter(
         UserId userId,
         CancellationToken cancellationToken)
     {
-        await rateLimitTable.DeletePartitionAsync(
-            $"user:{tenantId.Value}:{userId.Value}:month",
+        await rateLimitTable.DeleteRowsWithPrefixAsync(
+            TenantPartitionKey(tenantId),
+            $"user-month:{userId.Value}:",
             cancellationToken);
-        await rateLimitTable.DeletePartitionAsync(
-            $"user:{tenantId.Value}:{userId.Value}:burst",
+        await rateLimitTable.DeleteRowsWithPrefixAsync(
+            TenantPartitionKey(tenantId),
+            $"burst:{userId.Value}:",
             cancellationToken);
     }
 
@@ -126,6 +129,17 @@ public sealed class TableRealtimeSessionRateLimiter(
         var utc = now.UtcDateTime;
         return new DateTimeOffset(utc.Year, utc.Month, 1, 0, 0, 0, TimeSpan.Zero);
     }
+
+    private static string TenantPartitionKey(TenantId tenantId) => $"tenant:{tenantId.Value}";
+
+    private static string BurstRowKey(UserId userId, DateTimeOffset windowStart) =>
+        $"burst:{userId.Value}:{windowStart.UtcTicks:D19}";
+
+    private static string UserMonthRowKey(UserId userId, DateTimeOffset windowStart) =>
+        $"user-month:{userId.Value}:{windowStart.UtcTicks:D19}";
+
+    private static string TenantMonthRowKey(DateTimeOffset windowStart) =>
+        $"tenant-month:{windowStart.UtcTicks:D19}";
 }
 
 public sealed class InMemoryRealtimeSessionAuditLog : IRealtimeSessionAuditLog
