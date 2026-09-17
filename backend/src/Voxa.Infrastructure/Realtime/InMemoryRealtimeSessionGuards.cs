@@ -54,30 +54,62 @@ public sealed class TableRealtimeSessionRateLimiter(
         EnsurePositiveLimit(options.MonthlyTenantSessionLimit, "Tenant monthly realtime session budget exhausted.", "realtime_session_budget_exhausted");
 
         var monthlyWindowStart = MonthStart(now);
-        var reservation = await rateLimitTable.TryReserveAsync(
-            TenantPartitionKey(tenantId),
-            [
-                new RealtimeSessionRateLimitReservation(
-                    BurstRowKey(userId, WindowStart(now, options.Window)),
-                    WindowStart(now, options.Window),
-                    options.MaxRequests,
-                    now),
-                new RealtimeSessionRateLimitReservation(
-                    UserMonthRowKey(userId, monthlyWindowStart),
-                    monthlyWindowStart,
-                    options.MonthlyUserSessionLimit,
-                    now),
-                new RealtimeSessionRateLimitReservation(
-                    TenantMonthRowKey(monthlyWindowStart),
-                    monthlyWindowStart,
-                    options.MonthlyTenantSessionLimit,
-                    now),
-            ],
-            cancellationToken);
-
-        if (!reservation.Succeeded)
+        var partitionKey = TenantPartitionKey(tenantId);
+        var reservations = new[]
         {
-            throw RejectionFor(reservation.RejectedRowKey);
+            new RealtimeSessionRateLimitReservation(
+                BurstRowKey(userId, WindowStart(now, options.Window)),
+                WindowStart(now, options.Window),
+                options.MaxRequests,
+                now),
+            new RealtimeSessionRateLimitReservation(
+                UserMonthRowKey(userId, monthlyWindowStart),
+                monthlyWindowStart,
+                options.MonthlyUserSessionLimit,
+                now),
+            new RealtimeSessionRateLimitReservation(
+                TenantMonthRowKey(monthlyWindowStart),
+                monthlyWindowStart,
+                options.MonthlyTenantSessionLimit,
+                now),
+        };
+        var committed = new List<RealtimeSessionRateLimitReservation>(reservations.Length);
+        try
+        {
+            foreach (var reservation in reservations)
+            {
+                var result = await rateLimitTable.TryReserveAsync(
+                    partitionKey,
+                    reservation,
+                    cancellationToken);
+
+                if (result.Succeeded)
+                {
+                    committed.Add(reservation);
+                    continue;
+                }
+
+                throw RejectionFor(result.RejectedRowKey);
+            }
+        }
+        catch
+        {
+            await ReleaseCommittedAsync(partitionKey, committed, CancellationToken.None);
+            throw;
+        }
+    }
+
+    private async Task ReleaseCommittedAsync(
+        string partitionKey,
+        IReadOnlyList<RealtimeSessionRateLimitReservation> committed,
+        CancellationToken cancellationToken)
+    {
+        for (var index = committed.Count - 1; index >= 0; index--)
+        {
+            await rateLimitTable.ReleaseAsync(
+                partitionKey,
+                committed[index].RowKey,
+                cancellationToken);
         }
     }
 
