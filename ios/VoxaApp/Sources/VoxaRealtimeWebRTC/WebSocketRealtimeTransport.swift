@@ -23,6 +23,13 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     // 700 ms tail past the estimated playback end — covers hardware audio
     // buffer latency + slack for late deltas after we thought playback ended.
     private static let micGateTailSeconds: TimeInterval = 0.7
+    // The client-secret mint endpoint has previously dropped
+    // audio.input.turn_detection, so the WebSocket re-sends only the
+    // safety-critical turn-taking policy plus transcription. Tutor
+    // instructions, voice, speed, and formats stay backend-owned.
+    internal static let sessionUpdatePayload = """
+    {"type":"session.update","session":{"type":"realtime","audio":{"input":{"transcription":{"model":"whisper-1"},"turn_detection":{"type":"server_vad","threshold":0.85,"prefix_padding_ms":300,"silence_duration_ms":1500,"create_response":false,"interrupt_response":true}}}}}
+    """
     // Single-loop handshake dispatch: the receive loop starts before we send
     // any handshake message. Callers waiting for a specific setup event
     // (session.created / session.updated) register here; the loop resumes
@@ -186,20 +193,7 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     }
 
     private func sendSessionUpdate(on socket: URLSessionWebSocketTask) async throws {
-        // Instructions, output voice/speed, audio formats, and VAD
-        // turn-taking config are intentionally NOT set here; they came from
-        // the backend at client_secret mint time and this client must not
-        // broaden or replace them. We only enable Whisper input transcription
-        // so the debrief pass has the learner's turns to work with.
-        //
-        // Built as a JSON literal because Foundation's JSONSerialization
-        // renders Doubles with 17+ decimal digits, which OpenAI rejects with
-        // "max decimal places exceeded". Writing the literal ourselves gives
-        // us exact control over the number formatting.
-        let payload = """
-        {"type":"session.update","session":{"type":"realtime","audio":{"input":{"transcription":{"model":"whisper-1"}}}}}
-        """
-        try await socket.send(.string(payload))
+        try await socket.send(.string(Self.sessionUpdatePayload))
     }
 
     public func interrupt() async {
