@@ -90,7 +90,17 @@ struct RouteDestinationView: View {
                 privacyPolicyURL: languageManager!.privacyPolicyURL,
                 onExportAccountData: languageManager!.onExportAccountData,
                 onDeleteAccount: languageManager!.onDeleteAccount,
-                onSignOut: languageManager!.onSignOut
+                onSignOut: languageManager!.onSignOut,
+                progressDestination: AnyView(
+                    ProgressRoute(
+                        summary: practiceSummary,
+                        courseState: learnerCourseModel?.state ?? .idle,
+                        onContinueLearning: onContinueLearning,
+                        onStartTalk: onStartTalk
+                    )
+                    .task { await learnerCourseModel?.load() }
+                ),
+                showsMoreDestinations: true
             )
         case .settings:
             LearningRouteView(

@@ -251,13 +251,7 @@ struct TranslationToolView: View {
     var body: some View {
         Form {
             Section("Languages") {
-                Picker("From", selection: $sourceLanguageOption) {
-                    Text("Detect automatically").tag(TranslationLanguageOption.automatic)
-                    ForEach(TranslationLanguageOption.commonLanguages) { language in
-                        Text(language.name).tag(TranslationLanguageOption.language(language.name))
-                    }
-                    Text("Other...").tag(TranslationLanguageOption.custom)
-                }
+                sourceLanguagePicker
                 if sourceLanguageOption == .custom {
                     TextField("Source language", text: $sourceCustomLanguage)
                         .focused($focusedField, equals: .sourceLanguage)
@@ -265,12 +259,12 @@ struct TranslationToolView: View {
                         .onSubmit { dismissInputs() }
                         .accessibilityIdentifier("translation-source-custom-language")
                 }
-                Picker("To", selection: $targetLanguageOption) {
-                    ForEach(TranslationLanguageOption.commonLanguages) { language in
-                        Text(language.name).tag(TranslationLanguageOption.language(language.name))
-                    }
-                    Text("Other...").tag(TranslationLanguageOption.custom)
+                Button(action: swapLanguages) {
+                    Label("Swap languages", systemImage: "arrow.up.arrow.down")
+                        .frame(maxWidth: .infinity)
                 }
+                .accessibilityIdentifier("translation-swap-languages")
+                targetLanguagePicker
                 if targetLanguageOption == .custom {
                     TextField("Target language", text: $targetCustomLanguage)
                         .focused($focusedField, equals: .targetLanguage)
@@ -306,6 +300,7 @@ struct TranslationToolView: View {
                 }
                 .disabled(model.isLoading || !canTranslate)
                 .buttonStyle(.borderedProminent)
+                .padding(.leading, 12)
                 Button {
                     Task { await toggleVoiceTranslation() }
                 } label: {
@@ -392,7 +387,7 @@ struct TranslationToolView: View {
     }
 
     private var voiceTranslationButtonTitle: String {
-        model.isRecordingQuestion ? "Stop and translate" : "Translate by voice"
+        model.isRecordingQuestion ? "Stop and translate" : "Use voice"
     }
 
     private var voiceTranslationButtonSymbol: String {
@@ -419,6 +414,39 @@ struct TranslationToolView: View {
         #if os(iOS)
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         #endif
+    }
+
+    private var sourceLanguagePicker: some View {
+        Picker("From", selection: $sourceLanguageOption) {
+            Text("Detect automatically").tag(TranslationLanguageOption.automatic)
+            ForEach(TranslationLanguageOption.commonLanguages) { language in
+                Text(language.name).tag(TranslationLanguageOption.language(language.name))
+            }
+            Text("Other...").tag(TranslationLanguageOption.custom)
+        }
+    }
+
+    private var targetLanguagePicker: some View {
+        Picker("To", selection: $targetLanguageOption) {
+            ForEach(TranslationLanguageOption.commonLanguages) { language in
+                Text(language.name).tag(TranslationLanguageOption.language(language.name))
+            }
+            Text("Other...").tag(TranslationLanguageOption.custom)
+        }
+    }
+
+    private func swapLanguages() {
+        let fallbackTarget = TranslationLanguageOption.option(
+            for: Locale.current.language.languageCode?.identifier,
+            allowsAutomatic: false)
+        let swapped = TranslationLanguageOption.swapped(
+            source: (sourceLanguageOption, sourceCustomLanguage),
+            target: (targetLanguageOption, targetCustomLanguage),
+            automaticTargetFallback: fallbackTarget)
+        sourceLanguageOption = swapped.source.option
+        sourceCustomLanguage = swapped.source.customLanguage
+        targetLanguageOption = swapped.target.option
+        targetCustomLanguage = swapped.target.customLanguage
     }
 
     private var resolvedSourceLanguage: String? {
@@ -508,7 +536,7 @@ private final class TranslationSpeechPlayer {
 }
 #endif
 
-private enum TranslationLanguageOption: Hashable {
+enum TranslationLanguageOption: Hashable {
     case automatic
     case language(String)
     case custom
@@ -548,23 +576,49 @@ private enum TranslationLanguageOption: Hashable {
         return (.custom, displayName)
     }
 
+    static func swapped(
+        source: (option: TranslationLanguageOption, customLanguage: String),
+        target: (option: TranslationLanguageOption, customLanguage: String),
+        automaticTargetFallback: (option: TranslationLanguageOption, customLanguage: String)
+    ) -> (
+        source: (option: TranslationLanguageOption, customLanguage: String),
+        target: (option: TranslationLanguageOption, customLanguage: String)
+    ) {
+        let newTarget = source.option == .automatic ? automaticTargetFallback : source
+        return (source: target, target: newTarget)
+    }
+
     private static func displayName(for language: String?) -> String {
         guard let language else { return "" }
         let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
-        return Locale.current.localizedString(forIdentifier: trimmed)?.localizedCapitalized
+        let normalizedIdentifier = trimmed.replacingOccurrences(of: "_", with: "-")
+        let languageCode = normalizedIdentifier.split(separator: "-").first.map(String.init) ?? normalizedIdentifier
+        return Locale.current.localizedString(forLanguageCode: languageCode)?.localizedCapitalized
             ?? trimmed.localizedCapitalized
     }
 }
 
 struct ImageTranslationToolView: View {
     let model: PracticeLanguageToolViewModel
-    let targetLanguage: String
-    @State private var sourceLanguage = ""
+    @State private var sourceLanguageOption: TranslationLanguageOption
+    @State private var sourceCustomLanguage = ""
+    @State private var targetLanguageOption: TranslationLanguageOption
+    @State private var targetCustomLanguage = ""
     @State private var imageData: Data?
     @State private var mimeType = "image/jpeg"
     @State private var imagePreparationError: String?
     @State private var isShowingCamera = false
+
+    init(model: PracticeLanguageToolViewModel, targetLanguage: String, nativeLanguage: String? = nil) {
+        self.model = model
+        let source = TranslationLanguageOption.option(for: nativeLanguage, allowsAutomatic: true)
+        let target = TranslationLanguageOption.option(for: targetLanguage, allowsAutomatic: false)
+        _sourceLanguageOption = State(initialValue: source.option)
+        _sourceCustomLanguage = State(initialValue: source.customLanguage)
+        _targetLanguageOption = State(initialValue: target.option)
+        _targetCustomLanguage = State(initialValue: target.customLanguage)
+    }
 
     #if canImport(PhotosUI)
     @State private var selectedPhoto: PhotosPickerItem?
@@ -572,8 +626,28 @@ struct ImageTranslationToolView: View {
 
     var body: some View {
         Form {
+            Section("Languages") {
+                Picker("From", selection: $sourceLanguageOption) {
+                    Text("Detect automatically").tag(TranslationLanguageOption.automatic)
+                    ForEach(TranslationLanguageOption.commonLanguages) { language in
+                        Text(language.name).tag(TranslationLanguageOption.language(language.name))
+                    }
+                    Text("Other...").tag(TranslationLanguageOption.custom)
+                }
+                if sourceLanguageOption == .custom {
+                    TextField("Source language", text: $sourceCustomLanguage)
+                }
+                Picker("To", selection: $targetLanguageOption) {
+                    ForEach(TranslationLanguageOption.commonLanguages) { language in
+                        Text(language.name).tag(TranslationLanguageOption.language(language.name))
+                    }
+                    Text("Other...").tag(TranslationLanguageOption.custom)
+                }
+                if targetLanguageOption == .custom {
+                    TextField("Target language", text: $targetCustomLanguage)
+                }
+            }
             Section {
-                TextField("Source language", text: $sourceLanguage, prompt: Text("Detect automatically"))
                 #if os(iOS) && canImport(UIKit)
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
                     Button {
@@ -593,7 +667,7 @@ struct ImageTranslationToolView: View {
                 } label: {
                     Label("Translate image", systemImage: "camera.viewfinder")
                 }
-                .disabled(model.isLoading || imageData == nil)
+                .disabled(model.isLoading || imageData == nil || resolvedTargetLanguage.isEmpty)
             }
             if let imageTranslation = model.imageTranslationResult {
                 Section("Detected text") {
@@ -657,8 +731,24 @@ struct ImageTranslationToolView: View {
         await model.translateImage(
             imageBase64: imageData.base64EncodedString(),
             mimeType: mimeType,
-            sourceLanguage: trimmed(sourceLanguage),
-            targetLanguage: targetLanguage)
+            sourceLanguage: resolvedSourceLanguage,
+            targetLanguage: resolvedTargetLanguage)
+    }
+
+    private var resolvedSourceLanguage: String? {
+        switch sourceLanguageOption {
+        case .automatic: return nil
+        case let .language(name): return name
+        case .custom: return trimmed(sourceCustomLanguage)
+        }
+    }
+
+    private var resolvedTargetLanguage: String {
+        switch targetLanguageOption {
+        case .automatic: return "English"
+        case let .language(name): return name
+        case .custom: return trimmed(targetCustomLanguage) ?? ""
+        }
     }
 
     #if canImport(PhotosUI)

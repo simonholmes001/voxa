@@ -168,7 +168,8 @@ public struct PracticeHubView: View {
                     NavigationLink {
                         ImageTranslationToolView(
                             model: languageToolModel,
-                            targetLanguage: targetLanguage)
+                            targetLanguage: targetLanguage,
+                            nativeLanguage: nativeLanguage)
                     } label: {
                         toolCard("Image translate", "camera.viewfinder", "Translate a photo.")
                     }

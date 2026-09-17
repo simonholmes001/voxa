@@ -25,6 +25,9 @@ public struct LanguageManagementView: View {
     private let onExportAccountData: () async throws -> URL
     private let onDeleteAccount: () async throws -> Void
     private let onSignOut: () -> Void
+    private let progressDestination: AnyView?
+    private let showsMoreDestinations: Bool
+    private let navigationTitle: String
     @Environment(\.openURL) private var openURL
     @State private var editingProfile: LanguageProfile?
     @State private var profileToDelete: LanguageProfile?
@@ -50,7 +53,10 @@ public struct LanguageManagementView: View {
         onDeleteAccount: @escaping () async throws -> Void = {
             throw AccountDataActionError.unavailable
         },
-        onSignOut: @escaping () -> Void
+        onSignOut: @escaping () -> Void,
+        progressDestination: AnyView? = nil,
+        showsMoreDestinations: Bool = false,
+        navigationTitle: String = "Languages"
     ) {
         self.profiles = profiles
         self.activeKey = activeKey
@@ -63,6 +69,9 @@ public struct LanguageManagementView: View {
         self.onExportAccountData = onExportAccountData
         self.onDeleteAccount = onDeleteAccount
         self.onSignOut = onSignOut
+        self.progressDestination = progressDestination
+        self.showsMoreDestinations = showsMoreDestinations
+        self.navigationTitle = navigationTitle
     }
 
     public var body: some View {
@@ -79,6 +88,37 @@ public struct LanguageManagementView: View {
                     Label("Tutor setup", systemImage: "person.wave.2")
                 }
                 .accessibilityIdentifier("language-manager-tutor-setup")
+
+                if showsMoreDestinations, let progressDestination {
+                    NavigationLink {
+                        progressDestination
+                    } label: {
+                        Label("Progress", systemImage: "chart.bar")
+                    }
+                    .accessibilityIdentifier("language-manager-progress")
+                }
+
+                if showsMoreDestinations {
+                    NavigationLink {
+                        LanguageManagementView(
+                            profiles: profiles,
+                            activeKey: activeKey,
+                            makeSettingsModel: makeSettingsModel,
+                            onSwitch: onSwitch,
+                            onAddLanguage: onAddLanguage,
+                            onSaved: onSaved,
+                            onDelete: onDelete,
+                            privacyPolicyURL: privacyPolicyURL,
+                            onExportAccountData: onExportAccountData,
+                            onDeleteAccount: onDeleteAccount,
+                            onSignOut: onSignOut,
+                            navigationTitle: "Settings"
+                        )
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                    .accessibilityIdentifier("language-manager-settings")
+                }
             } footer: {
                 Text("Languages, goals, daily time, and correction style shape how voxa teaches you.")
             }
@@ -181,7 +221,7 @@ public struct LanguageManagementView: View {
                 .accessibilityIdentifier("language-manager-sign-out")
             }
         }
-        .navigationTitle("Languages")
+        .navigationTitle(navigationTitle)
         .confirmationDialog(
             "Delete your Voxa account?",
             isPresented: $confirmAccountDeletion
