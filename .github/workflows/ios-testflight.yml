@@ -235,7 +235,7 @@ jobs:
         env:
           VOXA_API_BASE_URL: ${{ vars.VOXA_API_BASE_URL || secrets.VOXA_API_BASE_URL }}
           VOXA_PRIVACY_POLICY_URL: ${{ vars.VOXA_PRIVACY_POLICY_URL || secrets.VOXA_PRIVACY_POLICY_URL }}
-        run: bash ../.github/scripts/validate-release-config.sh
+        run: bash .github/scripts/validate-release-config.sh
 
       - name: Upload internal TestFlight build
         if: steps.detect.outputs.exists == 'true' && steps.version.outputs.resolved == 'true'
