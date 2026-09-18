@@ -11,7 +11,10 @@ import XCTest
 /// These tests exercise the reconnect safety directly on a real
 /// `AVAudioEngine`, so they would crash against the pre-fix code.
 final class WebSocketReconnectSafetyTests: XCTestCase {
-    func testConfigureAudioPipelineIsIdempotentAcrossManyCalls() {
+    func testConfigureAudioPipelineIsIdempotentAcrossManyCalls() throws {
+        #if os(macOS)
+        throw XCTSkip("AVAudioPlayerNode requires an available macOS audio host; run this graph test on an iOS device or simulator.")
+        #endif
         let transport = WebSocketRealtimeTransport()
         XCTAssertFalse(transport.audioPipelineConfigured)
 
@@ -27,7 +30,10 @@ final class WebSocketReconnectSafetyTests: XCTestCase {
         XCTAssertTrue(transport.audioPipelineConfigured)
     }
 
-    func testDisconnectPreservesAudioPipelineConfiguredForReconnectSafety() async {
+    func testDisconnectPreservesAudioPipelineConfiguredForReconnectSafety() async throws {
+        #if os(macOS)
+        throw XCTSkip("AVAudioPlayerNode requires an available macOS audio host; run this graph test on an iOS device or simulator.")
+        #endif
         let transport = WebSocketRealtimeTransport()
         transport.configureAudioPipelineIfNeeded()
         XCTAssertTrue(transport.audioPipelineConfigured)
