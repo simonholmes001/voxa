@@ -52,10 +52,13 @@ run_swift_tests() {
 
   echo ""
   echo "Running Swift tests in $target_dir before commit..."
+  SWIFT_PACKAGE_CACHE_DIR="$ROOT_DIR/.artifacts/swift-package-cache"
+  mkdir -p "$SWIFT_PACKAGE_CACHE_DIR"
   GIT_CONFIG_COUNT=1 \
     GIT_CONFIG_KEY_0=safe.bareRepository \
     GIT_CONFIG_VALUE_0=all \
-    swift test --package-path "$target_dir"
+    SWIFTPM_PACKAGECACHE_PATH="$SWIFT_PACKAGE_CACHE_DIR" \
+    swift test --package-path "$target_dir" --disable-sandbox
 }
 
 run_root_node_tests

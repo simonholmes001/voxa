@@ -15,8 +15,11 @@ App Store and TestFlight release builds must provide:
 - `VOXA_PRIVACY_POLICY_URL`
 
 The TestFlight workflow fails before signing/upload when either value is
-missing. `VOXA_PRIVACY_POLICY_URL` is injected into `Info.plist` and used by
-the in-app Privacy policy row in More > Languages.
+missing or is not an absolute HTTP(S) URL. Placeholder values are rejected by
+the release-configuration validation step. `VOXA_PRIVACY_POLICY_URL` is
+injected into `Info.plist` and used by the in-app Privacy policy row in More >
+Languages. The validator does not replace the required public-link and legal
+review checks below.
 
 ## App Store Connect App Privacy Answers
 

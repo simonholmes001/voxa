@@ -229,6 +229,14 @@ jobs:
           VOXA_XCODE_SCHEME: ${{ secrets.VOXA_XCODE_SCHEME }}
         run: bash ../.github/scripts/validate-ios-project.sh
 
+      - name: Validate release configuration
+        if: steps.detect.outputs.exists == 'true' && steps.version.outputs.resolved == 'true'
+        shell: bash
+        env:
+          VOXA_API_BASE_URL: ${{ vars.VOXA_API_BASE_URL || secrets.VOXA_API_BASE_URL }}
+          VOXA_PRIVACY_POLICY_URL: ${{ vars.VOXA_PRIVACY_POLICY_URL || secrets.VOXA_PRIVACY_POLICY_URL }}
+        run: bash ../.github/scripts/validate-release-config.sh
+
       - name: Upload internal TestFlight build
         if: steps.detect.outputs.exists == 'true' && steps.version.outputs.resolved == 'true'
         working-directory: ios
