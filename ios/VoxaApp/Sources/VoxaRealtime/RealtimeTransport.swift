@@ -25,9 +25,17 @@ public protocol RealtimeTransport: Sendable {
     /// what was actually said. Empty for transports that don't capture
     /// transcripts (WebRTC today) or sessions that produced none.
     func capturedTranscript() -> [TranscriptTurn]
+
+    /// Registers a callback for the tutor's explicit session-completion
+    /// marker. The callback is invoked after any queued tutor audio has
+    /// finished playing. Transports that cannot observe tutor transcripts may
+    /// leave this as a no-op.
+    func setSessionCompletionHandler(_ handler: (@Sendable () -> Void)?)
 }
 
 public extension RealtimeTransport {
+    func setSessionCompletionHandler(_ handler: (@Sendable () -> Void)?) {}
+
     // Default no-op keeps existing transports (WebRTC, Unavailable, fakes)
     // source-compatible. Only WebSocketRealtimeTransport actually implements
     // barge-in and transcript capture today.

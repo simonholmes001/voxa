@@ -2,6 +2,14 @@ import XCTest
 @testable import VoxaRealtimeWebRTC
 
 final class WebSocketSessionUpdatePayloadTests: XCTestCase {
+    func testSessionCompletionMarkerIsRecognisedCaseInsensitively() {
+        XCTAssertTrue(WebSocketRealtimeTransport.containsSessionCompletionMarker("Auf Wiedersehen. SESSION COMPLETE."))
+    }
+
+    func testOrdinaryTutorSpeechIsNotTreatedAsCompletion() {
+        XCTAssertFalse(WebSocketRealtimeTransport.containsSessionCompletionMarker("Your session is going well."))
+    }
+
     func testSessionUpdateKeepsStrictVadPolicyWithoutMutableTutorSettings() throws {
         let data = Data(WebSocketRealtimeTransport.sessionUpdatePayload.utf8)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
