@@ -279,28 +279,30 @@ struct TranslationToolView: View {
                     .frame(minHeight: 140)
                     .focused($focusedField, equals: .text)
                     .accessibilityIdentifier("translation-text")
-                Button {
-                    dismissInputs()
-                    Task {
-                        await model.translate(
-                            text: text,
-                            sourceLanguage: resolvedSourceLanguage,
-                            targetLanguage: resolvedTargetLanguage)
-                    }
-                } label: {
-                    if model.isLoading {
-                        Label {
-                            Text("Translating...")
-                        } icon: {
-                            ProgressView()
+                HStack {
+                    Button {
+                        dismissInputs()
+                        Task {
+                            await model.translate(
+                                text: text,
+                                sourceLanguage: resolvedSourceLanguage,
+                                targetLanguage: resolvedTargetLanguage)
                         }
-                    } else {
-                        Label("Translate", systemImage: "character.bubble")
+                    } label: {
+                        if model.isLoading {
+                            Label {
+                                Text("Translating...")
+                            } icon: {
+                                ProgressView()
+                            }
+                        } else {
+                            Label("Translate", systemImage: "character.bubble")
+                        }
                     }
+                    .disabled(model.isLoading || !canTranslate)
+                    .buttonStyle(.borderedProminent)
+                    Spacer(minLength: 0)
                 }
-                .disabled(model.isLoading || !canTranslate)
-                .buttonStyle(.borderedProminent)
-                .padding(.leading, 12)
                 Button {
                     Task { await toggleVoiceTranslation() }
                 } label: {
