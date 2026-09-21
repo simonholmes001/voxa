@@ -98,7 +98,15 @@ public struct TalkView: View {
 
     @ViewBuilder
     private var primaryButton: some View {
-        if isSessionActive {
+        if case .ending = model.state {
+            Button {} label: {
+                Label("Ending session…", systemImage: "hourglass")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(true)
+            .accessibilityIdentifier("talk-ending")
+        } else if isSessionActive {
             Button(role: .destructive) {
                 Task { await model.end() }
             } label: {
@@ -122,7 +130,7 @@ public struct TalkView: View {
 
     private var isSessionActive: Bool {
         switch model.state {
-        case .requestingSession, .connecting, .connected: return true
+        case .requestingSession, .connecting, .connected, .ending: return true
         case .idle, .failed, .ended: return false
         }
     }
@@ -133,6 +141,7 @@ public struct TalkView: View {
         case .requestingSession: return "Preparing your session…"
         case .connecting: return "Connecting to your tutor…"
         case .connected: return "Connected — start speaking"
+        case .ending: return "Ending your session…"
         case .failed: return "Session couldn't start"
         case .ended: return "Session ended"
         }
@@ -141,7 +150,7 @@ public struct TalkView: View {
     private var statusSymbol: String {
         switch model.state {
         case .idle, .ended: return "mic.circle"
-        case .requestingSession, .connecting: return "waveform.circle"
+        case .requestingSession, .connecting, .ending: return "waveform.circle"
         case .connected: return "waveform.circle.fill"
         case .failed: return "exclamationmark.circle"
         }

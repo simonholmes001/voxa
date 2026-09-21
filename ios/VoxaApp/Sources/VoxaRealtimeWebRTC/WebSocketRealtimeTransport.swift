@@ -10,6 +10,8 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
     private let session: URLSession
     private var socket: URLSessionWebSocketTask?
     private let assistantStateLock = NSLock()
+    private var sessionCompletionHandler: (@Sendable () -> Void)?
+    private var sessionCompletionScheduled = false
     // Wall-clock time at which the currently-queued tutor audio is expected
     // to finish PLAYING (not just arriving on the socket). Each audio delta
     // advances this by its own PCM duration, so the gate is anchored to what
@@ -88,6 +90,9 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         transcriptTurns = []
         lastCapturedRole = nil
         transcriptLock.unlock()
+        assistantStateLock.lock()
+        sessionCompletionScheduled = false
+        assistantStateLock.unlock()
         var components = URLComponents()
         components.scheme = "wss"
         components.host = "api.openai.com"
@@ -233,6 +238,12 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
         // the engine graph survives the session boundary so the next connect()
         // can restart the same nodes safely.
         #endif
+    }
+
+    public func setSessionCompletionHandler(_ handler: (@Sendable () -> Void)?) {
+        assistantStateLock.lock()
+        sessionCompletionHandler = handler
+        assistantStateLock.unlock()
     }
 
     /// Suspends until the single receive loop sees an event of the given type,
@@ -434,6 +445,9 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
                         // response — free with the audio delivery.
                         if let transcript = object["transcript"] as? String {
                             self.appendTranscript(role: TranscriptTurn.tutorRole, text: transcript)
+                            if Self.containsSessionCompletionMarker(transcript) {
+                                self.scheduleSessionCompletion(after: socket)
+                            }
                         }
                     case "input_audio_buffer.speech_stopped":
                         // Server VAD said "a user turn ended". If the mic
@@ -548,6 +562,30 @@ public final class WebSocketRealtimeTransport: NSObject, RealtimeTransport, @unc
             lastCapturedRole = role
         }
         transcriptLock.unlock()
+    }
+
+    static func containsSessionCompletionMarker(_ transcript: String) -> Bool {
+        transcript.range(of: "session complete", options: [.caseInsensitive, .diacriticInsensitive]) != nil
+    }
+
+    private func scheduleSessionCompletion(after socket: URLSessionWebSocketTask) {
+        assistantStateLock.lock()
+        guard !sessionCompletionScheduled else {
+            assistantStateLock.unlock()
+            return
+        }
+        sessionCompletionScheduled = true
+        assistantStateLock.unlock()
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.waitForPlaybackToDrain(maxSeconds: 15)
+            guard self.socket === socket else { return }
+            self.assistantStateLock.lock()
+            let handler = self.sessionCompletionHandler
+            self.assistantStateLock.unlock()
+            handler?()
+        }
     }
 
     public func capturedTranscript() -> [TranscriptTurn] {

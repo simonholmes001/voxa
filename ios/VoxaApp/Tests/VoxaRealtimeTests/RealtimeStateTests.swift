@@ -6,6 +6,7 @@ final class RealtimeStateTests: XCTestCase {
         XCTAssertTrue(RealtimeConnectionState.requestingSession.isBusy)
         XCTAssertTrue(RealtimeConnectionState.connecting.isBusy)
         XCTAssertTrue(RealtimeConnectionState.connected.isBusy)
+        XCTAssertTrue(RealtimeConnectionState.ending.isBusy)
         XCTAssertFalse(RealtimeConnectionState.idle.isBusy)
         XCTAssertFalse(RealtimeConnectionState.ended.isBusy)
         XCTAssertFalse(RealtimeConnectionState.failed("x").isBusy)

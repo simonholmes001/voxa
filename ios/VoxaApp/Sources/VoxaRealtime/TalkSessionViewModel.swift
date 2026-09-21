@@ -57,6 +57,11 @@ public final class TalkSessionViewModel {
         self.onAuthenticationRequired = onAuthenticationRequired
         self.onSessionCompleted = onSessionCompleted
         self.nowProvider = nowProvider
+        transport.setSessionCompletionHandler { [weak self] in
+            Task { @MainActor [weak self] in
+                await self?.end()
+            }
+        }
     }
 
     /// Convenience for fixed settings (previews/tests).
@@ -163,6 +168,8 @@ public final class TalkSessionViewModel {
     /// the transcript captured at least one turn. The view observes
     /// `debriefState` to render the summary card / spinner / error.
     public func end() async {
+        guard state.isBusy, state != .ending else { return }
+        state = .ending
         let settings = activeCredential?.settings
         await transport.disconnect()
         await recordCompletionIfPossible()
