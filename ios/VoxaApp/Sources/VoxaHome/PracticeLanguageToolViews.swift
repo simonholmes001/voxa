@@ -280,6 +280,7 @@ struct TranslationToolView: View {
                     .focused($focusedField, equals: .text)
                     .accessibilityIdentifier("translation-text")
                 HStack {
+                    Spacer(minLength: 0)
                     Button {
                         dismissInputs()
                         Task {
