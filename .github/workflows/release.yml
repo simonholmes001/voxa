@@ -1,16 +1,30 @@
 name: Release
 
 on:
-  push:
+  # Release is deliberately downstream of the validation workflows. Each
+  # completion event wakes this workflow; the gate script waits for every
+  # required workflow for the exact same commit before creating a tag.
+  workflow_run:
+    workflows:
+      - CI
+      - Backend CI
+      - iOS CI
+      - Azure Infrastructure Deploy
+      - Azure IaC Lint
+    types: [completed]
     branches: [main]
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
+      actions: read
       contents: write
 
     steps:
@@ -18,6 +32,13 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Wait for required validation and infrastructure workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: bash ./.github/scripts/release-gate.sh
 
       - name: Compute next release
         id: release
@@ -56,6 +77,6 @@ jobs:
             exit 0
           }
           gh release create "${tag}" \
-            --target "${GITHUB_SHA}" \
+            --target "${{ github.event.workflow_run.head_sha }}" \
             --title "${tag}" \
             --generate-notes
