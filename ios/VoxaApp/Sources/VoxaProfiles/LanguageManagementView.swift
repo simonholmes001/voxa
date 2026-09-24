@@ -433,9 +433,16 @@ private struct DailyLearningReminderSection: View {
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
 
         let calendar = Calendar.current
-        for offset in 0..<7 {
+        let now = Date()
+        let today = calendar.dateComponents([.year, .month, .day], from: now)
+        var todayAtSix = today
+        todayAtSix.hour = 18
+        todayAtSix.minute = 0
+        let firstOffset = calendar.date(from: todayAtSix).map { $0 > now ? 0 : 1 } ?? 1
+        for index in 0..<7 {
+            let offset = firstOffset + index
             guard let day = calendar.date(byAdding: .day, value: offset, to: Date()) else { continue }
-            let copy = LearningReminderCopy.content(for: snapshot ?? Self.defaultSnapshot, variant: offset)
+            let copy = LearningReminderCopy.content(for: snapshot ?? Self.defaultSnapshot, variant: index)
             let content = UNMutableNotificationContent()
             content.title = copy.title
             content.body = copy.body
@@ -445,7 +452,7 @@ private struct DailyLearningReminderSection: View {
             date.minute = 0
             let trigger = UNCalendarNotificationTrigger(dateMatching: date, repeats: false)
             center.add(UNNotificationRequest(
-                identifier: Self.dailyLearningReminderIdentifier + "-\(offset)",
+                identifier: Self.dailyLearningReminderIdentifier + "-\(index)",
                 content: content,
                 trigger: trigger
             ))
