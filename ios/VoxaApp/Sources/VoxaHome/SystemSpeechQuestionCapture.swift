@@ -37,6 +37,8 @@ public final class SystemSpeechQuestionCapture: SpeechQuestionCapture {
 
             let request = SFSpeechAudioBufferRecognitionRequest()
             request.shouldReportPartialResults = true
+            request.taskHint = .dictation
+            request.contextualStrings = Self.contextualStrings(for: localeIdentifier)
             latestTranscript = ""
 
             let engine = AVAudioEngine()
@@ -128,6 +130,24 @@ public final class SystemSpeechQuestionCapture: SpeechQuestionCapture {
             return "Voice input could not start. Please try again."
         }
         return "Voice input could not start: \(description)"
+    }
+
+    /// Bias Apple's recognizer toward short function words that are commonly
+    /// lost at the beginning of a spoken translation request (for example,
+    /// German "ich" in "ich heiße Simon").
+    private static func contextualStrings(for localeIdentifier: String) -> [String] {
+        switch localeIdentifier.lowercased() {
+        case let locale where locale.hasPrefix("de"):
+            return ["ich", "du", "er", "sie", "wir", "ihr", "heiße", "heisse"]
+        case let locale where locale.hasPrefix("fr"):
+            return ["je", "tu", "il", "elle", "nous", "vous"]
+        case let locale where locale.hasPrefix("es"):
+            return ["yo", "tú", "él", "ella", "nosotros", "vosotros"]
+        case let locale where locale.hasPrefix("it"):
+            return ["io", "tu", "lui", "lei", "noi", "voi"]
+        default:
+            return ["I", "you", "he", "she", "we", "they"]
+        }
     }
 }
 #endif
