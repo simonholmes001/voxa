@@ -83,12 +83,19 @@ private actor RecoveryRecorder {
 private final class FakeRealtimeTransport: RealtimeTransport, @unchecked Sendable {
     var connectResult: Result<Void, Error>
     var transcript: [TranscriptTurn]
+    var disconnectDelayNanoseconds: UInt64
+    private var sessionCompletionHandler: (@Sendable () -> Void)?
     private(set) var connectCount = 0
     private(set) var disconnectCount = 0
 
-    init(connectResult: Result<Void, Error> = .success(()), transcript: [TranscriptTurn] = []) {
+    init(
+        connectResult: Result<Void, Error> = .success(()),
+        transcript: [TranscriptTurn] = [],
+        disconnectDelayNanoseconds: UInt64 = 0
+    ) {
         self.connectResult = connectResult
         self.transcript = transcript
+        self.disconnectDelayNanoseconds = disconnectDelayNanoseconds
     }
 
     func connect(using credential: RealtimeSessionCredential) async throws {
@@ -96,9 +103,22 @@ private final class FakeRealtimeTransport: RealtimeTransport, @unchecked Sendabl
         try connectResult.get()
     }
 
-    func disconnect() async { disconnectCount += 1 }
+    func disconnect() async {
+        disconnectCount += 1
+        if disconnectDelayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: disconnectDelayNanoseconds)
+        }
+    }
 
     func capturedTranscript() -> [TranscriptTurn] { transcript }
+
+    func setSessionCompletionHandler(_ handler: (@Sendable () -> Void)?) {
+        sessionCompletionHandler = handler
+    }
+
+    func triggerSessionCompletion() {
+        sessionCompletionHandler?()
+    }
 }
 
 private final class FakeDebriefService: DebriefService, @unchecked Sendable {
@@ -316,6 +336,44 @@ final class TalkSessionViewModelTests: XCTestCase {
         await model.start()
 
         await model.end()
+
+        XCTAssertEqual(model.state, .ended)
+        XCTAssertEqual(transport.disconnectCount, 1)
+    }
+
+    func testEndTransitionsToEndingAndIgnoresRepeatedRequests() async {
+        let transport = FakeRealtimeTransport(disconnectDelayNanoseconds: 100_000_000)
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            transport: transport
+        )
+        await model.start()
+
+        let firstEnd = Task { await model.end() }
+        for _ in 0..<20 where model.state != .ending {
+            await Task.yield()
+        }
+        XCTAssertEqual(model.state, .ending)
+
+        await model.end()
+        await firstEnd.value
+
+        XCTAssertEqual(transport.disconnectCount, 1)
+        XCTAssertEqual(model.state, .ended)
+    }
+
+    func testTutorCompletionMarkerAutomaticallyEndsSession() async throws {
+        let transport = FakeRealtimeTransport()
+        let model = makeModel(
+            permission: FakeMicrophonePermission(current: .granted),
+            service: FakeRealtimeSessionService(result: .success(credential())),
+            transport: transport
+        )
+        await model.start()
+
+        transport.triggerSessionCompletion()
+        try await Task.sleep(nanoseconds: 50_000_000)
 
         XCTAssertEqual(model.state, .ended)
         XCTAssertEqual(transport.disconnectCount, 1)

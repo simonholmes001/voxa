@@ -4,13 +4,14 @@ public enum RealtimeConnectionState: Sendable, Equatable {
     case requestingSession
     case connecting
     case connected
+    case ending
     case failed(String)
     case ended
 
     /// Whether a session is in progress (so `start` is a no-op).
     public var isBusy: Bool {
         switch self {
-        case .requestingSession, .connecting, .connected: return true
+        case .requestingSession, .connecting, .connected, .ending: return true
         case .idle, .failed, .ended: return false
         }
     }

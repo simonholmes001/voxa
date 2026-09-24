@@ -93,6 +93,28 @@ public sealed class OpenAiPracticeLanguageToolServiceTests
         Assert.DoesNotContain("sensitive translated learner text", entry.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task TranslatePromptTreatsSpokenInstructionFramingAsNonTranslatable()
+    {
+        var handler = new RequestCapturingHttpMessageHandler(
+            """{"output_text":"{\"sourceLanguage\":\"English\",\"targetLanguage\":\"German\",\"translatedText\":\"Ich werde heute Abend erwachsen\",\"notes\":\"\"}"}""");
+        var service = CreateService(handler);
+
+        await service.TranslateAsync(
+            new TranslationCommand(
+                "English",
+                "German",
+                "How do I say I'm growing up tonight?",
+                CorrelationId.Create("corr-voice-translation")),
+            CancellationToken.None);
+
+        Assert.Contains("spoken translation request", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("translate only X", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("How do I say", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("Input: How do I say I", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("growing up tonight?", handler.RequestBody, StringComparison.Ordinal);
+    }
+
     private static OpenAiPracticeLanguageToolService CreateService(
         HttpMessageHandler handler,
         ILogger<OpenAiPracticeLanguageToolService>? logger = null)
@@ -130,6 +152,25 @@ public sealed class OpenAiPracticeLanguageToolServiceTests
             {
                 Content = new StringContent(responseBody, Encoding.UTF8, "application/json"),
             });
+        }
+    }
+
+    private sealed class RequestCapturingHttpMessageHandler(string responseBody) : HttpMessageHandler
+    {
+        public string RequestBody { get; private set; } = string.Empty;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestBody = request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(responseBody, Encoding.UTF8, "application/json"),
+            };
         }
     }
 

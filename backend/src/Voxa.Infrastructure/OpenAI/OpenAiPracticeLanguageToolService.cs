@@ -300,9 +300,21 @@ public sealed class OpenAiPracticeLanguageToolService(
     private static string PromptForTranslation(TranslationCommand command)
     {
         return $$"""
-        Translate into {{command.TargetLanguage}}.
+        Translate the learner's requested phrase into {{command.TargetLanguage}}.
         Source language: {{command.SourceLanguage ?? "detect automatically"}}.
-        Text: {{command.Text}}
+
+        The input may be a spoken translation request rather than text that should
+        be translated verbatim. First identify the phrase the learner wants to
+        translate. If the input is framed as an instruction such as "How do I say
+        X?", "How do you say X in [language]?", "Can you translate X?", or
+        "What is X in [language]?", treat the framing as an instruction and
+        translate only X. Do not include "How do I say", "Can you translate", or
+        similar instructional wording in translatedText. Recognize equivalent
+        instructional framing in other languages as well. If there is no clear
+        instruction wrapper, translate the complete input. Preserve the intended
+        meaning, tense, register, and punctuation of the requested phrase.
+
+        Input: {{command.Text}}
 
         Return only JSON:
         {

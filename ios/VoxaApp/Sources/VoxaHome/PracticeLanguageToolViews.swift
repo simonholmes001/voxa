@@ -279,28 +279,34 @@ struct TranslationToolView: View {
                     .frame(minHeight: 140)
                     .focused($focusedField, equals: .text)
                     .accessibilityIdentifier("translation-text")
-                Button {
-                    dismissInputs()
-                    Task {
-                        await model.translate(
-                            text: text,
-                            sourceLanguage: resolvedSourceLanguage,
-                            targetLanguage: resolvedTargetLanguage)
-                    }
-                } label: {
-                    if model.isLoading {
-                        Label {
-                            Text("Translating...")
-                        } icon: {
-                            ProgressView()
+                HStack {
+                    Button {
+                        dismissInputs()
+                        Task {
+                            await model.translate(
+                                text: text,
+                                sourceLanguage: resolvedSourceLanguage,
+                                targetLanguage: resolvedTargetLanguage)
                         }
-                    } else {
-                        Label("Translate", systemImage: "character.bubble")
+                    } label: {
+                        HStack {
+                            if model.isLoading {
+                                Label {
+                                    Text("Translating...")
+                                } icon: {
+                                    ProgressView()
+                                }
+                            } else {
+                                Label("Translate", systemImage: "character.bubble")
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .frame(minWidth: 120, alignment: .leading)
                     }
+                    .disabled(model.isLoading || !canTranslate)
+                    .buttonStyle(.borderedProminent)
+                    Spacer(minLength: 0)
                 }
-                .disabled(model.isLoading || !canTranslate)
-                .buttonStyle(.borderedProminent)
-                .padding(.leading, 12)
                 Button {
                     Task { await toggleVoiceTranslation() }
                 } label: {
@@ -637,6 +643,11 @@ struct ImageTranslationToolView: View {
                 if sourceLanguageOption == .custom {
                     TextField("Source language", text: $sourceCustomLanguage)
                 }
+                Button(action: swapImageLanguages) {
+                    Label("Swap languages", systemImage: "arrow.up.arrow.down")
+                        .frame(maxWidth: .infinity)
+                }
+                .accessibilityIdentifier("image-translation-swap-languages")
                 Picker("To", selection: $targetLanguageOption) {
                     ForEach(TranslationLanguageOption.commonLanguages) { language in
                         Text(language.name).tag(TranslationLanguageOption.language(language.name))
@@ -733,6 +744,20 @@ struct ImageTranslationToolView: View {
             mimeType: mimeType,
             sourceLanguage: resolvedSourceLanguage,
             targetLanguage: resolvedTargetLanguage)
+    }
+
+    private func swapImageLanguages() {
+        let fallbackTarget = TranslationLanguageOption.option(
+            for: Locale.current.language.languageCode?.identifier,
+            allowsAutomatic: false)
+        let swapped = TranslationLanguageOption.swapped(
+            source: (sourceLanguageOption, sourceCustomLanguage),
+            target: (targetLanguageOption, targetCustomLanguage),
+            automaticTargetFallback: fallbackTarget)
+        sourceLanguageOption = swapped.source.option
+        sourceCustomLanguage = swapped.source.customLanguage
+        targetLanguageOption = swapped.target.option
+        targetCustomLanguage = swapped.target.customLanguage
     }
 
     private var resolvedSourceLanguage: String? {
