@@ -97,3 +97,23 @@ test('TestFlight workflow requires backend and privacy policy release URLs', () 
   assert.match(fastfile, /ENV\.fetch\("VOXA_PRIVACY_POLICY_URL"\)/);
   assert.match(fastfile, /VOXA_PRIVACY_POLICY_URL=#\{privacy_policy_url\}/);
 });
+
+test('release workflow gates tagging on validation and infrastructure workflows', () => {
+  const workflow = readWorkflow('.github/workflows/release.yml');
+  const gate = readWorkflow('.github/scripts/release-gate.sh');
+
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /- CI\n\s+- Backend CI\n\s+- iOS CI/);
+  assert.match(workflow, /- Azure Infrastructure Deploy/);
+  assert.match(workflow, /Wait for required validation and infrastructure workflows/);
+  assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
+  assert.match(workflow, /--target "\$\{\{ github\.event\.workflow_run\.head_sha \}\}"/);
+  assert.match(gate, /required_workflows=\("CI" "Backend CI" "iOS CI"\)/);
+  assert.match(gate, /Azure Infrastructure Deploy/);
+  assert.match(gate, /status.*completed/);
+  assert.match(gate, /conclusion.*success/);
+  assert.match(gate, /git cat-file -e.*\^\{commit\}/);
+  assert.match(gate, /git diff-tree --root --no-commit-id --name-only -r -m/);
+  assert.doesNotMatch(gate, /git diff --name-only.*\^1/);
+  assert.match(gate, /Unable to compute changed files/);
+});
