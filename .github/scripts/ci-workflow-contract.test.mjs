@@ -112,4 +112,8 @@ test('release workflow gates tagging on validation and infrastructure workflows'
   assert.match(gate, /Azure Infrastructure Deploy/);
   assert.match(gate, /status.*completed/);
   assert.match(gate, /conclusion.*success/);
+  assert.match(gate, /git cat-file -e.*\^\{commit\}/);
+  assert.match(gate, /git diff-tree --root --no-commit-id --name-only -r -m/);
+  assert.doesNotMatch(gate, /git diff --name-only.*\^1/);
+  assert.match(gate, /Unable to compute changed files/);
 });
