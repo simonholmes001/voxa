@@ -25,6 +25,7 @@ public struct LanguageManagementView: View {
     private let onExportAccountData: () async throws -> URL
     private let onDeleteAccount: () async throws -> Void
     private let onSignOut: () -> Void
+    private let reminderSnapshot: LearningReminderSnapshot?
     private let progressDestination: AnyView?
     private let showsMoreDestinations: Bool
     private let navigationTitle: String
@@ -54,6 +55,7 @@ public struct LanguageManagementView: View {
             throw AccountDataActionError.unavailable
         },
         onSignOut: @escaping () -> Void,
+        reminderSnapshot: LearningReminderSnapshot? = nil,
         progressDestination: AnyView? = nil,
         showsMoreDestinations: Bool = false,
         navigationTitle: String = "Languages"
@@ -69,6 +71,7 @@ public struct LanguageManagementView: View {
         self.onExportAccountData = onExportAccountData
         self.onDeleteAccount = onDeleteAccount
         self.onSignOut = onSignOut
+        self.reminderSnapshot = reminderSnapshot
         self.progressDestination = progressDestination
         self.showsMoreDestinations = showsMoreDestinations
         self.navigationTitle = navigationTitle
@@ -156,7 +159,7 @@ public struct LanguageManagementView: View {
             }
 
             #if os(iOS)
-            DailyLearningReminderSection()
+            DailyLearningReminderSection(snapshot: reminderSnapshot)
             #endif
 
             Section {
@@ -310,6 +313,7 @@ public enum AccountDataActionError: Error, Equatable {
 
 #if os(iOS)
 private struct DailyLearningReminderSection: View {
+    let snapshot: LearningReminderSnapshot?
     @Environment(\.openURL) private var openURL
     @AppStorage("voxa.learningNotifications.prompted") private var hasPromptedForLearningNotifications = false
     @State private var status: ReminderStatus = .checking
@@ -424,23 +428,28 @@ private struct DailyLearningReminderSection: View {
 
     private func scheduleDailyLearningReminder() {
         let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: [Self.dailyLearningReminderIdentifier])
+        let identifiers = [Self.dailyLearningReminderIdentifier]
+            + (0..<7).map { Self.dailyLearningReminderIdentifier + "-\($0)" }
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
 
-        let content = UNMutableNotificationContent()
-        content.title = "Keep your language progress moving"
-        content.body = "A short Voxa session today helps your new language stick."
-        content.sound = .default
-
-        var date = DateComponents()
-        date.hour = 18
-        date.minute = 0
-        let trigger = UNCalendarNotificationTrigger(dateMatching: date, repeats: true)
-        let request = UNNotificationRequest(
-            identifier: Self.dailyLearningReminderIdentifier,
-            content: content,
-            trigger: trigger
-        )
-        center.add(request)
+        let calendar = Calendar.current
+        for offset in 0..<7 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: Date()) else { continue }
+            let copy = LearningReminderCopy.content(for: snapshot ?? Self.defaultSnapshot, variant: offset)
+            let content = UNMutableNotificationContent()
+            content.title = copy.title
+            content.body = copy.body
+            content.sound = .default
+            var date = calendar.dateComponents([.year, .month, .day], from: day)
+            date.hour = 18
+            date.minute = 0
+            let trigger = UNCalendarNotificationTrigger(dateMatching: date, repeats: false)
+            center.add(UNNotificationRequest(
+                identifier: Self.dailyLearningReminderIdentifier + "-\(offset)",
+                content: content,
+                trigger: trigger
+            ))
+        }
     }
 
     private func message(for status: ReminderStatus) -> String {
@@ -459,6 +468,8 @@ private struct DailyLearningReminderSection: View {
     }
 
     private static let dailyLearningReminderIdentifier = "voxa.daily-learning-reminder"
+    private static let defaultSnapshot = LearningReminderSnapshot(
+        languageName: "your language", dailyMinutes: 10, minutesPracticedToday: 0)
 }
 
 private enum ReminderStatus {

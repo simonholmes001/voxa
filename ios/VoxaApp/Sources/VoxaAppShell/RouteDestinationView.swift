@@ -91,6 +91,7 @@ struct RouteDestinationView: View {
                 onExportAccountData: languageManager!.onExportAccountData,
                 onDeleteAccount: languageManager!.onDeleteAccount,
                 onSignOut: languageManager!.onSignOut,
+                reminderSnapshot: reminderSnapshot,
                 progressDestination: AnyView(
                     ProgressRoute(
                         summary: practiceSummary,
@@ -127,6 +128,19 @@ struct RouteDestinationView: View {
                 isActive: profile.languageKey == languageManager.profileModel.activeLanguageKey
             )
         }
+    }
+
+    private var reminderSnapshot: LearningReminderSnapshot? {
+        guard let homeModel else { return nil }
+        guard case let .ready(summary) = homeModel.state else { return nil }
+        return LearningReminderSnapshot(
+            languageName: summary.languageName,
+            dailyMinutes: summary.dailyMinutes,
+            minutesPracticedToday: summary.minutesPracticedToday,
+            dueReviewCount: summary.dueReviewCount,
+            recentSessionCount: summary.recentSessionCount,
+            currentLessonTitle: summary.currentLessonTitle
+        )
     }
 
     private func selectLanguage(_ id: String) {
