@@ -108,7 +108,11 @@ test('release workflow gates tagging on validation and infrastructure workflows'
   assert.match(workflow, /Wait for required validation and infrastructure workflows/);
   assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
   assert.match(workflow, /--target "\$\{\{ github\.event\.workflow_run\.head_sha \}\}"/);
-  assert.match(gate, /required_workflows=\("CI" "Backend CI" "iOS CI"\)/);
+  assert.match(gate, /required_workflows=\("CI"\)/);
+  assert.match(gate, /required_workflows\+=\("Backend CI"\)/);
+  assert.match(gate, /required_workflows\+=\("iOS CI"\)/);
+  assert.match(gate, /global/);
+  assert.match(gate, /ios-ci/);
   assert.match(gate, /Azure Infrastructure Deploy/);
   assert.match(gate, /status.*completed/);
   assert.match(gate, /conclusion.*success/);

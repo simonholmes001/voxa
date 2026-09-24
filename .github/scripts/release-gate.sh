@@ -6,7 +6,7 @@ set -euo pipefail
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 
 api_path="repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${RELEASE_HEAD_SHA}&per_page=100"
-required_workflows=("CI" "Backend CI" "iOS CI")
+required_workflows=("CI")
 
 # Infrastructure deployment is only expected when the push changed paths that
 # trigger that workflow. This avoids blocking an iOS-only release on a run
@@ -22,6 +22,17 @@ fi
 if ! changed_files="$(git diff-tree --root --no-commit-id --name-only -r -m "${RELEASE_HEAD_SHA}")"; then
   echo "::error::Unable to compute changed files for release commit ${RELEASE_HEAD_SHA}. Verify the commit and its parent history are available." >&2
   exit 1
+fi
+
+# Backend CI and iOS CI use push path filters, so a workflow run is not
+# expected for every main commit. Mirror those filters here; otherwise an
+# iOS-only merge would wait forever for a Backend CI run GitHub intentionally
+# did not schedule.
+if grep -Eq '^(backend/|docs/api-contracts\.md$|global\.json$|\.github/workflows/backend-ci\.yaml$)' <<<"${changed_files}"; then
+  required_workflows+=("Backend CI")
+fi
+if grep -Eq '^(ios/|docs/api-contracts\.md$|\.github/workflows/ios-ci\.yaml$)' <<<"${changed_files}"; then
+  required_workflows+=("iOS CI")
 fi
 if grep -Eq '^(backend/|functions/|infrastructure/|\.github/workflows/(infrastructure|iac-lint))' <<<"${changed_files}"; then
   required_workflows+=("Azure Infrastructure Deploy")
