@@ -44,7 +44,14 @@ fi
 echo "Release gate for ${RELEASE_HEAD_SHA}"
 printf 'Required workflows: %s\n' "${required_workflows[*]}"
 
-for attempt in $(seq 1 30); do
+# iOS CI can take longer than ten minutes on a cold macOS runner. Keep the
+# budget configurable for diagnostics, but give normal releases enough time
+# to finish without producing a false failed Release run.
+max_attempts="${RELEASE_GATE_MAX_ATTEMPTS:-90}"
+poll_seconds="${RELEASE_GATE_POLL_SECONDS:-20}"
+echo "Polling required workflows every ${poll_seconds}s for up to ${max_attempts} attempts."
+
+for attempt in $(seq 1 "${max_attempts}"); do
   runs="$(gh api "${api_path}")"
   waiting=0
   failed=0
@@ -52,7 +59,7 @@ for attempt in $(seq 1 30); do
   for workflow in "${required_workflows[@]}"; do
     run="$(jq -c --arg name "${workflow}" '[.workflow_runs[] | select(.name == $name)] | sort_by(.created_at) | last // empty' <<<"${runs}")"
     if [[ -z "${run}" ]]; then
-      echo "${workflow}: not reported yet (attempt ${attempt}/30)"
+      echo "${workflow}: not reported yet (attempt ${attempt}/${max_attempts})"
       waiting=1
       continue
     fi
@@ -77,7 +84,7 @@ for attempt in $(seq 1 30); do
     exit 0
   fi
 
-  sleep 20
+  sleep "${poll_seconds}"
 done
 
 echo "::error::Timed out waiting for required workflows for ${RELEASE_HEAD_SHA}."
