@@ -427,36 +427,11 @@ private struct DailyLearningReminderSection: View {
     }
 
     private func scheduleDailyLearningReminder() {
-        let center = UNUserNotificationCenter.current()
-        let identifiers = [Self.dailyLearningReminderIdentifier]
-            + (0..<7).map { Self.dailyLearningReminderIdentifier + "-\($0)" }
-        center.removePendingNotificationRequests(withIdentifiers: identifiers)
-
-        let calendar = Calendar.current
-        let now = Date()
-        let today = calendar.dateComponents([.year, .month, .day], from: now)
-        var todayAtSix = today
-        todayAtSix.hour = 18
-        todayAtSix.minute = 0
-        let firstOffset = calendar.date(from: todayAtSix).map { $0 > now ? 0 : 1 } ?? 1
-        for index in 0..<7 {
-            let offset = firstOffset + index
-            guard let day = calendar.date(byAdding: .day, value: offset, to: Date()) else { continue }
-            let copy = LearningReminderCopy.content(for: snapshot ?? Self.defaultSnapshot, variant: index)
-            let content = UNMutableNotificationContent()
-            content.title = copy.title
-            content.body = copy.body
-            content.sound = .default
-            var date = calendar.dateComponents([.year, .month, .day], from: day)
-            date.hour = 18
-            date.minute = 0
-            let trigger = UNCalendarNotificationTrigger(dateMatching: date, repeats: false)
-            center.add(UNNotificationRequest(
-                identifier: Self.dailyLearningReminderIdentifier + "-\(index)",
-                content: content,
-                trigger: trigger
-            ))
+        guard let snapshot else {
+            LearningReminderScheduler.removeScheduledReminders()
+            return
         }
+        LearningReminderScheduler.schedule(snapshot: snapshot)
     }
 
     private func message(for status: ReminderStatus) -> String {
@@ -474,9 +449,6 @@ private struct DailyLearningReminderSection: View {
         }
     }
 
-    private static let dailyLearningReminderIdentifier = "voxa.daily-learning-reminder"
-    private static let defaultSnapshot = LearningReminderSnapshot(
-        languageName: "your language", dailyMinutes: 10, minutesPracticedToday: 0)
 }
 
 private enum ReminderStatus {
