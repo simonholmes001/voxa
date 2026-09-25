@@ -116,7 +116,7 @@ test('release workflow gates tagging on validation and infrastructure workflows'
   assert.match(gate, /Azure Infrastructure Deploy/);
   assert.match(gate, /status.*completed/);
   assert.match(gate, /conclusion.*success/);
-  assert.match(gate, /RELEASE_GATE_MAX_ATTEMPTS:-60/);
+  assert.match(gate, /RELEASE_GATE_MAX_ATTEMPTS:-90/);
   assert.match(gate, /RELEASE_GATE_POLL_SECONDS:-20/);
   assert.match(gate, /git cat-file -e.*\^\{commit\}/);
   assert.match(gate, /git diff-tree --root --no-commit-id --name-only -r -m/);

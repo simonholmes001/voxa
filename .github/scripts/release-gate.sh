@@ -47,7 +47,7 @@ printf 'Required workflows: %s\n' "${required_workflows[*]}"
 # iOS CI can take longer than ten minutes on a cold macOS runner. Keep the
 # budget configurable for diagnostics, but give normal releases enough time
 # to finish without producing a false failed Release run.
-max_attempts="${RELEASE_GATE_MAX_ATTEMPTS:-60}"
+max_attempts="${RELEASE_GATE_MAX_ATTEMPTS:-90}"
 poll_seconds="${RELEASE_GATE_POLL_SECONDS:-20}"
 echo "Polling required workflows every ${poll_seconds}s for up to ${max_attempts} attempts."
 
