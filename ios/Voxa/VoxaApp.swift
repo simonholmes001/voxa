@@ -1,6 +1,7 @@
 import SwiftUI
 #if os(iOS)
 import UserNotifications
+import VoxaProfiles
 #endif
 
 /// The Voxa iPhone and iPad application entry point.
@@ -56,7 +57,7 @@ struct VoxaApp: App {
         let settings = await center.notificationSettings()
         switch settings.authorizationStatus {
         case .authorized, .provisional, .ephemeral:
-            scheduleDailyLearningReminder()
+            refreshLearningReminderSchedule()
         case .notDetermined where !hasPromptedForLearningNotifications:
             try? await Task.sleep(nanoseconds: 900_000_000)
             showNotificationPrimer = true
@@ -71,7 +72,7 @@ struct VoxaApp: App {
         do {
             let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
             if granted {
-                scheduleDailyLearningReminder()
+                refreshLearningReminderSchedule()
             } else {
                 showNotificationDeniedFollowUp = true
             }
@@ -80,27 +81,14 @@ struct VoxaApp: App {
         }
     }
 
-    private func scheduleDailyLearningReminder() {
-        let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: [Self.dailyLearningReminderIdentifier])
-
-        let content = UNMutableNotificationContent()
-        content.title = "Keep your language progress moving"
-        content.body = "A short Voxa session today helps your new language stick."
-        content.sound = .default
-
-        var date = DateComponents()
-        date.hour = 18
-        date.minute = 0
-        let trigger = UNCalendarNotificationTrigger(dateMatching: date, repeats: true)
-        let request = UNNotificationRequest(
-            identifier: Self.dailyLearningReminderIdentifier,
-            content: content,
-            trigger: trigger
-        )
-        center.add(request)
+    private func refreshLearningReminderSchedule() {
+        guard let snapshot = LearningReminderSnapshotStore.load() else {
+            // Remove the legacy generic request. A personalised schedule is
+            // created as soon as the learner enables reminders from Settings.
+            LearningReminderScheduler.removeScheduledReminders()
+            return
+        }
+        LearningReminderScheduler.schedule(snapshot: snapshot)
     }
-
-    private static let dailyLearningReminderIdentifier = "voxa.daily-learning-reminder"
     #endif
 }

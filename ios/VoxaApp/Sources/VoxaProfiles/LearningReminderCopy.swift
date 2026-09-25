@@ -1,6 +1,8 @@
+import Foundation
+
 /// The small, locally available slice of learner progress used to make a
 /// reminder useful without putting learner data in a remote notification.
-public struct LearningReminderSnapshot: Sendable, Equatable {
+public struct LearningReminderSnapshot: Sendable, Equatable, Codable {
     public let languageName: String
     public let dailyMinutes: Int
     public let minutesPracticedToday: Int
@@ -22,6 +24,23 @@ public struct LearningReminderSnapshot: Sendable, Equatable {
         self.dueReviewCount = dueReviewCount
         self.recentSessionCount = recentSessionCount
         self.currentLessonTitle = currentLessonTitle
+    }
+}
+
+/// Persists the last learner snapshot used to schedule reminders. This lets
+/// the app refresh notification requests on launch without making a network
+/// request or falling back to generic copy.
+public enum LearningReminderSnapshotStore {
+    public static let key = "voxa.learningNotifications.snapshot"
+
+    public static func save(_ snapshot: LearningReminderSnapshot, defaults: UserDefaults = .standard) {
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        defaults.set(data, forKey: key)
+    }
+
+    public static func load(defaults: UserDefaults = .standard) -> LearningReminderSnapshot? {
+        guard let data = defaults.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(LearningReminderSnapshot.self, from: data)
     }
 }
 
