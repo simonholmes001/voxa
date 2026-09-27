@@ -105,14 +105,20 @@ public struct RootView: View {
 
     @MainActor
     private func refreshLearningReminderSchedule() async {
-        guard let snapshot = learningReminderSnapshot else { return }
         let settings = await UNUserNotificationCenter.current().notificationSettings()
+        let snapshot = learningReminderSnapshot
+        let authorized: Bool
         switch settings.authorizationStatus {
         case .authorized, .provisional, .ephemeral:
-            LearningReminderScheduler.schedule(snapshot: snapshot)
+            authorized = true
         default:
-            break
+            authorized = false
         }
+        guard LearningReminderScheduling.shouldSchedule(
+            snapshot: snapshot,
+            notificationsAuthorized: authorized
+        ), let snapshot else { return }
+        LearningReminderScheduler.schedule(snapshot: snapshot)
     }
     #endif
 
