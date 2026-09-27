@@ -2,6 +2,39 @@ import XCTest
 @testable import VoxaProfiles
 
 final class LearningReminderCopyTests: XCTestCase {
+    func testAuthorizedLoadedHomeStateSchedulesReminders() {
+        let snapshot = LearningReminderSnapshot(
+            languageName: "Greek", dailyMinutes: 10, minutesPracticedToday: 0)
+
+        XCTAssertTrue(
+            LearningReminderScheduling.shouldSchedule(
+                snapshot: snapshot,
+                notificationsAuthorized: true
+            )
+        )
+    }
+
+    func testAuthorizedUserWithoutLoadedHomeStateDoesNotScheduleOrClearByAccident() {
+        XCTAssertFalse(
+            LearningReminderScheduling.shouldSchedule(
+                snapshot: nil,
+                notificationsAuthorized: true
+            )
+        )
+    }
+
+    func testDeniedNotificationsNeverScheduleReminders() {
+        let snapshot = LearningReminderSnapshot(
+            languageName: "Greek", dailyMinutes: 10, minutesPracticedToday: 0)
+
+        XCTAssertFalse(
+            LearningReminderScheduling.shouldSchedule(
+                snapshot: snapshot,
+                notificationsAuthorized: false
+            )
+        )
+    }
+
     func testDueReviewsAreCalledOut() {
         let snapshot = LearningReminderSnapshot(
             languageName: "German", dailyMinutes: 15, minutesPracticedToday: 0, dueReviewCount: 3)

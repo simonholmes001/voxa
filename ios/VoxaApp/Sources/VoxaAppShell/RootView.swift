@@ -7,6 +7,9 @@ import VoxaNetworking
 import VoxaOnboarding
 import VoxaProfiles
 import VoxaRealtime
+#if os(iOS)
+import UserNotifications
+#endif
 
 /// The root of the Voxa app. It composes the app's gates around the adaptive
 /// navigation shell: first Sign in with Apple, then first-run onboarding, then
@@ -76,12 +79,48 @@ public struct RootView: View {
             await profileModel?.load()
             Self.lifecycleLogger.info("profile.load.returned")
         }
+        #if os(iOS)
+        .task(id: learningReminderSnapshot) {
+            await refreshLearningReminderSchedule()
+        }
+        #endif
     }
 
     private var authenticatedUserScope: String? {
         guard let session = authModel.state.session else { return nil }
         return "\(session.tenantId)|\(session.userId)"
     }
+
+    #if os(iOS)
+    private var learningReminderSnapshot: LearningReminderSnapshot? {
+        guard case let .ready(summary) = homeModel?.state else { return nil }
+        return LearningReminderSnapshot(
+            languageName: summary.languageName,
+            dailyMinutes: summary.dailyMinutes,
+            minutesPracticedToday: summary.minutesPracticedToday,
+            dueReviewCount: summary.dueReviewCount,
+            recentSessionCount: summary.recentSessionCount,
+            currentLessonTitle: summary.currentLessonTitle)
+    }
+
+    @MainActor
+    private func refreshLearningReminderSchedule() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        let snapshot = learningReminderSnapshot
+        let authorized: Bool
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            authorized = true
+        default:
+            authorized = false
+        }
+        guard LearningReminderScheduling.shouldSchedule(
+            snapshot: snapshot,
+            notificationsAuthorized: authorized
+        ), let snapshot else { return }
+        LearningReminderScheduler.schedule(snapshot: snapshot)
+    }
+    #endif
 
     /// Post-sign-in content. When a profile model is provided, it drives the
     /// zero/one/multiple language decision; otherwise it falls back to the

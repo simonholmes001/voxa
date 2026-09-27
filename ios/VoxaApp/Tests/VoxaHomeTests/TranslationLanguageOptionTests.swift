@@ -35,4 +35,12 @@ final class TranslationLanguageOptionTests: XCTestCase {
         XCTAssertEqual(result.source.option, .language("German"))
         XCTAssertEqual(result.target.option, .language("English"))
     }
+
+    func testGreekUsesGreekSpeechLocale() {
+        XCTAssertEqual(speechLocaleIdentifier(for: "Greek"), "el-GR")
+    }
+
+    func testGreekRegionalIdentifierUsesGreekSpeechLocale() {
+        XCTAssertEqual(speechLocaleIdentifier(for: "el-GR"), "el-GR")
+    }
 }
