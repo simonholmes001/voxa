@@ -807,21 +807,26 @@ private func trimmed(_ value: String) -> String? {
     return trimmed.isEmpty ? nil : trimmed
 }
 
-private func speechLocaleIdentifier(for language: String?) -> String {
+func speechLocaleIdentifier(for language: String?) -> String {
     guard let language else { return Locale.current.identifier }
-    switch language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-    case "arabic": return "ar-SA"
-    case "chinese", "mandarin": return "zh-Hans"
-    case "dutch": return "nl-NL"
-    case "english": return "en-US"
-    case "french": return "fr-FR"
-    case "german": return "de-DE"
-    case "hindi": return "hi-IN"
-    case "italian": return "it-IT"
-    case "japanese": return "ja-JP"
-    case "korean": return "ko-KR"
-    case "portuguese": return "pt-PT"
-    case "spanish": return "es-ES"
+    let normalized = language
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .replacingOccurrences(of: "_", with: "-")
+        .lowercased()
+    switch normalized {
+    case "arabic", "ar", "ar-sa": return "ar-SA"
+    case "chinese", "mandarin", "zh", "zh-hans": return "zh-Hans"
+    case "dutch", "nl", "nl-nl": return "nl-NL"
+    case "english", "en", "en-us": return "en-US"
+    case "french", "fr", "fr-fr": return "fr-FR"
+    case "german", "de", "de-de": return "de-DE"
+    case "greek", "el", "el-gr": return "el-GR"
+    case "hindi", "hi", "hi-in": return "hi-IN"
+    case "italian", "it", "it-it": return "it-IT"
+    case "japanese", "ja", "ja-jp": return "ja-JP"
+    case "korean", "ko", "ko-kr": return "ko-KR"
+    case "portuguese", "pt", "pt-pt": return "pt-PT"
+    case "spanish", "es", "es-es": return "es-ES"
     default: return Locale.current.identifier
     }
 }
