@@ -59,10 +59,36 @@ final class LearningReminderCopyTests: XCTestCase {
         let snapshot = LearningReminderSnapshot(
             languageName: "German", dailyMinutes: 15, minutesPracticedToday: 0)
 
-        let first = LearningReminderCopy.content(for: snapshot, variant: 0)
-        let second = LearningReminderCopy.content(for: snapshot, variant: 1)
+        let messages = (0..<7).map { LearningReminderCopy.content(for: snapshot, variant: $0) }
 
-        XCTAssertNotEqual(first.body, second.body)
+        XCTAssertEqual(Set(messages.map(\.title)).count, 7)
+        XCTAssertEqual(Set(messages.map(\.body)).count, 7)
+    }
+
+    func testLessonContextAppearsInFreshLearnerReminder() {
+        let snapshot = LearningReminderSnapshot(
+            languageName: "German",
+            dailyMinutes: 15,
+            minutesPracticedToday: 0,
+            currentLessonTitle: "Introducing yourself")
+
+        let content = LearningReminderCopy.content(for: snapshot, variant: 2)
+
+        XCTAssertTrue(content.title.contains("German") || content.title.contains("Introducing yourself"))
+        XCTAssertTrue(content.body.contains("Introducing yourself"))
+    }
+
+    func testReviewCopyHasSevenDistinctPersonalizedVariants() {
+        let snapshot = LearningReminderSnapshot(
+            languageName: "German",
+            dailyMinutes: 15,
+            minutesPracticedToday: 0,
+            dueReviewCount: 3)
+
+        let messages = (0..<7).map { LearningReminderCopy.content(for: snapshot, variant: $0) }
+
+        XCTAssertEqual(Set(messages.map(\.title)).count, 7)
+        XCTAssertTrue(messages.allSatisfy { $0.body.contains("3") })
     }
 
     func testCompletedGoalCelebratesProgress() {
