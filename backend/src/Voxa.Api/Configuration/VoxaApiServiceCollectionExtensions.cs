@@ -26,7 +26,7 @@ public static class VoxaApiServiceCollectionExtensions
     {
         var openAiApiKey = configuration["OPENAI_API_KEY"] ?? "";
         var storageAccountName = configuration["LEARNER_STATE_STORAGE_NAME"]
-            ?? configuration["AzureWebJobsStorage__accountName"]
+            ?? configuration["AzureWebJobsStorage:accountName"]
             ?? "";
         var appTokenSigningKey = configuration["APP_SESSION_SIGNING_KEY"] ?? "";
         var appleClientId = configuration["APPLE_CLIENT_ID"] ?? "";
