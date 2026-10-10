@@ -103,8 +103,10 @@ test('release workflow gates tagging on validation and infrastructure workflows'
   const gate = readWorkflow('.github/scripts/release-gate.sh');
 
   assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /- CI\n\s+- Security Audit\n\s+- Code Scanning\n\s+- Backend CI\n\s+- iOS CI/);
-  assert.match(workflow, /- Azure Infrastructure Deploy/);
+  const trigger = workflow.split('concurrency:')[0];
+  assert.match(trigger, /workflows: \[CI\]/);
+  assert.doesNotMatch(trigger, /Security Audit|Code Scanning|Backend CI|iOS CI|Azure Infrastructure Deploy|Azure IaC Lint/);
+  assert.match(workflow, /github\.event\.workflow_run\.event == 'push'/);
   assert.match(workflow, /Wait for required validation and infrastructure workflows/);
   assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
   assert.match(workflow, /--target "\$\{\{ github\.event\.workflow_run\.head_sha \}\}"/);

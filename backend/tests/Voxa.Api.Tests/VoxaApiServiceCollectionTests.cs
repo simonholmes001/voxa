@@ -13,6 +13,40 @@ namespace Voxa.Api.Tests;
 
 public sealed class VoxaApiServiceCollectionTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AzureEnvironmentStorageFallbackSupportsStartup(bool explicitLearnerStorage)
+    {
+        var values = ConfigurationValues();
+        if (!explicitLearnerStorage) values.Remove("LEARNER_STATE_STORAGE_NAME");
+        values["AzureWebJobsStorage__accountName"] = "voxaazurestorage";
+        var prefix = $"VOXA_TEST_{Guid.NewGuid():N}_";
+        try
+        {
+            foreach (var (name, value) in values)
+                Environment.SetEnvironmentVariable(prefix + name, value);
+            var configuration = new ConfigurationBuilder().AddEnvironmentVariables(prefix).Build();
+            var services = new ServiceCollection();
+
+            services.AddVoxaBackendServices(configuration);
+            using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+            {
+                ValidateOnBuild = true,
+                ValidateScopes = true
+            });
+
+            Assert.Equal(explicitLearnerStorage ? "voxadurabletest" : "voxaazurestorage",
+                provider.GetRequiredService<VoxaBackendOptions>().LearnerStateStorageName);
+            Assert.NotNull(ActivatorUtilities.CreateInstance<VoxaHttpFunctions>(provider));
+        }
+        finally
+        {
+            foreach (var name in values.Keys)
+                Environment.SetEnvironmentVariable(prefix + name, null);
+        }
+    }
+
     [Fact]
     public void AddVoxaBackendServicesResolvesFunctionDependencyGraph()
     {
