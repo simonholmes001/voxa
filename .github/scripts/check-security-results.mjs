@@ -8,6 +8,41 @@ function reports(directory) {
   });
 }
 
+function resolveRule(run, result) {
+  const extensions = run.tool.extensions ?? [];
+  const reference = result.rule;
+  const componentReference = reference?.toolComponent;
+  let components = [run.tool.driver, ...extensions];
+  if (componentReference) {
+    components = extensions.filter((component, index) =>
+      (componentReference.index === undefined || componentReference.index === index)
+      && (componentReference.name === undefined || componentReference.name === component.name)
+      && (componentReference.guid === undefined || componentReference.guid === component.guid));
+    if (components.length !== 1) throw new Error('Invalid rule component reference.');
+  }
+  const id = reference?.id ?? result.ruleId;
+  if (reference?.id !== undefined && result.ruleId !== undefined && reference.id !== result.ruleId)
+    throw new Error('Mismatched rule IDs.');
+  const index = reference?.index ?? result.ruleIndex;
+  if (reference?.index !== undefined && result.ruleIndex !== undefined && reference.index !== result.ruleIndex)
+    throw new Error('Mismatched rule indexes.');
+  if (index !== undefined && (!Number.isInteger(index) || index < 0))
+    throw new Error('Invalid rule index.');
+  // Without a component reference, an index belongs to the driver. An ID can
+  // also identify an extension rule, as emitted by CodeQL.
+  const candidates = id !== undefined
+    ? components.flatMap(component => (component.rules ?? []).filter(rule => rule.id === id))
+    : index !== undefined ? [(componentReference ? components[0] : run.tool.driver).rules?.[index]].filter(Boolean) : [];
+  if (candidates.length !== 1) throw new Error('Result has no unambiguous corresponding rule.');
+  if (index !== undefined) {
+    const component = componentReference ? components[0] : run.tool.driver;
+    if (componentReference || component.rules?.some(rule => rule === candidates[0])) {
+      if (component.rules?.[index] !== candidates[0]) throw new Error('Mismatched rule index.');
+    }
+  }
+  return candidates[0];
+}
+
 try {
   const files = reports(process.argv[2]);
   if (!files.length) throw new Error('No SARIF reports found.');
@@ -20,9 +55,7 @@ try {
       if (!Array.isArray(run.results) || !Array.isArray(run.tool?.driver?.rules))
         throw new Error('Missing results or rule metadata.');
       for (const result of run.results) {
-        const rule = run.tool.driver.rules.find((candidate) => candidate.id === result.ruleId)
-          ?? run.tool.driver.rules[result.ruleIndex];
-        if (!rule) throw new Error('Result has no corresponding rule.');
+        const rule = resolveRule(run, result);
         const rawSeverity = rule.properties?.['security-severity'];
         const severity = rawSeverity === undefined ? 0 : Number(rawSeverity);
         if (!Number.isFinite(severity) || severity < 0 || severity > 10)
