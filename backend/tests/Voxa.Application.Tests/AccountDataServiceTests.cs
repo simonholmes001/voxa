@@ -1,6 +1,7 @@
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
 using Voxa.Application.Realtime;
+using Voxa.Application.Security;
 using Voxa.Domain.Learners;
 
 namespace Voxa.Application.Tests;
@@ -47,7 +48,8 @@ public sealed class AccountDataServiceTests
         var refreshSessions = new RecordingRefreshSessionStore(calls);
         var auditLog = new RecordingRealtimeSessionAuditLog(calls);
         var rateLimiter = new RecordingRealtimeSessionRateLimiter(calls);
-        var service = new AccountDataService(learnerStates, refreshSessions, auditLog, rateLimiter);
+        var apiBudget = new RecordingApiRequestBudget(calls);
+        var service = new AccountDataService(learnerStates, refreshSessions, auditLog, rateLimiter, apiBudget: apiBudget);
 
         var result = await service.DeleteAsync(
             new AppSessionPrincipal(tenant, user),
@@ -59,8 +61,9 @@ public sealed class AccountDataServiceTests
         Assert.Equal(new VerifiedAppSessionSubject(tenant, user), refreshSessions.RevokedSubject);
         Assert.Equal((tenant, user), auditLog.DeletedSubject);
         Assert.Equal((tenant, user), rateLimiter.DeletedSubject);
+        Assert.Equal((tenant, user), apiBudget.DeletedSubject);
         Assert.Equal(
-            ["learner.list", "refresh.revokeAll", "realtime.audit.delete", "realtime.rateLimit.delete", "learner.delete"],
+            ["learner.list", "refresh.revokeAll", "realtime.audit.delete", "realtime.rateLimit.delete", "api.budget.delete", "learner.delete"],
             calls);
         Assert.Empty(await learnerStates.ListAsync(tenant, user, CancellationToken.None));
     }
@@ -206,6 +209,18 @@ public sealed class AccountDataServiceTests
                 throw new InvalidOperationException("Audit cleanup failed.");
             }
 
+            DeletedSubject = (tenantId, userId);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingApiRequestBudget(List<string> calls) : IApiRequestBudget
+    {
+        public (TenantId, UserId)? DeletedSubject { get; private set; }
+        public Task EnsureAllowedAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task DeleteForSubjectAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
+        {
+            calls.Add("api.budget.delete");
             DeletedSubject = (tenantId, userId);
             return Task.CompletedTask;
         }

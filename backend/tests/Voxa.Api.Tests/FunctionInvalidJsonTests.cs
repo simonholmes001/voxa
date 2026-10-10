@@ -15,10 +15,11 @@ using Voxa.Application.Realtime;
 using Voxa.Domain.Learners;
 using Voxa.Infrastructure.Authentication;
 using Voxa.Infrastructure.Persistence;
+using Voxa.Application.Security;
 
 namespace Voxa.Api.Tests;
 
-public sealed class FunctionInvalidJsonTests
+public sealed partial class FunctionInvalidJsonTests
 {
     [Fact]
     public async Task DeploymentHealthReturnsPackagedDeploymentMarker()
@@ -96,7 +97,7 @@ public sealed class FunctionInvalidJsonTests
         var tokenIssuer = CreateTokenIssuer();
         var functions = CreateFunctions(tokenIssuer);
         var request = new TestHttpRequestData("{not-json", method: "POST", route);
-        if (route == "onboarding")
+        if (!route.StartsWith("auth/", StringComparison.Ordinal))
         {
             request.Headers.Add(
                 "Authorization",
@@ -250,7 +251,8 @@ public sealed class FunctionInvalidJsonTests
 
     private static VoxaHttpFunctions CreateFunctions(
         HmacAppSessionTokenIssuer tokenIssuer,
-        ILearnerStateRepository learnerStateRepository)
+        ILearnerStateRepository learnerStateRepository,
+        IApiRequestBudget? requestBudget = null)
     {
         return new VoxaHttpFunctions(
             new SignInWithAppleEndpoint(new StubAppSessionService(), NullLogger<SignInWithAppleEndpoint>.Instance),
@@ -269,7 +271,8 @@ public sealed class FunctionInvalidJsonTests
             new OnboardingSubmitEndpoint(new OnboardingService(learnerStateRepository)),
             new DevResetEndpoint(learnerStateRepository, enabled: true),
             tokenIssuer,
-            new FixedClock(DateTimeOffset.Parse("2026-08-31T08:00:00Z")));
+            new FixedClock(DateTimeOffset.Parse("2026-08-31T08:00:00Z")),
+            requestBudget ?? new StubRequestBudget());
     }
 
     private static HmacAppSessionTokenIssuer CreateTokenIssuer()
@@ -533,5 +536,17 @@ public sealed class FunctionInvalidJsonTests
     private sealed class FixedClock(DateTimeOffset utcNow) : ISystemClock
     {
         public DateTimeOffset UtcNow => utcNow;
+    }
+
+    private sealed class StubRequestBudget(bool exhausted = false) : IApiRequestBudget
+    {
+        public Task EnsureAllowedAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
+        {
+            if (exhausted) throw new ApiRequestBudgetExceededException("api_request_budget_exhausted");
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteForSubjectAsync(TenantId tenantId, UserId userId, CancellationToken cancellationToken)
+            => Task.CompletedTask;
     }
 }

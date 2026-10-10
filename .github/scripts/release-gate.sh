@@ -6,7 +6,7 @@ set -euo pipefail
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 
 api_path="repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${RELEASE_HEAD_SHA}&per_page=100"
-required_workflows=("CI")
+required_workflows=("CI" "Security Audit" "Code Scanning")
 
 # Infrastructure deployment is only expected when the push changed paths that
 # trigger that workflow. This avoids blocking an iOS-only release on a run
@@ -28,7 +28,7 @@ fi
 # expected for every main commit. Mirror those filters here; otherwise an
 # iOS-only merge would wait forever for a Backend CI run GitHub intentionally
 # did not schedule.
-if grep -Eq '^(backend/|docs/api-contracts\.md$|global\.json$|\.github/workflows/backend-ci\.yaml$)' <<<"${changed_files}"; then
+if grep -Eq '^(backend/|docs/api-contracts\.md$|global\.json$|\.github/workflows/backend-ci\.yaml$|\.github/scripts/check-backend-coverage\.py$)' <<<"${changed_files}"; then
   required_workflows+=("Backend CI")
 fi
 if grep -Eq '^(ios/|docs/api-contracts\.md$|\.github/workflows/ios-ci\.yaml$)' <<<"${changed_files}"; then

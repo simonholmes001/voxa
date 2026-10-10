@@ -1,0 +1,123 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dotnet-vulnerability-audit:
+    name: .NET dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: >-
+          dotnet restore backend/*.sln
+          -p:NuGetAudit=true
+          -p:NuGetAuditMode=all
+          -p:NuGetAuditLevel=high
+          -p:TreatWarningsAsErrors=true
+
+      - name: Check for vulnerable packages
+        run: dotnet list backend/*.sln package --vulnerable --include-transitive
+
+  node-vulnerability-audit:
+    name: Node dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Check for high-severity vulnerabilities
+        run: npm audit --audit-level=high
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan for leaked credentials
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+          GITLEAKS_ENABLE_SUMMARY: "false"
+
+  infrastructure-security:
+    name: Infrastructure Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Run Voxa infrastructure security guards
+        run: bash infrastructure/scripts/guard-tests.sh
+      - name: Compile Bicep for ARM security scanning
+        shell: bash
+        run: |
+          mkdir -p .security-arm
+          for template in infrastructure/bicep/*.bicep infrastructure/bootstrap/*.bicep; do
+            output=".security-arm/$(basename "$(dirname "$template")")-$(basename "$template" .bicep).json"
+            az bicep build --file "$template" --outfile "$output"
+          done
+      - name: Scan ARM transport and recovery controls
+        uses: bridgecrewio/checkov-action@c13aafd679d3814a25067d10fcaf98c4f7594931 # v12, Checkov 3.3.26
+        with:
+          directory: .security-arm
+          framework: arm
+          check: CKV_AZURE_3,CKV_AZURE_44,CKV_AZURE_111
+          output_format: cli
+          compact: true
+          quiet: true
+          skip_download: true
+          skip_results_upload: true
+
+  security-audit-required:
+    name: Security Audit Required
+    runs-on: ubuntu-latest
+    needs: [dotnet-vulnerability-audit, node-vulnerability-audit, secret-scan, infrastructure-security]
+    if: always()
+    steps:
+      - name: Require all security audits to pass
+        env:
+          FAILED: ${{ needs.dotnet-vulnerability-audit.result != 'success' || needs.node-vulnerability-audit.result != 'success' || needs.secret-scan.result != 'success' || needs.infrastructure-security.result != 'success' }}
+        run: test "$FAILED" = "false"

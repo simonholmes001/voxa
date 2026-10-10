@@ -41,7 +41,8 @@ public sealed record RealtimeSessionRateLimitOptions(
 public sealed class TableRealtimeSessionRateLimiter(
     IRealtimeSessionRateLimitTable rateLimitTable,
     ISystemClock clock,
-    RealtimeSessionRateLimitOptions options) : IRealtimeSessionRateLimiter
+    RealtimeSessionRateLimitOptions options,
+    string partitionPrefix = "") : IRealtimeSessionRateLimiter
 {
     public async Task EnsureAllowedAsync(
         TenantId tenantId,
@@ -162,7 +163,7 @@ public sealed class TableRealtimeSessionRateLimiter(
         return new DateTimeOffset(utc.Year, utc.Month, 1, 0, 0, 0, TimeSpan.Zero);
     }
 
-    private static string TenantPartitionKey(TenantId tenantId) => $"tenant:{tenantId.Value}";
+    private string TenantPartitionKey(TenantId tenantId) => $"{partitionPrefix}tenant:{tenantId.Value}";
 
     private static string BurstRowKey(UserId userId, DateTimeOffset windowStart) =>
         $"burst:{userId.Value}:{windowStart.UtcTicks:D19}";

@@ -1,0 +1,86 @@
+name: Code Scanning
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  csharp:
+    name: CodeQL Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Setup .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        with:
+          languages: csharp
+          build-mode: manual
+          queries: security-extended
+      - name: Build backend for analysis
+        run: dotnet build backend/Voxa.sln --configuration Release --no-incremental -p:UseSharedCompilation=false
+      - name: Analyze backend
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        with:
+          output: ${{ runner.temp }}/codeql-results
+      - name: Block high-severity findings
+        run: node .github/scripts/check-security-results.mjs "$RUNNER_TEMP/codeql-results"
+
+  scripts-and-actions:
+    name: CodeQL Scripts and Actions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+      - name: Analyze scripts and workflows
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        with:
+          category: /language:${{ matrix.language }}
+          output: ${{ runner.temp }}/codeql-results
+      - name: Block high-severity findings
+        run: node .github/scripts/check-security-results.mjs "$RUNNER_TEMP/codeql-results"
+
+  code-scanning-required:
+    name: Code Scanning Required
+    runs-on: ubuntu-latest
+    needs: [csharp, scripts-and-actions]
+    if: always()
+    steps:
+      - name: Require all analyses to pass
+        env:
+          FAILED: ${{ needs.csharp.result != 'success' || needs.scripts-and-actions.result != 'success' }}
+        run: test "$FAILED" = "false"

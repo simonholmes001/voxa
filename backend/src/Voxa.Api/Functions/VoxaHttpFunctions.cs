@@ -1,12 +1,13 @@
-using System.Net;
 using System.Globalization;
+using System.Net;
 using System.Text.Json;
-using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Azure.Functions.Worker;
 using Voxa.Api.Http;
 using Voxa.Application.Authentication;
 using Voxa.Application.Learners;
 using Voxa.Application.Onboarding;
+using Voxa.Application.Security;
 using Voxa.Domain.Learners;
 using Voxa.Infrastructure.Authentication;
 
@@ -29,7 +30,8 @@ public sealed class VoxaHttpFunctions(
     OnboardingSubmitEndpoint onboardingSubmit,
     DevResetEndpoint devReset,
     IAppSessionTokenValidator tokenValidator,
-    ISystemClock clock)
+    ISystemClock clock,
+    IApiRequestBudget requestBudget)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -39,6 +41,11 @@ public sealed class VoxaHttpFunctions(
         CancellationToken cancellationToken)
     {
         var body = await ReadJsonAsync<SignInWithAppleHttpRequest>(request, cancellationToken);
+        if (body.TooLarge)
+        {
+            return await WritePayloadTooLargeAsync(request, cancellationToken);
+        }
+
         if (body.Malformed)
         {
             return await WriteInvalidJsonAsync(request, cancellationToken);
@@ -59,6 +66,11 @@ public sealed class VoxaHttpFunctions(
         CancellationToken cancellationToken)
     {
         var body = await ReadJsonAsync<RefreshAppSessionHttpRequest>(request, cancellationToken);
+        if (body.TooLarge)
+        {
+            return await WritePayloadTooLargeAsync(request, cancellationToken);
+        }
+
         if (body.Malformed)
         {
             return await WriteInvalidJsonAsync(request, cancellationToken);
@@ -79,6 +91,11 @@ public sealed class VoxaHttpFunctions(
         CancellationToken cancellationToken)
     {
         var body = await ReadJsonAsync<LogoutAppSessionHttpRequest>(request, cancellationToken);
+        if (body.TooLarge)
+        {
+            return await WritePayloadTooLargeAsync(request, cancellationToken);
+        }
+
         if (body.Malformed)
         {
             return await WriteInvalidJsonAsync(request, cancellationToken);
@@ -98,13 +115,16 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "account/export")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        return await WriteAsync(
-            request,
-            await accountData.ExportAsync(
-                Principal(request),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
+        {
+            return await WriteAsync(
+                request,
+                await accountData.ExportAsync(
+                    principal,
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: true);
     }
 
     [Function("account-delete")]
@@ -112,13 +132,16 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "account")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        return await WriteAsync(
-            request,
-            await accountData.DeleteAsync(
-                Principal(request),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
+        {
+            return await WriteAsync(
+                request,
+                await accountData.DeleteAsync(
+                    principal,
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: false);
     }
 
     [Function("onboarding-submit")]
@@ -126,44 +149,36 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "onboarding")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var principal = Principal(request);
-        if (principal is null)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            var correlationId = Domain.Learners.CorrelationId.Create(CorrelationId(request));
+            var body = await ReadJsonAsync<OnboardingSubmitHttpRequest>(request, cancellationToken);
+            if (body.TooLarge)
+            {
+                return await WritePayloadTooLargeAsync(request, cancellationToken);
+            }
+
+            if (body.Malformed)
+            {
+                return await WriteInvalidJsonAsync(request, cancellationToken);
+            }
+
+            var expectedVersion = ParseExpectedVersion(request);
+            if (expectedVersion.IsPresent && !expectedVersion.IsValid)
+            {
+                return await WriteInvalidIfMatchAsync(request, cancellationToken);
+            }
+
             return await WriteAsync(
                 request,
-                ApiResponse<OnboardingSubmitHttpResponse>.Failure(
-                    401,
-                    new ApiErrorResponse(
-                        "app_session_required",
-                        "An authenticated app session is required.",
-                        correlationId.Value,
-                        false)),
+                await onboardingSubmit.PostAsync(
+                    body.Value ?? new OnboardingSubmitHttpRequest(null, null, null, null, null),
+                    principal.TenantId,
+                    principal.UserId,
+                    CorrelationId(request),
+                    expectedVersion.Value,
+                    cancellationToken),
                 cancellationToken);
-        }
-
-        var body = await ReadJsonAsync<OnboardingSubmitHttpRequest>(request, cancellationToken);
-        if (body.Malformed)
-        {
-            return await WriteInvalidJsonAsync(request, cancellationToken);
-        }
-
-        var expectedVersion = ParseExpectedVersion(request);
-        if (expectedVersion.IsPresent && !expectedVersion.IsValid)
-        {
-            return await WriteInvalidIfMatchAsync(request, cancellationToken);
-        }
-
-        return await WriteAsync(
-            request,
-            await onboardingSubmit.PostAsync(
-                body.Value ?? new OnboardingSubmitHttpRequest(null, null, null, null, null),
-                principal.TenantId,
-                principal.UserId,
-                CorrelationId(request),
-                expectedVersion.Value,
-                cancellationToken),
-            cancellationToken);
+        }, chargeBudget: false);
     }
 
     [Function("realtime-session")]
@@ -171,20 +186,28 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "realtime/session")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<RealtimeSessionHttpRequest>(request, cancellationToken);
-        if (body.Malformed)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            return await WriteInvalidJsonAsync(request, cancellationToken);
-        }
+            var body = await ReadJsonAsync<RealtimeSessionHttpRequest>(request, cancellationToken);
+            if (body.TooLarge)
+            {
+                return await WritePayloadTooLargeAsync(request, cancellationToken);
+            }
 
-        return await WriteAsync(
-            request,
-            await realtimeSession.PostAsync(
-                Principal(request),
-                body.Value ?? new RealtimeSessionHttpRequest(null, null, null),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+            if (body.Malformed)
+            {
+                return await WriteInvalidJsonAsync(request, cancellationToken);
+            }
+
+            return await WriteAsync(
+                request,
+                await realtimeSession.PostAsync(
+                    principal,
+                    body.Value ?? new RealtimeSessionHttpRequest(null, null, null),
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: false);
     }
 
     [Function("realtime-debrief")]
@@ -192,20 +215,28 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "realtime/debrief")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<SessionDebriefHttpRequest>(request, cancellationToken);
-        if (body.Malformed)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            return await WriteInvalidJsonAsync(request, cancellationToken);
-        }
+            var body = await ReadJsonAsync<SessionDebriefHttpRequest>(request, cancellationToken);
+            if (body.TooLarge)
+            {
+                return await WritePayloadTooLargeAsync(request, cancellationToken);
+            }
 
-        return await WriteAsync(
-            request,
-            await realtimeDebrief.PostAsync(
-                Principal(request),
-                body.Value ?? new SessionDebriefHttpRequest(null, null, null),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+            if (body.Malformed)
+            {
+                return await WriteInvalidJsonAsync(request, cancellationToken);
+            }
+
+            return await WriteAsync(
+                request,
+                await realtimeDebrief.PostAsync(
+                    principal,
+                    body.Value ?? new SessionDebriefHttpRequest(null, null, null),
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: true);
     }
 
     [Function("learner-plan")]
@@ -213,13 +244,16 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "learner/plan")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        return await WriteAsync(
-            request,
-            await learnerPlan.GetAsync(
-                Principal(request),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
+        {
+            return await WriteAsync(
+                request,
+                await learnerPlan.GetAsync(
+                    principal,
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: true);
     }
 
     [Function("learner-course")]
@@ -227,13 +261,16 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "learner/course")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        return await WriteAsync(
-            request,
-            await learnerCourse.GetAsync(
-                Principal(request),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
+        {
+            return await WriteAsync(
+                request,
+                await learnerCourse.GetAsync(
+                    principal,
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: false);
     }
 
     [Function("learner-course-reassess")]
@@ -241,20 +278,28 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "learner/course/reassess")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<CourseReassessmentHttpRequest>(request, cancellationToken);
-        if (body.Malformed)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            return await WriteInvalidJsonAsync(request, cancellationToken);
-        }
+            var body = await ReadJsonAsync<CourseReassessmentHttpRequest>(request, cancellationToken);
+            if (body.TooLarge)
+            {
+                return await WritePayloadTooLargeAsync(request, cancellationToken);
+            }
 
-        return await WriteAsync(
-            request,
-            await courseReassessment.PostAsync(
-                Principal(request),
-                body.Value,
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+            if (body.Malformed)
+            {
+                return await WriteInvalidJsonAsync(request, cancellationToken);
+            }
+
+            return await WriteAsync(
+                request,
+                await courseReassessment.PostAsync(
+                    principal,
+                    body.Value,
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: true);
     }
 
     [Function("session-resume")]
@@ -262,30 +307,17 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "session/resume")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var principal = Principal(request);
-        if (principal is null)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            var correlationId = Domain.Learners.CorrelationId.Create(CorrelationId(request));
             return await WriteAsync(
                 request,
-                ApiResponse<ResumeCheckpointResponse>.Failure(
-                    401,
-                    new ApiErrorResponse(
-                        "app_session_required",
-                        "An authenticated app session is required.",
-                        correlationId.Value,
-                        false)),
+                await resumeSession.GetAsync(
+                    principal.TenantId.Value,
+                    principal.UserId.Value,
+                    CorrelationId(request),
+                cancellationToken),
                 cancellationToken);
-        }
-
-        return await WriteAsync(
-            request,
-            await resumeSession.GetAsync(
-                principal.TenantId.Value,
-                principal.UserId.Value,
-                CorrelationId(request),
-            cancellationToken),
-            cancellationToken);
+        }, chargeBudget: false);
     }
 
     [Function("session-complete")]
@@ -293,20 +325,28 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "session/complete")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<LearningSessionCompletionHttpRequest>(request, cancellationToken);
-        if (body.Malformed)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            return await WriteInvalidJsonAsync(request, cancellationToken);
-        }
+            var body = await ReadJsonAsync<LearningSessionCompletionHttpRequest>(request, cancellationToken);
+            if (body.TooLarge)
+            {
+                return await WritePayloadTooLargeAsync(request, cancellationToken);
+            }
 
-        return await WriteAsync(
-            request,
-            await learningSessionCompletion.PostAsync(
-                Principal(request),
-                body.Value ?? new LearningSessionCompletionHttpRequest(null, null),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+            if (body.Malformed)
+            {
+                return await WriteInvalidJsonAsync(request, cancellationToken);
+            }
+
+            return await WriteAsync(
+                request,
+                await learningSessionCompletion.PostAsync(
+                    principal,
+                    body.Value ?? new LearningSessionCompletionHttpRequest(null, null),
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: false);
     }
 
     [Function("language-profiles-list")]
@@ -314,20 +354,17 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "language-profiles")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var principal = Principal(request);
-        if (principal is null)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            return await UnauthorizedAsync<LanguageProfilesResponse>(request, cancellationToken);
-        }
-
-        return await WriteAsync(
-            request,
-            await languageProfiles.GetAsync(
-                principal.TenantId,
-                principal.UserId,
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+            return await WriteAsync(
+                request,
+                await languageProfiles.GetAsync(
+                    principal.TenantId,
+                    principal.UserId,
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: false);
     }
 
     [Function("language-profile-select")]
@@ -336,21 +373,18 @@ public sealed class VoxaHttpFunctions(
         string languageKey,
         CancellationToken cancellationToken)
     {
-        var principal = Principal(request);
-        if (principal is null)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            return await UnauthorizedAsync<SelectLanguageProfileResponse>(request, cancellationToken);
-        }
-
-        return await WriteAsync(
-            request,
-            await languageProfiles.SelectAsync(
-                languageKey,
-                principal.TenantId,
-                principal.UserId,
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+            return await WriteAsync(
+                request,
+                await languageProfiles.SelectAsync(
+                    languageKey,
+                    principal.TenantId,
+                    principal.UserId,
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: false);
     }
 
     [Function("language-profile-delete")]
@@ -359,21 +393,18 @@ public sealed class VoxaHttpFunctions(
         string languageKey,
         CancellationToken cancellationToken)
     {
-        var principal = Principal(request);
-        if (principal is null)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            return await UnauthorizedAsync<DeleteLanguageProfileResponse>(request, cancellationToken);
-        }
-
-        return await WriteAsync(
-            request,
-            await languageProfiles.DeleteAsync(
-                languageKey,
-                principal.TenantId,
-                principal.UserId,
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+            return await WriteAsync(
+                request,
+                await languageProfiles.DeleteAsync(
+                    languageKey,
+                    principal.TenantId,
+                    principal.UserId,
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: false);
     }
 
     [Function("practice-vocabulary-quiz")]
@@ -381,20 +412,28 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "practice/vocabulary-quiz")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<VocabularyQuizHttpRequest>(request, cancellationToken);
-        if (body.Malformed)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            return await WriteInvalidJsonAsync(request, cancellationToken);
-        }
+            var body = await ReadJsonAsync<VocabularyQuizHttpRequest>(request, cancellationToken);
+            if (body.TooLarge)
+            {
+                return await WritePayloadTooLargeAsync(request, cancellationToken);
+            }
 
-        return await WriteAsync(
-            request,
-            await practiceLanguageTools.VocabularyQuizAsync(
-                Principal(request),
-                body.Value ?? new VocabularyQuizHttpRequest(null, null, null, null),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+            if (body.Malformed)
+            {
+                return await WriteInvalidJsonAsync(request, cancellationToken);
+            }
+
+            return await WriteAsync(
+                request,
+                await practiceLanguageTools.VocabularyQuizAsync(
+                    principal,
+                    body.Value ?? new VocabularyQuizHttpRequest(null, null, null, null),
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: true);
     }
 
     [Function("language-tools-ask")]
@@ -402,20 +441,28 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "language-tools/ask")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<AskAnythingHttpRequest>(request, cancellationToken);
-        if (body.Malformed)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            return await WriteInvalidJsonAsync(request, cancellationToken);
-        }
+            var body = await ReadJsonAsync<AskAnythingHttpRequest>(request, cancellationToken);
+            if (body.TooLarge)
+            {
+                return await WritePayloadTooLargeAsync(request, cancellationToken);
+            }
 
-        return await WriteAsync(
-            request,
-            await practiceLanguageTools.AskAsync(
-                Principal(request),
-                body.Value ?? new AskAnythingHttpRequest(null, null, null),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+            if (body.Malformed)
+            {
+                return await WriteInvalidJsonAsync(request, cancellationToken);
+            }
+
+            return await WriteAsync(
+                request,
+                await practiceLanguageTools.AskAsync(
+                    principal,
+                    body.Value ?? new AskAnythingHttpRequest(null, null, null),
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: true);
     }
 
     [Function("language-tools-translate")]
@@ -423,20 +470,28 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "language-tools/translate")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<TranslationHttpRequest>(request, cancellationToken);
-        if (body.Malformed)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            return await WriteInvalidJsonAsync(request, cancellationToken);
-        }
+            var body = await ReadJsonAsync<TranslationHttpRequest>(request, cancellationToken);
+            if (body.TooLarge)
+            {
+                return await WritePayloadTooLargeAsync(request, cancellationToken);
+            }
 
-        return await WriteAsync(
-            request,
-            await practiceLanguageTools.TranslateAsync(
-                Principal(request),
-                body.Value ?? new TranslationHttpRequest(null, null, null),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+            if (body.Malformed)
+            {
+                return await WriteInvalidJsonAsync(request, cancellationToken);
+            }
+
+            return await WriteAsync(
+                request,
+                await practiceLanguageTools.TranslateAsync(
+                    principal,
+                    body.Value ?? new TranslationHttpRequest(null, null, null),
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: true);
     }
 
     [Function("language-tools-translate-image")]
@@ -444,20 +499,28 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "language-tools/translate-image")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        var body = await ReadJsonAsync<ImageTranslationHttpRequest>(request, cancellationToken);
-        if (body.Malformed)
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
         {
-            return await WriteInvalidJsonAsync(request, cancellationToken);
-        }
+            var body = await ReadJsonAsync<ImageTranslationHttpRequest>(request, cancellationToken);
+            if (body.TooLarge)
+            {
+                return await WritePayloadTooLargeAsync(request, cancellationToken);
+            }
 
-        return await WriteAsync(
-            request,
-            await practiceLanguageTools.TranslateImageAsync(
-                Principal(request),
-                body.Value ?? new ImageTranslationHttpRequest(null, null, null, null),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+            if (body.Malformed)
+            {
+                return await WriteInvalidJsonAsync(request, cancellationToken);
+            }
+
+            return await WriteAsync(
+                request,
+                await practiceLanguageTools.TranslateImageAsync(
+                    principal,
+                    body.Value ?? new ImageTranslationHttpRequest(null, null, null, null),
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: true);
     }
 
     [Function("health-deployment")]
@@ -499,20 +562,72 @@ public sealed class VoxaHttpFunctions(
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "dev/learner-state")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
-        return await WriteAsync(
-            request,
-            await devReset.DeleteAsync(
-                Principal(request),
-                CorrelationId(request),
-                cancellationToken),
-            cancellationToken);
+        return await AuthenticatedAsync(request, cancellationToken, async principal =>
+        {
+            return await WriteAsync(
+                request,
+                await devReset.DeleteAsync(
+                    principal,
+                    CorrelationId(request),
+                    cancellationToken),
+                cancellationToken);
+        }, chargeBudget: false);
+    }
+
+    private async Task<HttpResponseData> AuthenticatedAsync(
+        HttpRequestData request,
+        CancellationToken cancellationToken,
+        Func<AppSessionPrincipal, Task<HttpResponseData>> handler,
+        bool chargeBudget)
+    {
+        var principal = Principal(request);
+        if (principal is null)
+        {
+            return await UnauthorizedAsync<object>(request, cancellationToken);
+        }
+
+        if (chargeBudget)
+        {
+            var rejection = await BudgetRejectionAsync(request, principal, cancellationToken);
+            if (rejection is not null) return rejection;
+        }
+
+        return await handler(principal);
+    }
+
+    private async Task<HttpResponseData?> BudgetRejectionAsync(
+        HttpRequestData request,
+        AppSessionPrincipal principal,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await requestBudget.EnsureAllowedAsync(principal.TenantId, principal.UserId, cancellationToken);
+            return null;
+        }
+        catch (ApiRequestBudgetExceededException exception)
+        {
+            return await WriteAsync(request, ApiResponse<object>.Failure(429,
+                new ApiErrorResponse(exception.Code, "API request budget exceeded.",
+                    Domain.Learners.CorrelationId.Create(CorrelationId(request)).Value,
+                    exception.Code == "api_request_rate_limited")), cancellationToken);
+        }
     }
 
     private AppSessionPrincipal? Principal(HttpRequestData request)
     {
-        var authorization = request.Headers.TryGetValues("Authorization", out var values)
-            ? values.FirstOrDefault()
-            : null;
+        if (!request.Headers.TryGetValues("Authorization", out var values))
+        {
+            return null;
+        }
+
+        var headers = values.ToArray();
+        if (headers.Length != 1)
+        {
+            return null;
+        }
+
+        var authorization = headers[0];
 
         const string bearerPrefix = "Bearer ";
         if (authorization is null || !authorization.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
@@ -560,8 +675,21 @@ public sealed class VoxaHttpFunctions(
     {
         try
         {
+            // Bound allocation before JSON parsing, including streams without Content-Length.
+            var limit = typeof(T) == typeof(ImageTranslationHttpRequest) ? 8 * 1024 * 1024 : 64 * 1024;
+            await using var buffer = new MemoryStream();
+            var chunk = new byte[16 * 1024];
+            while (true)
+            {
+                var read = await request.Body.ReadAsync(chunk.AsMemory(0, Math.Min(chunk.Length, limit + 1 - (int)buffer.Length)), cancellationToken);
+                if (read == 0) break;
+                await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken);
+                if (buffer.Length > limit) return JsonReadResult<T>.Oversized();
+            }
+
+            buffer.Position = 0;
             return JsonReadResult<T>.Ok(await JsonSerializer.DeserializeAsync<T>(
-                request.Body,
+                buffer,
                 JsonOptions,
                 cancellationToken));
         }
@@ -569,6 +697,15 @@ public sealed class VoxaHttpFunctions(
         {
             return JsonReadResult<T>.Invalid();
         }
+    }
+
+    private static Task<HttpResponseData> WritePayloadTooLargeAsync(
+        HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        return WriteAsync(request, ApiResponse<object>.Failure(413,
+            new ApiErrorResponse("request_body_too_large", "Request body exceeds the allowed size.",
+                Domain.Learners.CorrelationId.Create(CorrelationId(request)).Value, false)), cancellationToken);
     }
 
     private static Task<HttpResponseData> WriteInvalidJsonAsync(
@@ -637,11 +774,13 @@ public sealed class VoxaHttpFunctions(
         return response;
     }
 
-    private sealed record JsonReadResult<T>(T? Value, bool Malformed)
+    private sealed record JsonReadResult<T>(T? Value, bool Malformed, bool TooLarge)
     {
-        public static JsonReadResult<T> Ok(T? value) => new(value, false);
+        public static JsonReadResult<T> Ok(T? value) => new(value, false, false);
 
-        public static JsonReadResult<T> Invalid() => new(default, true);
+        public static JsonReadResult<T> Invalid() => new(default, true, false);
+
+        public static JsonReadResult<T> Oversized() => new(default, false, true);
     }
 
     private sealed record ExpectedVersionResult(
