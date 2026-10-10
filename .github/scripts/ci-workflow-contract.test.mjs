@@ -103,12 +103,12 @@ test('release workflow gates tagging on validation and infrastructure workflows'
   const gate = readWorkflow('.github/scripts/release-gate.sh');
 
   assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /- CI\n\s+- Backend CI\n\s+- iOS CI/);
+  assert.match(workflow, /- CI\n\s+- Security Audit\n\s+- Code Scanning\n\s+- Backend CI\n\s+- iOS CI/);
   assert.match(workflow, /- Azure Infrastructure Deploy/);
   assert.match(workflow, /Wait for required validation and infrastructure workflows/);
   assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
   assert.match(workflow, /--target "\$\{\{ github\.event\.workflow_run\.head_sha \}\}"/);
-  assert.match(gate, /required_workflows=\("CI"\)/);
+  assert.match(gate, /required_workflows=\("CI" "Security Audit" "Code Scanning"\)/);
   assert.match(gate, /required_workflows\+=\("Backend CI"\)/);
   assert.match(gate, /required_workflows\+=\("iOS CI"\)/);
   assert.match(gate, /global/);
@@ -122,4 +122,24 @@ test('release workflow gates tagging on validation and infrastructure workflows'
   assert.match(gate, /git diff-tree --root --no-commit-id --name-only -r -m/);
   assert.doesNotMatch(gate, /git diff --name-only.*\^1/);
   assert.match(gate, /Unable to compute changed files/);
+});
+
+
+test('security workflows scan untrusted PRs without write-capable checkout or comments', () => {
+  const audit = readWorkflow('.github/workflows/security-audit.yaml');
+  const code = readWorkflow('.github/workflows/code-scanning.yaml');
+  for (const workflow of [audit, code]) {
+    assert.match(workflow, /pull_request:\n\s+branches: \[main\]/);
+    assert.doesNotMatch(workflow, /pull_request_target|continue-on-error|persist-credentials: true/);
+    assert.match(workflow, /persist-credentials: false/);
+    assert.match(workflow, /if: always\(\)/);
+    assert.match(workflow, /result != 'success'/);
+  }
+  assert.doesNotMatch(audit, /\n\s+paths:/);
+  assert.match(audit, /GITLEAKS_ENABLE_COMMENTS: "false"/);
+  assert.match(audit, /NuGetAuditMode=all/);
+  assert.match(code, /security-events: write/);
+  assert.match(code, /build-mode: manual/);
+  assert.match(code, /dotnet build backend\/Voxa\.sln/);
+  assert.match(code, /language: \[javascript-typescript, actions\]/);
 });

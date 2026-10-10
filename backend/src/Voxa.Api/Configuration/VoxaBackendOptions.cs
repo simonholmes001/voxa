@@ -8,7 +8,9 @@ public sealed record VoxaBackendOptions(
     string? AppleTenantId = null,
     string? AppleTeamId = null,
     string? AppleKeyId = null,
-    string? ApplePrivateKey = null)
+    string? ApplePrivateKey = null,
+    string? EnvironmentName = null,
+    bool DevResetEnabled = false)
 {
     public IReadOnlyList<string> Validate()
     {
@@ -27,6 +29,10 @@ public sealed record VoxaBackendOptions(
         if (string.IsNullOrWhiteSpace(AppSessionSigningKey))
         {
             errors.Add("APP_SESSION_SIGNING_KEY is required.");
+        }
+        else if (System.Text.Encoding.UTF8.GetByteCount(AppSessionSigningKey) < 32)
+        {
+            errors.Add("APP_SESSION_SIGNING_KEY must contain at least 32 UTF-8 bytes.");
         }
 
         if (string.IsNullOrWhiteSpace(AppleClientId))
@@ -47,6 +53,16 @@ public sealed record VoxaBackendOptions(
         if (string.IsNullOrWhiteSpace(ApplePrivateKey))
         {
             errors.Add("APPLE_PRIVATE_KEY is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(EnvironmentName))
+        {
+            errors.Add("VOXA_ENVIRONMENT is required.");
+        }
+
+        if (DevResetEnabled && !string.Equals(EnvironmentName, "dev", StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add("APP_ENABLE_DEV_RESET may only be enabled when VOXA_ENVIRONMENT is dev.");
         }
 
         return errors;

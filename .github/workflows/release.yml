@@ -7,6 +7,8 @@ on:
   workflow_run:
     workflows:
       - CI
+      - Security Audit
+      - Code Scanning
       - Backend CI
       - iOS CI
       - Azure Infrastructure Deploy

@@ -8,8 +8,12 @@ on:
       - "docs/api-contracts.md"
       - "global.json"
       - ".github/workflows/backend-ci.yaml"
+      - ".github/scripts/check-backend-coverage.py"
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -42,7 +46,7 @@ jobs:
               "${{ github.event.pull_request.head.sha }}"
           )"
 
-          if echo "$changed_files" | grep -Eq '^(backend/|docs/api-contracts\.md$|global\.json$|\.github/workflows/backend-ci\.yaml$)'; then
+          if echo "$changed_files" | grep -Eq '^(backend/|docs/api-contracts\.md$|global\.json$|\.github/workflows/backend-ci\.yaml$|\.github/scripts/check-backend-coverage\.py$)'; then
             echo "run-tests=true" >> "$GITHUB_OUTPUT"
           else
             echo "run-tests=false" >> "$GITHUB_OUTPUT"
@@ -52,6 +56,7 @@ jobs:
   dotnet-tests:
     name: .NET Tests (backend changes)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: backend-ci-required
     if: needs.backend-ci-required.outputs.run-tests == 'true'
     steps:
@@ -59,10 +64,25 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: 10.0.x
 
       - name: Run .NET tests
         shell: bash
-        run: dotnet test backend/*.sln --verbosity minimal
+        run: |
+          rm -rf "$RUNNER_TEMP/voxa-coverage"
+          dotnet test backend/*.sln --verbosity minimal \
+            --collect:"XPlat Code Coverage" \
+            --results-directory "$RUNNER_TEMP/voxa-coverage"
+
+      - name: Enforce backend coverage floors
+        run: python3 .github/scripts/check-backend-coverage.py "$RUNNER_TEMP/voxa-coverage" backend/coverage-thresholds.json
+
+      - name: Upload backend coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: backend-coverage-${{ github.run_id }}
+          path: ${{ runner.temp }}/voxa-coverage/**/coverage.cobertura.xml
+          if-no-files-found: error

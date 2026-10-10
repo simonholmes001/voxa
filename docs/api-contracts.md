@@ -542,3 +542,23 @@ The backend persists:
 - refresh-session records with expiry and revocation support.
 
 Learner-state storage must keep tenant/user scope explicit in partition and row keys. Refresh-session storage must avoid raw-token keys. Tests must prove tenant isolation, JSON round-trip compatibility, stale-version rejection, refresh-token rotation, expiry, and revocation.
+
+## Shared HTTP security limits
+
+Protected routes authenticate before parsing JSON. Missing, expired, malformed,
+forged, or multiple authorization values produce `401 app_session_required`,
+even when the request body is malformed. Tenant and user are taken exclusively
+from the signed bearer session.
+
+JSON bodies are limited to 64 KiB, except `POST /api/language-tools/translate-image`
+at 8 MiB. Larger bodies return `413 request_body_too_large`. Decoded image and
+field-length limits are unchanged.
+
+Account export, realtime debrief, learner plan and reassessment, vocabulary
+quizzes, ask, translation, and image translation share a durable authenticated
+API budget. Exhaustion returns `429 api_request_rate_limited` (minute window) or
+`429 api_request_budget_exhausted` (UTC-month budget). Minute-window exhaustion
+sets `retryable=true`; monthly exhaustion sets `retryable=false` to avoid
+immediate retry loops. Realtime session
+issuance retains its existing separate limits. Account deletion is available
+regardless of API budget exhaustion. See `backend/README.md` for configuration.

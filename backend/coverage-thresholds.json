@@ -1,0 +1,9 @@
+{
+  "overall": 75,
+  "layers": {
+    "Voxa.Domain": 95,
+    "Voxa.Application": 85,
+    "Voxa.Infrastructure": 70,
+    "Voxa.Api": 70
+  }
+}

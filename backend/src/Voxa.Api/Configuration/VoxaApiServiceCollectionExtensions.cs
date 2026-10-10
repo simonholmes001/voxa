@@ -1,3 +1,5 @@
+using System.Globalization;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Voxa.Api.Http;
 using Voxa.Application.Ai;
@@ -6,31 +8,39 @@ using Voxa.Application.Learners;
 using Voxa.Application.Onboarding;
 using Voxa.Application.Practice;
 using Voxa.Application.Realtime;
+using Voxa.Application.Security;
 using Voxa.Infrastructure.Authentication;
 using Voxa.Infrastructure.OpenAI;
 using Voxa.Infrastructure.Persistence;
 using Voxa.Infrastructure.Realtime;
+using Voxa.Infrastructure.Security;
 
 namespace Voxa.Api.Configuration;
 
 public static class VoxaApiServiceCollectionExtensions
 {
     public static IServiceCollection AddVoxaBackendServices(this IServiceCollection services)
+        => services.AddVoxaBackendServices(new ConfigurationBuilder().AddEnvironmentVariables().Build());
+
+    public static IServiceCollection AddVoxaBackendServices(this IServiceCollection services, IConfiguration configuration)
     {
-        var openAiApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "";
-        var storageAccountName = Environment.GetEnvironmentVariable("LEARNER_STATE_STORAGE_NAME")
-            ?? Environment.GetEnvironmentVariable("AzureWebJobsStorage__accountName")
+        var openAiApiKey = configuration["OPENAI_API_KEY"] ?? "";
+        var storageAccountName = configuration["LEARNER_STATE_STORAGE_NAME"]
+            ?? configuration["AzureWebJobsStorage__accountName"]
             ?? "";
-        var appTokenSigningKey = Environment.GetEnvironmentVariable("APP_SESSION_SIGNING_KEY") ?? "";
-        var appleClientId = Environment.GetEnvironmentVariable("APPLE_CLIENT_ID") ?? "";
-        var appleTenantId = Environment.GetEnvironmentVariable("APPLE_TENANT_ID") ?? "tenant-default";
-        var appleTeamId = Environment.GetEnvironmentVariable("APPLE_TEAM_ID") ?? "";
-        var appleKeyId = Environment.GetEnvironmentVariable("APPLE_KEY_ID") ?? "";
-        var applePrivateKey = Environment.GetEnvironmentVariable("APPLE_PRIVATE_KEY") ?? "";
-        var devResetEnabled = string.Equals(
-            Environment.GetEnvironmentVariable("APP_ENABLE_DEV_RESET"),
-            "true",
-            StringComparison.OrdinalIgnoreCase);
+        var appTokenSigningKey = configuration["APP_SESSION_SIGNING_KEY"] ?? "";
+        var appleClientId = configuration["APPLE_CLIENT_ID"] ?? "";
+        var appleTenantId = configuration["APPLE_TENANT_ID"] ?? "tenant-default";
+        var appleTeamId = configuration["APPLE_TEAM_ID"] ?? "";
+        var appleKeyId = configuration["APPLE_KEY_ID"] ?? "";
+        var applePrivateKey = configuration["APPLE_PRIVATE_KEY"] ?? "";
+        var environmentName = configuration["VOXA_ENVIRONMENT"];
+        var resetSetting = configuration["APP_ENABLE_DEV_RESET"];
+        if (resetSetting is not null && !bool.TryParse(resetSetting, out _))
+        {
+            throw new InvalidOperationException("APP_ENABLE_DEV_RESET must be true or false.");
+        }
+        var devResetEnabled = bool.TryParse(resetSetting, out var enabled) && enabled;
 
         var options = new VoxaBackendOptions(
             openAiApiKey,
@@ -40,13 +50,16 @@ public static class VoxaApiServiceCollectionExtensions
             appleTenantId,
             appleTeamId,
             appleKeyId,
-            applePrivateKey);
+            applePrivateKey,
+            environmentName,
+            devResetEnabled);
         var validationErrors = options.Validate();
         if (validationErrors.Count > 0)
         {
             throw new InvalidOperationException(string.Join(" ", validationErrors));
         }
 
+        services.AddSingleton(options);
         services.AddSingleton<ISystemClock, SystemClock>();
         services.AddSingleton(new AppSessionTokenOptions(
             appTokenSigningKey,
@@ -63,7 +76,7 @@ public static class VoxaApiServiceCollectionExtensions
             appleTeamId,
             appleKeyId,
             applePrivateKey));
-        services.AddHttpClient<IAppleIdentityVerifier, AppleJwksIdentityVerifier>();
+        services.AddHttpClient<IAppleIdentityVerifier, AppleJwksIdentityVerifier>(client => client.Timeout = TimeSpan.FromSeconds(30));
         services.AddSingleton<ILearnerStateTable>(_ => AzureTableStorageFactory.CreateLearnerStateTable(storageAccountName));
         services.AddSingleton<IRefreshSessionTable>(_ => AzureTableStorageFactory.CreateRefreshSessionTable(storageAccountName));
         services.AddSingleton<IRealtimeSessionAuditTable>(_ => AzureTableStorageFactory.CreateRealtimeSessionAuditTable(storageAccountName));
@@ -76,17 +89,22 @@ public static class VoxaApiServiceCollectionExtensions
         services.AddSingleton<IAppSessionService, AppSessionService>();
         services.AddSingleton<IAccountDataService, AccountDataService>();
         services.AddSingleton(new RealtimeSessionRateLimitOptions(
-            ReadPositiveInt(
+            ReadPositiveInt(configuration,
                 "REALTIME_SESSION_RATE_LIMIT_PER_WINDOW",
                 RealtimeSessionRateLimitOptions.DefaultMaxRequests),
             RealtimeSessionRateLimitOptions.DefaultWindow,
-            ReadPositiveInt(
+            ReadPositiveInt(configuration,
                 "REALTIME_SESSION_MONTHLY_USER_LIMIT",
                 RealtimeSessionRateLimitOptions.DefaultMonthlyUserSessionLimit),
-            ReadPositiveInt(
+            ReadPositiveInt(configuration,
                 "REALTIME_SESSION_MONTHLY_TENANT_LIMIT",
                 RealtimeSessionRateLimitOptions.DefaultMonthlyTenantSessionLimit)));
         services.AddSingleton<IRealtimeSessionRateLimiter, TableRealtimeSessionRateLimiter>();
+        services.AddSingleton(new ApiRequestBudgetOptions(
+            ReadPositiveInt(configuration, "API_REQUEST_RATE_LIMIT_PER_WINDOW", 20),
+            ReadPositiveInt(configuration, "API_REQUEST_MONTHLY_USER_LIMIT", 3_000),
+            ReadPositiveInt(configuration, "API_REQUEST_MONTHLY_TENANT_LIMIT", 30_000)));
+        services.AddSingleton<IApiRequestBudget, TableApiRequestBudget>();
         services.AddSingleton<IRealtimeSessionAuditLog, TableRealtimeSessionAuditLog>();
         services.AddSingleton<IRealtimeSessionService, RealtimeSessionService>();
         services.AddSingleton<ILearnerEvidenceService, LearnerEvidenceService>();
@@ -95,22 +113,27 @@ public static class VoxaApiServiceCollectionExtensions
         services.AddHttpClient<IRealtimeClientSecretIssuer, OpenAiRealtimeClientSecretIssuer>(client =>
         {
             client.BaseAddress = new Uri("https://api.openai.com/");
+            client.Timeout = TimeSpan.FromSeconds(60);
         });
         services.AddHttpClient<IDebriefService, OpenAiDebriefService>(client =>
         {
             client.BaseAddress = new Uri("https://api.openai.com/");
+            client.Timeout = TimeSpan.FromSeconds(60);
         });
         services.AddHttpClient<ILearnerPlanService, OpenAiLearnerPlanService>(client =>
         {
             client.BaseAddress = new Uri("https://api.openai.com/");
+            client.Timeout = TimeSpan.FromSeconds(60);
         });
         services.AddHttpClient<ICourseAuthorService, OpenAiCourseAuthorService>(client =>
         {
             client.BaseAddress = new Uri("https://api.openai.com/");
+            client.Timeout = TimeSpan.FromSeconds(60);
         });
         services.AddHttpClient<IPracticeLanguageToolService, OpenAiPracticeLanguageToolService>(client =>
         {
             client.BaseAddress = new Uri("https://api.openai.com/");
+            client.Timeout = TimeSpan.FromSeconds(60);
         });
         services.AddSingleton<ICourseReassessmentService, CourseReassessmentService>();
         services.AddSingleton(new OpenAiRealtimeOptions(openAiApiKey));
@@ -136,14 +159,15 @@ public static class VoxaApiServiceCollectionExtensions
         return services;
     }
 
-    private static int ReadPositiveInt(string name, int fallback)
+    private static int ReadPositiveInt(IConfiguration configuration, string name, int fallback)
     {
-        var raw = Environment.GetEnvironmentVariable(name);
-        if (int.TryParse(raw, out var value) && value > 0)
+        var raw = configuration[name];
+        if (raw is null) return fallback;
+        if (int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var value) && value > 0)
         {
             return value;
         }
 
-        return fallback;
+        throw new InvalidOperationException($"{name} must be a positive integer.");
     }
 }

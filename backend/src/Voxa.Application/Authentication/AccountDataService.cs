@@ -1,7 +1,8 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Voxa.Application.Learners;
 using Voxa.Application.Realtime;
+using Voxa.Application.Security;
 using Voxa.Domain.Learners;
 
 namespace Voxa.Application.Authentication;
@@ -11,7 +12,8 @@ public sealed class AccountDataService(
     IRefreshSessionStore refreshSessions,
     IRealtimeSessionAuditLog realtimeAuditLog,
     IRealtimeSessionRateLimiter realtimeRateLimiter,
-    ILogger<AccountDataService>? logger = null) : IAccountDataService
+    ILogger<AccountDataService>? logger = null,
+    IApiRequestBudget? apiBudget = null) : IAccountDataService
 {
     private readonly ILogger<AccountDataService> logger = logger ?? NullLogger<AccountDataService>.Instance;
 
@@ -51,6 +53,8 @@ public sealed class AccountDataService(
                 cancellationToken);
             await realtimeAuditLog.DeleteForSubjectAsync(principal.TenantId, principal.UserId, cancellationToken);
             await realtimeRateLimiter.DeleteForSubjectAsync(principal.TenantId, principal.UserId, cancellationToken);
+            if (apiBudget is not null)
+                await apiBudget.DeleteForSubjectAsync(principal.TenantId, principal.UserId, cancellationToken);
             await learnerStates.DeleteAsync(principal.TenantId, principal.UserId, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)

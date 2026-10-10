@@ -305,6 +305,8 @@ Before public release, reconcile runtime behavior with:
 - [`docs/privacy-security-assurance.md`](docs/privacy-security-assurance.md)
 - [`docs/app-store-privacy-checklist.md`](docs/app-store-privacy-checklist.md)
 - [`docs/app-store-submission-package.md`](docs/app-store-submission-package.md)
+- [`docs/security-and-deployment-checklist.md`](docs/security-and-deployment-checklist.md)
+- [`docs/security-hardening-backlog.md`](docs/security-hardening-backlog.md)
 - The published privacy policy URL configured as `VOXA_PRIVACY_POLICY_URL`
 
 In particular, verify data-retention behavior against deployed Azure storage,
@@ -358,4 +360,3 @@ rules.
 - [Feature-branch testing](docs/feature-branch-testing.md)
 - [Privacy and security assurance](docs/privacy-security-assurance.md)
 - [Engineering guidelines](docs/engineering-guidelines.md)
-
