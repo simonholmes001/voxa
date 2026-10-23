@@ -75,7 +75,7 @@ jobs:
             GIT_CONFIG_VALUE_0=all \
             swift test \
               --package-path ios/VoxaApp \
-              --filter 'AuthViewModelTests|VoxaBackendAuthenticationServiceTests'
+              --filter 'AuthViewModelTests|VoxaBackendAuthenticationServiceTests|LearningReminderSchedulerTests|LearningReminderCopyTests'
 
   app-simulator-tests:
     name: iPhone/iPad App Simulator Tests (iOS changes)

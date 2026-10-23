@@ -57,7 +57,7 @@ struct VoxaApp: App {
         let settings = await center.notificationSettings()
         switch settings.authorizationStatus {
         case .authorized, .provisional, .ephemeral:
-            refreshLearningReminderSchedule()
+            await refreshLearningReminderSchedule()
         case .notDetermined where !hasPromptedForLearningNotifications:
             try? await Task.sleep(nanoseconds: 900_000_000)
             showNotificationPrimer = true
@@ -72,7 +72,7 @@ struct VoxaApp: App {
         do {
             let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
             if granted {
-                refreshLearningReminderSchedule()
+                await refreshLearningReminderSchedule()
             } else {
                 showNotificationDeniedFollowUp = true
             }
@@ -81,14 +81,10 @@ struct VoxaApp: App {
         }
     }
 
-    private func refreshLearningReminderSchedule() {
-        guard let snapshot = LearningReminderSnapshotStore.load() else {
-            // Remove the legacy generic request. A personalised schedule is
-            // created as soon as the learner enables reminders from Settings.
-            LearningReminderScheduler.removeScheduledReminders()
-            return
-        }
-        LearningReminderScheduler.schedule(snapshot: snapshot)
+    @MainActor
+    private func refreshLearningReminderSchedule() async {
+        _ = await LearningReminderScheduler.schedule(snapshot: LearningReminderSnapshotStore.load())
     }
+
     #endif
 }

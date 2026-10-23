@@ -49,7 +49,7 @@ test('iOS CI workflow uses a required sentinel and covers iPhone and iPad simula
   assert.match(workflow, /if: needs\.ios-ci-required\.outputs\.run-tests == 'true'/);
   assert.match(workflow, /swift-package-privacy-tests:/);
   assert.match(workflow, /Run privacy-critical Swift package tests/);
-  assert.match(workflow, /swift test\s+\\\n\s+--package-path ios\/VoxaApp\s+\\\n\s+--filter 'AuthViewModelTests\|VoxaBackendAuthenticationServiceTests'/);
+  assert.match(workflow, /swift test\s+\\\n\s+--package-path ios\/VoxaApp\s+\\\n\s+--filter 'AuthViewModelTests\|VoxaBackendAuthenticationServiceTests\|LearningReminderSchedulerTests\|LearningReminderCopyTests'/);
   assert.doesNotMatch(workflow, /iPhone\/iPad Swift Tests \(iOS changes\)/);
   assert.match(workflow, /timeout-minutes: 10/);
   assert.match(workflow, /timeout-minutes: 25/);

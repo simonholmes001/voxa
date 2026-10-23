@@ -343,7 +343,7 @@ private struct DailyLearningReminderSection: View {
         } footer: {
             Text("Voxa sends at most one daily reminder to continue learning.")
         }
-        .task { await refreshStatus() }
+        .task(id: snapshot) { await refreshStatus() }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             Task { await refreshStatus() }
         }
@@ -359,6 +359,8 @@ private struct DailyLearningReminderSection: View {
             return "Turn on daily reminders"
         case .denied:
             return "Open iOS Settings"
+        case .needsProfile:
+            return "Load learning progress"
         case .unavailable:
             return "Try again"
         }
@@ -378,10 +380,14 @@ private struct DailyLearningReminderSection: View {
     @MainActor
     private func refreshStatus() async {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
-        status = ReminderStatus(settings.authorizationStatus)
-        message = message(for: status)
-        if status == .authorized {
-            scheduleDailyLearningReminder()
+        let permission = ReminderStatus(settings.authorizationStatus)
+        if permission == .authorized {
+            status = .checking
+            message = message(for: .checking)
+            await scheduleDailyLearningReminder()
+        } else {
+            status = permission
+            message = message(for: permission)
         }
     }
 
@@ -395,17 +401,13 @@ private struct DailyLearningReminderSection: View {
         switch settings.authorizationStatus {
         case .authorized, .provisional, .ephemeral:
             hasPromptedForLearningNotifications = true
-            scheduleDailyLearningReminder()
-            status = .authorized
-            message = message(for: .authorized)
+            await scheduleDailyLearningReminder()
         case .notDetermined:
             hasPromptedForLearningNotifications = true
             do {
                 let granted = try await center.requestAuthorization(options: [.alert, .sound])
                 if granted {
-                    scheduleDailyLearningReminder()
-                    status = .authorized
-                    message = message(for: .authorized)
+                    await scheduleDailyLearningReminder()
                 } else {
                     status = .denied
                     message = message(for: .denied)
@@ -426,12 +428,17 @@ private struct DailyLearningReminderSection: View {
         }
     }
 
-    private func scheduleDailyLearningReminder() {
-        guard let snapshot else {
-            LearningReminderScheduler.removeScheduledReminders()
-            return
+    @MainActor
+    private func scheduleDailyLearningReminder() async {
+        switch await LearningReminderScheduler.schedule(snapshot: snapshot) {
+        case .scheduled:
+            status = .authorized
+        case .needsProfile:
+            status = .needsProfile
+        case .failed:
+            status = .unavailable
         }
-        LearningReminderScheduler.schedule(snapshot: snapshot)
+        message = message(for: status)
     }
 
     private func message(for status: ReminderStatus) -> String {
@@ -444,8 +451,10 @@ private struct DailyLearningReminderSection: View {
             return "Turn on reminders to get a daily nudge to keep your progress moving."
         case .denied:
             return "Notifications are off for Voxa. Open iOS Settings to allow reminders."
+        case .needsProfile:
+            return "Open Home to load your learning profile, then return here to set up reminders."
         case .unavailable:
-            return "Voxa could not check notification settings. Please try again."
+            return "Voxa could not verify your reminder schedule. Please try again."
         }
     }
 
@@ -456,6 +465,7 @@ private enum ReminderStatus {
     case authorized
     case notDetermined
     case denied
+    case needsProfile
     case unavailable
 
     init(_ authorizationStatus: UNAuthorizationStatus) {
