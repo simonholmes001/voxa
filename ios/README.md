@@ -254,3 +254,23 @@ Required repository secrets before TestFlight uploads work:
 - `APP_STORE_CONNECT_API_KEY_BASE64`
 - `VOXA_XCODE_PROJECT` or `VOXA_XCODE_WORKSPACE`
 - `VOXA_XCODE_SCHEME`
+
+### Daily learning reminders
+
+After notification permission is granted and a learner snapshot is available,
+Voxa schedules seven weekly repeating local notifications, one per weekday at
+18:00 device-local time. They continue without reopening the app. Messages vary
+by weekday and use the saved language and daily goal, without repeating stale
+daily progress or review counts.
+
+Opening the app or More refreshes the schedule. While Home is loading, the last
+saved snapshot is used; missing data never clears pending requests. More reports
+“Daily reminders on” only after all seven repeating requests are verified in
+the notification center. A failed add/verification shows a retry message and
+logs an event under the `learning-reminders` category without learner data.
+
+Existing dated requests are replaced using the same seven identifiers. The
+legacy generic request is removed only after replacements are verified. iOS
+notification permissions, Focus and notification-summary settings still control
+presentation. The scheduler tests run in the existing Swift package CI job;
+iPhone/iPad simulator tests compile and exercise the app integration.

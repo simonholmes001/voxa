@@ -118,7 +118,7 @@ public struct RootView: View {
             snapshot: snapshot,
             notificationsAuthorized: authorized
         ), let snapshot else { return }
-        LearningReminderScheduler.schedule(snapshot: snapshot)
+        _ = await LearningReminderScheduler.schedule(snapshot: snapshot)
     }
     #endif
 
